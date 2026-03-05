@@ -1,7 +1,7 @@
-#Graduation Project - Data Science
+# Graduation Project - Data Science
 
 
-##Students:
+## Students:
 
 - **Hamzah Drawsheh**
 - **Mahde Hanandeh**
