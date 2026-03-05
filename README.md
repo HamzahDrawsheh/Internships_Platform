@@ -1,83 +1,51 @@
-# InternConnect Jordan
+#Graduation Project - Data Science
 
-InternConnect Jordan is a web platform that connects AI and Data Science students in Jordan with companies offering internships.
 
-The platform allows:
-- Students to discover and apply to internships
-- Companies to post internships and review applicants
-- University supervisors to monitor student internships
+##Students:
+
+- **Hamzah Drawsheh**
+- **Mahde Hanandeh**
+- **Mohammad Othman**
+- **Jad Awad-Allah**
+
+
+# Internships Platform
+
+This project is an **Internship Management Platform** for IT students, companies, and university supervisors.  
+It provides a structured, organized, and transparent environment to manage internship opportunities, applications, and monitoring.
 
 ---
 
-# Tech Stack
+## Features
 
-Frontend:
-- Next.js
+- **Students**: Browse and apply to internships, manage applications, view notifications.  
+- **Companies**: Post internships, manage applications, edit internships, view analytics.  
+- **Supervisors**: Monitor students, approve applications, generate reports.  
+- **Admin**: Manage users, internships, dashboards for analytics and monitoring.
+
+---
+
+## Tech Stack
+
+**Frontend**:
+- Next.js (App Router)
 - TypeScript
 - Tailwind CSS
+- Shadcn/UI components
 
-Backend:
-- FastAPI
-- Python
-
-Database:
+**Backend & Database**:
 - Supabase (PostgreSQL)
+- Supabase Auth for authentication
+- Supabase Storage for file management
 
-Authentication:
-- Supabase Auth
-
-Storage:
-- Supabase Storage
+> Note: This project is primarily a frontend application integrated with Supabase. No separate FastAPI backend is used.
 
 ---
 
-# Project Structure
+## Project Structure
 
-
-
-
-internconnect-jordan/
-
-frontend/ → Next.js web application
-backend/ → FastAPI API server
-CONTEXT_ENG/ → Project documentation
-
-
----
-
-# Running the Project
-
-## Frontend
-cd frontend
-npm install
-npm run dev
-
-
-## Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-
-
-
----
-
-# Documentation
-
-Project documentation is located in:
-CONTEXT_ENG/
-
-
-Includes:
-
-- PRD.md
-- Implementation.md
-- UI_UX_doc.md
-- Project_structure.md
-- Bug_tracking.md
-
----
-
-# Project Status
-
-Currently under development (MVP stage).
+```text
+Intrenships_Platform/
+├─ frontend/          → Next.js application code
+├─ CONTEXT_ENG/       → Project documentation and implementation guides
+├─ Project Diagrams/  → UML diagrams, business process flows
