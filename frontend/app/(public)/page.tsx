@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
+import { CreateDemoButton } from "@/components/demo/CreateDemoButton";
 
 export default function LandingPage() {
   return (
@@ -15,6 +16,7 @@ export default function LandingPage() {
             <Link href="/auth/signup"><Button variant="primary">Sign Up</Button></Link>
             <Link href="/auth/login"><Button variant="secondary">Login</Button></Link>
             <Link href="/internships"><Button variant="secondary">Browse Internships</Button></Link>
+            <CreateDemoButton />
           </div>
         </Container>
       </section>
