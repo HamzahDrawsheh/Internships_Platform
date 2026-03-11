@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ApplicationTable from "@/components/applications/ApplicationTable";
+import { StatCard, EmptyState, Button } from "@/components/ui";
 import type { Application } from "@/lib/types";
 
 export default function StudentDashboardContent() {
@@ -51,40 +53,63 @@ export default function StudentDashboardContent() {
     });
   }, []);
 
-  const total = applications.length;
-  const underReview = applications.filter((a) => a.status === "under_review").length;
+  const submitted = applications.length;
   const accepted = applications.filter((a) => a.status === "accepted").length;
-  const recent = applications.slice(0, 5);
+  const rejected = applications.filter((a) => a.status === "rejected").length;
+  const tableRows = applications.slice(0, 10);
 
-  if (loading) return <p className="text-gray-600">Loading…</p>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl border border-gray-200 bg-gray-50" />
+          ))}
+        </div>
+        <div className="h-64 animate-pulse rounded-xl border border-gray-200 bg-gray-50" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="grid gap-6 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Total applications</p>
-          <p className="text-2xl font-bold text-gray-900">{total}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Under review</p>
-          <p className="text-2xl font-bold text-gray-900">{underReview}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Accepted</p>
-          <p className="text-2xl font-bold text-gray-900">{accepted}</p>
-        </div>
+    <div className="space-y-8">
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Applications submitted" value={submitted} />
+        <StatCard label="Accepted internships" value={accepted} />
+        <StatCard label="Rejected applications" value={rejected} />
       </div>
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">Recent applications</h2>
-        <p className="text-sm text-gray-600">Last 5 applications</p>
-        {recent.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">No applications yet.</p>
-        ) : (
-          <div className="mt-4">
-            <ApplicationTable applications={recent} showViewAction />
+
+      {/* Table */}
+      <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Applications</h2>
+              <p className="text-sm text-gray-500">Your internship applications and their status.</p>
+            </div>
+            {applications.length > 10 && (
+              <Link href="/applications">
+                <Button variant="secondary">View all</Button>
+              </Link>
+            )}
           </div>
-        )}
+        </div>
+        <div className="overflow-x-auto">
+          {tableRows.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                title="No applications yet"
+                description="Apply to internships to see them here."
+                actionLabel="Browse internships"
+                actionHref="/internships"
+              />
+            </div>
+          ) : (
+            <ApplicationTable applications={tableRows} showViewAction />
+          )}
+        </div>
       </section>
-    </>
+    </div>
   );
 }
