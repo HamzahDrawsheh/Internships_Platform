@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
 
@@ -22,7 +23,14 @@ export default function LandingPage() {
             </div>
             <div className="flex justify-center">
               <div className="flex h-80 w-full max-w-md items-center justify-center rounded-2xl border border-[#E2E8F0] bg-[#F3E8FF] shadow-sm lg:h-96">
-                <span className="text-6xl opacity-60">📊</span>
+                <Image
+                  src="/hero_png.jpg"
+                  alt="AI Data Science Illustration"
+                  width={600}
+                  height={600}
+                  className="w-full h-full object-cover rounded-xl"
+                  priority
+                />
               </div>
             </div>
           </div>
