@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { ProfileRole } from "@/lib/types";
+import { api } from "@/lib/api";
 
 const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/verify"];
 const AUTH_PATHS = ["/auth/login", "/auth/signup"];
@@ -117,12 +118,16 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  const role = (profile?.role as ProfileRole) ?? null;
+  let role: ProfileRole | null = null;
+  const token = (await supabase.auth.getSession()).data.session?.access_token;
+  if (token) {
+    try {
+      const profile = await api.get<{ role?: ProfileRole }>("/profiles/me", { token });
+      role = profile?.role ?? null;
+    } catch {
+      // leave role null
+    }
+  }
 
   if (isAuthPath(pathname)) {
     const url = request.nextUrl.clone();

@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { InternshipFiltersSidebar, type InternshipFiltersState } from "@/components/internships/InternshipFiltersSidebar";
 import { InternshipCard } from "@/components/internships/InternshipCard";
 import { Button, EmptyState } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api";
 import type { Internship } from "@/lib/types";
 
 const defaultFilters: InternshipFiltersState = {
@@ -24,48 +24,24 @@ export default function BrowseInternshipsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
-    let query = supabase
-      .from("internships")
-      .select(`
-        id,
-        company_id,
-        title,
-        description,
-        location_type,
-        skills,
-        duration_weeks,
-        start_date,
-        deadline,
-        open_positions,
-        status,
-        created_at,
-        company:profiles!company_id(full_name)
-      `)
-      .eq("status", "active")
-      .order("created_at", { ascending: false });
+    const params = new URLSearchParams();
+    params.set("status", "active");
+    if (filters.location) params.set("location_type", filters.location);
+    if (filters.duration) params.set("duration_weeks", filters.duration);
+    if (filters.deadline) params.set("deadline_lte", filters.deadline);
 
-    if (filters.location) query = query.eq("location_type", filters.location);
-    if (filters.skill) query = query.contains("skills", [filters.skill]);
-    if (filters.duration) query = query.eq("duration_weeks", parseInt(filters.duration, 10));
-    if (filters.deadline) query = query.lte("deadline", filters.deadline);
-
-    query.then(({ data, error }) => {
-      if (error) {
-        setInternships([]);
-        setLoading(false);
-        return;
-      }
-      const rows = (data ?? []).map((row: Record<string, unknown>) => {
-        const company = row.company as { full_name?: string } | null;
-        return {
-          ...row,
-          company_name: company?.full_name ?? null,
-        } as Internship;
-      });
-      setInternships(rows);
-      setLoading(false);
-    });
+    api
+      .get<{ data: Internship[] }>(`/internships?${params.toString()}`)
+      .then(({ data }) => {
+        const list = data ?? [];
+        if (filters.skill) {
+          setInternships(list.filter((i) => (i.skills ?? []).some((s) => s.toLowerCase().includes(filters.skill.toLowerCase()))));
+        } else {
+          setInternships(list);
+        }
+      })
+      .catch(() => setInternships([]))
+      .finally(() => setLoading(false));
   }, [filters.location, filters.skill, filters.duration, filters.deadline]);
 
   const filteredBySearch = useMemo(() => {

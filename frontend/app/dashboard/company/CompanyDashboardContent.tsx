@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api";
 import { Table } from "@/components/ui";
 import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
 import { StatCard, EmptyState, Button } from "@/components/ui";
@@ -23,72 +23,42 @@ export default function CompanyDashboardContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
+    Promise.all([
+      api.get<{ id: string }>("/auth/me").catch(() => null),
+      api.get<{ data: Array<{ id: string; company_id: string; status: string }> }>("/internships").catch(() => ({ data: [] })),
+    ]).then(([me, internshipsRes]) => {
+      const userId = me?.id;
+      const all = internshipsRes?.data ?? [];
+      const mine = userId ? all.filter((i) => i.company_id === userId) : [];
+      const activeCount = mine.filter((i) => i.status === "active").length;
+      setActiveInternships(activeCount);
+
+      if (mine.length === 0) {
+        setApplicantCount(0);
+        setAcceptedCount(0);
+        setApplicants([]);
         setLoading(false);
         return;
       }
-      // Active internships count (status = 'active')
-      supabase
-        .from("internships")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", user.id)
-        .eq("status", "active")
-        .then(({ count }) => setActiveInternships(count ?? 0));
 
-      supabase
-        .from("internships")
-        .select("id")
-        .eq("company_id", user.id)
-        .then(({ data: internships }) => {
-          const ids = (internships ?? []).map((i) => i.id);
-          if (ids.length === 0) {
-            setApplicantCount(0);
-            setAcceptedCount(0);
-            setApplicants([]);
-            setLoading(false);
-            return;
-          }
-          // Total applicants
-          supabase
-            .from("applications")
-            .select("id", { count: "exact", head: true })
-            .in("internship_id", ids)
-            .then(({ count }) => setApplicantCount(count ?? 0));
-          // Accepted students count
-          supabase
-            .from("applications")
-            .select("id", { count: "exact", head: true })
-            .in("internship_id", ids)
-            .eq("status", "accepted")
-            .then(({ count }) => setAcceptedCount(count ?? 0));
-          // Recent applicants for table
-          supabase
-            .from("applications")
-            .select(`
-              id,
-              status,
-              created_at,
-              internship:internships(title),
-              student:profiles!student_id(full_name)
-            `)
-            .in("internship_id", ids)
-            .order("created_at", { ascending: false })
-            .limit(10)
-            .then(({ data }) => {
-              const rows = (data ?? []).map((row: Record<string, unknown>) => ({
-                id: row.id,
-                status: row.status,
-                created_at: row.created_at,
-                internship_title: (row.internship as { title?: string } | null)?.title,
-                student_name: (row.student as { full_name?: string } | null)?.full_name,
-              })) as ApplicantRow[];
-              setApplicants(rows);
-            })
-            .then(() => setLoading(false), () => setLoading(false));
-        });
-    });
+      Promise.all(mine.map((i) => api.get<{ data: Array<{ id: string; status: string; created_at: string; internship_title?: string }> }>(`/internships/${i.id}/applications`).catch(() => ({ data: [] }))))
+        .then((results) => {
+          const allApps = results.flatMap((r) => r.data ?? []);
+          setApplicantCount(allApps.length);
+          setAcceptedCount(allApps.filter((a) => a.status === "accepted").length);
+          const sorted = [...allApps].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 10);
+          setApplicants(
+            sorted.map((a) => ({
+              id: a.id,
+              status: a.status,
+              created_at: a.created_at,
+              internship_title: a.internship_title,
+              student_name: undefined,
+            }))
+          );
+        })
+        .finally(() => setLoading(false));
+    }).catch(() => setLoading(false));
   }, []);
 
   if (loading) {

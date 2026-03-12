@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/Button";
-import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api";
 import type { Internship } from "@/lib/types";
 
 const locationLabel: Record<string, string> = {
@@ -61,44 +61,11 @@ export function FeaturedInternships() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("internships")
-      .select(
-        `
-        id,
-        company_id,
-        title,
-        description,
-        location_type,
-        skills,
-        duration_weeks,
-        start_date,
-        deadline,
-        open_positions,
-        status,
-        company:profiles!company_id(full_name)
-      `
-      )
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(6)
-      .then(({ data, error }) => {
-        if (error) {
-          setInternships([]);
-          setLoading(false);
-          return;
-        }
-        const rows = (data ?? []).map((row: Record<string, unknown>) => {
-          const company = row.company as { full_name?: string } | null;
-          return {
-            ...row,
-            company_name: company?.full_name ?? null,
-          } as Internship;
-        });
-        setInternships(rows);
-        setLoading(false);
-      });
+    api
+      .get<{ data: Internship[] }>("/internships?status=active")
+      .then(({ data }) => setInternships((data ?? []).slice(0, 6)))
+      .catch(() => setInternships([]))
+      .finally(() => setLoading(false));
   }, []);
 
   return (

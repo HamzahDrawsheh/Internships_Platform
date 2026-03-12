@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserRole } from "@/lib/auth";
 import type { ProfileRole } from "@/lib/types";
 
 const roleHome: Record<ProfileRole, string> = {
@@ -16,12 +17,7 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  const role = (profile?.role as ProfileRole) ?? null;
+  const role = await getCurrentUserRole();
   const home = role ? roleHome[role] : "/onboarding";
   redirect(home);
 }

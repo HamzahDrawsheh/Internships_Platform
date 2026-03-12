@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Input, Select, Button } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api";
 
 const roleOptions: SelectOption[] = [
   { value: "student", label: "Student" },
@@ -30,10 +31,9 @@ export default function OnboardingPage() {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
     const email = session?.user?.email ?? "";
 
-    if (!userId || !email) {
+    if (!session?.user?.id) {
       setError("You must be signed in to complete your profile.");
       setLoading(false);
       router.push("/auth/login");
@@ -47,29 +47,13 @@ export default function OnboardingPage() {
       return;
     }
 
-    const { error: insertError } = await supabase.from("profiles").insert({
-      id: userId,
-      role,
-      full_name: name,
-      email,
-    });
-
-    if (insertError) {
-      if (insertError.code === "23505") {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ role, full_name: name, email })
-          .eq("id", userId);
-        if (updateError) {
-          setError(updateError.message);
-          setLoading(false);
-          return;
-        }
-      } else {
-        setError(insertError.message);
-        setLoading(false);
-        return;
-      }
+    try {
+      await api.get("/auth/me");
+      await api.patch("/profiles/me", { role, full_name: name, email: email || undefined });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save profile.");
+      setLoading(false);
+      return;
     }
 
     setLoading(false);
