@@ -2,9 +2,6 @@ import type { Request, Response, NextFunction } from "express";
 import * as jose from "jose";
 import { config } from "../config";
 
-const SUPABASE_ISSUER = "https://wgugwqrlhftohqezqgau.supabase.co/auth/v1";
-const SUPABASE_AUDIENCE = "authenticated";
-
 const jwks = jose.createRemoteJWKSet(new URL(config.SUPABASE_JWT_JWKS_URL));
 
 export async function authMiddleware(
@@ -27,8 +24,8 @@ export async function authMiddleware(
 
   try {
     const { payload } = await jose.jwtVerify(token, jwks, {
-      issuer: SUPABASE_ISSUER,
-      audience: SUPABASE_AUDIENCE,
+      issuer: config.SUPABASE_ISSUER,
+      audience: config.SUPABASE_AUDIENCE,
     });
 
     const sub = payload.sub;

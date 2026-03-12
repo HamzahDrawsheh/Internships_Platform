@@ -23,7 +23,7 @@ This guide explains how to run the backend, obtain a Supabase access token, and 
    ```
    Edit `.env` and set:
    - `DATABASE_PATH` — path to SQLite file (e.g. `./database.db`)
-   - `SUPABASE_JWT_SECRET` — from Supabase Dashboard → Project Settings → API → JWT Secret
+   - `SUPABASE_JWT_JWKS_URL` — Supabase JWKS URL (e.g. `https://YOUR_PROJECT_REF.supabase.co/auth/v1/.well-known/jwks.json`)
 
 3. **Start the server:**
    ```bash
@@ -36,6 +36,15 @@ This guide explains how to run the backend, obtain a Supabase access token, and 
    curl http://localhost:3001/health
    ```
    Expected: `{"status":"ok"}`
+
+5. **Load demo data (optional, recommended for local development):**
+
+   ```bash
+   cd backend
+   npm run seed
+   ```
+
+   This clears and repopulates the local SQLite database with demo `profiles`, `internships`, and `applications` using `src/seed.ts`. This is now the **only supported way** to create demo data for the backend. The old Supabase-based `/api/create-demo` route has been removed to avoid confusion.
 
 ---
 

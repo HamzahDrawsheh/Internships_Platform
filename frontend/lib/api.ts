@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
  * Get the current Supabase access token (client-side only).
@@ -49,13 +49,34 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const url = path.startsWith("http") ? path : `${API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-  const res = await fetch(url, {
-    ...init,
-    method,
-    headers,
-    body: body !== undefined && body !== null && method !== "GET" ? JSON.stringify(body) : undefined,
-  });
+  const url = path.startsWith("http")
+    ? path
+    : `${API_BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+
+  // Debug logging to help diagnose connectivity issues
+  // eslint-disable-next-line no-console
+  console.log("[API] Request", { method, url, hasToken: !!token, body });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      method,
+      headers,
+      body:
+        body !== undefined && body !== null && method !== "GET"
+          ? JSON.stringify(body)
+          : undefined,
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[API] Network error", err);
+    throw new ApiError(
+      "Could not connect to the backend server. Make sure the API server is running.",
+      0,
+      err
+    );
+  }
 
   if (!res.ok) {
     let errBody: unknown;
@@ -64,9 +85,13 @@ async function request<T>(
     } catch {
       errBody = await res.text();
     }
-    const message = typeof errBody === "object" && errBody !== null && "error" in errBody
-      ? String((errBody as { error: unknown }).error)
-      : res.statusText || "Request failed";
+    const message =
+      typeof errBody === "object" && errBody !== null && "error" in errBody
+        ? String((errBody as { error: unknown }).error)
+        : res.statusText || "Request failed";
+
+    // eslint-disable-next-line no-console
+    console.error("[API] Error response", { status: res.status, body: errBody });
     throw new ApiError(message, res.status, errBody);
   }
 

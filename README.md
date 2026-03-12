@@ -34,11 +34,11 @@ It provides a structured, organized, and transparent environment to manage inter
 - Shadcn/UI components
 
 **Backend & Database**:
-- Supabase (PostgreSQL)
-- Supabase Auth for authentication
-- Supabase Storage for file management
+- Node.js + Express (custom backend)
+- SQLite (via `better-sqlite3`) as the local data store
+- Supabase Auth for authentication (JWTs verified by the backend using JWKS)
 
-> Note: This project is primarily a frontend application integrated with Supabase. No separate FastAPI backend is used.
+Demo data for local development is loaded into the SQLite database via the backend seed script (see below).
 
 ---
 
@@ -49,8 +49,9 @@ Intrenships_Platform/
 ├─ frontend/          → Next.js application code
 │   ├─ app/           → App Router pages and layouts
 │   ├─ components/    → React components
-│   ├─ lib/           → Supabase clients, auth, types
+│   ├─ lib/           → Supabase clients, backend API client, auth, types
 │   └─ public/        → Static assets
+├─ backend/           → Express + TypeScript API (SQLite, auth, seed)
 ├─ CONTEXT_ENG/       → Project documentation and implementation guides
 ├─ Project Diagrams/  → UML diagrams, business process flows
 ```
@@ -68,6 +69,33 @@ npm run dev
 ```
 
 The site will be available at **http://localhost:3000**.
+
+---
+
+## Backend development & demo data
+
+Run the backend API from the `backend` directory:
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+The API will be available at **http://localhost:3001**.
+
+### Demo data (SQLite)
+
+To populate the local SQLite database with demo profiles, internships, and applications:
+
+```bash
+cd backend
+npm run seed
+```
+
+This will clear the existing SQLite tables and insert demo data via `src/seed.ts`.  
+This is the **recommended and only supported way** to create demo data now.  
+The previous Supabase-based `frontend/app/api/create-demo/route.ts` has been removed to avoid duplicating demo logic.
 
 ### Environment variables
 

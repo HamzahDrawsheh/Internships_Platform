@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
-import Textarea from "@/components/common/Textarea";
-import Button from "@/components/common/Button";
+import { Input, Select, Textarea, Button } from "@/components/ui";
 import type { LocationType } from "@/lib/types";
 
 export interface InternshipFormValues {
@@ -29,6 +26,8 @@ interface InternshipFormProps {
   onSubmit: (values: InternshipFormValues) => void;
   onSaveDraft?: (values: InternshipFormValues) => void;
   submitLabel?: string;
+  submitting?: boolean;
+  errorMessage?: string | null;
 }
 
 const defaultValues: InternshipFormValues = {
@@ -47,6 +46,8 @@ export default function InternshipForm({
   onSubmit,
   onSaveDraft,
   submitLabel = "Publish",
+  submitting = false,
+  errorMessage,
 }: InternshipFormProps) {
   const [values, setValues] = useState<InternshipFormValues>({ ...defaultValues, ...initialValues });
 
@@ -57,6 +58,11 @@ export default function InternshipForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {errorMessage && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {errorMessage}
+        </div>
+      )}
       <Input
         label="Title"
         required
@@ -115,9 +121,16 @@ export default function InternshipForm({
         />
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="primary">{submitLabel}</Button>
+        <Button type="submit" variant="primary" disabled={submitting}>
+          {submitting ? "Saving…" : submitLabel}
+        </Button>
         {onSaveDraft && (
-          <Button type="button" variant="secondary" onClick={() => onSaveDraft(values)}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onSaveDraft(values)}
+            disabled={submitting}
+          >
             Save as Draft
           </Button>
         )}

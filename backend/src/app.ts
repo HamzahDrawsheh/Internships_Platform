@@ -5,12 +5,13 @@ import authRoutes from "./routes/auth";
 import profilesRoutes from "./routes/profiles";
 import internshipsRoutes from "./routes/internships";
 import applicationsRoutes from "./routes/applications";
+import { config } from "./config";
 
 const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: config.CORS_ORIGIN,
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

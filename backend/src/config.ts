@@ -9,6 +9,17 @@ const envSchema = z.object({
     .transform((s) => parseInt(s, 10)),
   DATABASE_PATH: z.string().min(1, "DATABASE_PATH is required"),
   SUPABASE_JWT_JWKS_URL: z.string().url("SUPABASE_JWT_JWKS_URL must be a valid URL"),
+  SUPABASE_ISSUER: z
+    .string()
+    .url("SUPABASE_ISSUER must be a valid URL")
+    .min(1, "SUPABASE_ISSUER is required"),
+  SUPABASE_AUDIENCE: z
+    .string()
+    .min(1, "SUPABASE_AUDIENCE is required")
+    .default("authenticated"),
+  CORS_ORIGIN: z
+    .string()
+    .min(1, "CORS_ORIGIN is required"),
   NODE_ENV: z.enum(["development", "production"]).optional().default("development"),
 });
 

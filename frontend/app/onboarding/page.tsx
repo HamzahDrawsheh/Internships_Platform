@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Input, Select, Button } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 const roleOptions: SelectOption[] = [
   { value: "student", label: "Student" },
@@ -26,6 +26,10 @@ export default function OnboardingPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // Debug: log submission intent
+    // eslint-disable-next-line no-console
+    console.log("Submitting profile", { name: fullName, role });
 
     const supabase = createClient();
     const {
@@ -48,23 +52,26 @@ export default function OnboardingPage() {
     }
 
     try {
-      await api.get("/auth/me");
-      await api.patch("/profiles/me", { role, full_name: name, email: email || undefined });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save profile.");
-      setLoading(false);
-      return;
-    }
+      await api.patch("/profiles/me", { full_name: name, role: role });
 
-    setLoading(false);
-    const dashboardPath =
-      role === "student"
-        ? "/dashboard/student"
-        : role === "company"
-          ? "/dashboard/company"
-          : "/dashboard/supervisor";
-    router.push(dashboardPath);
-    router.refresh();
+      // Debug: log successful update
+      // eslint-disable-next-line no-console
+      console.log("Profile saved successfully");
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Error saving profile", err);
+
+      if (err instanceof ApiError && err.status === 0) {
+        setError("Could not connect to the backend server. Make sure the API is running.");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to save profile.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -1,40 +1,133 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Input, Select, Textarea, Button, Card } from "@/components/ui";
-import type { SelectOption } from "@/components/ui";
-
-const locationOptions: SelectOption[] = [
-  { value: "remote", label: "Remote" },
-  { value: "onsite", label: "On-site" },
-  { value: "hybrid", label: "Hybrid" },
-];
+import InternshipForm, {
+  type InternshipFormValues,
+} from "@/components/internships/InternshipForm";
+import { Button } from "@/components/ui";
+import { api, ApiError } from "@/lib/api";
+import type { Internship } from "@/lib/types";
 
 export default function EditInternshipPage() {
   const params = useParams();
   const router = useRouter();
-  const id = typeof params.id === "string" ? params.id : "";
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [locationType, setLocationType] = useState("hybrid");
-  const [skills, setSkills] = useState("");
-  const [durationWeeks, setDurationWeeks] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [openPositions, setOpenPositions] = useState("1");
+  const rawId = params?.id;
+  const id = typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : "";
 
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push("/company/internships");
+  const [initialValues, setInitialValues] = useState<Partial<InternshipFormValues> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) {
+      setErrorMessage("Invalid internship id.");
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setErrorMessage(null);
+
+    api
+      .get<Internship>(`/internships/${id}`)
+      .then((internship) => {
+        if (cancelled) return;
+        const values: Partial<InternshipFormValues> = {
+          title: internship.title ?? "",
+          description: internship.description ?? "",
+          locationType: internship.location_type ?? "hybrid",
+          skills: (internship.skills ?? []).join(", "),
+          durationWeeks: internship.duration_weeks != null ? String(internship.duration_weeks) : "",
+          startDate: internship.start_date ?? "",
+          deadline: internship.deadline ?? "",
+          openPositions: String(internship.open_positions ?? 1),
+        };
+        setInitialValues(values);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) {
+          setErrorMessage("Internship not found.");
+        } else {
+          setErrorMessage("Failed to load internship. Please try again later.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const buildPayload = (values: InternshipFormValues, status: "draft" | "active") => {
+    const openPositions = parseInt(values.openPositions, 10);
+    return {
+      title: values.title.trim(),
+      description: values.description.trim(),
+      location_type: values.locationType,
+      skills: values.skills
+        ? values.skills.split(",").map((s) => s.trim()).filter(Boolean)
+        : [],
+      duration_weeks: values.durationWeeks ? parseInt(values.durationWeeks, 10) : null,
+      start_date: values.startDate || null,
+      deadline: values.deadline || null,
+      open_positions: Number.isFinite(openPositions) && openPositions > 0 ? openPositions : 1,
+      status,
+    };
   };
 
-  const handleSaveDraft = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push("/company/internships");
+  const handleSubmit = async (values: InternshipFormValues) => {
+    if (!id) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const body = buildPayload(values, "active");
+      if (!body.title || !body.description) {
+        setErrorMessage("Title and description are required.");
+        setSubmitting(false);
+        return;
+      }
+      await api.patch(`/internships/${id}`, body);
+      router.push("/company/internships");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.message || "Failed to update internship.");
+      } else {
+        setErrorMessage("Failed to update internship.");
+      }
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async (values: InternshipFormValues) => {
+    if (!id) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const body = buildPayload(values, "draft");
+      if (!body.title || !body.description) {
+        setErrorMessage("Title and description are required.");
+        setSubmitting(false);
+        return;
+      }
+      await api.patch(`/internships/${id}`, body);
+      router.push("/company/internships");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.message || "Failed to save draft.");
+      } else {
+        setErrorMessage("Failed to save draft.");
+      }
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -42,33 +135,25 @@ export default function EditInternshipPage() {
       <Container className="max-w-2xl">
         <PageHeader
           title="Edit Internship"
-          description={id ? `Editing internship` : "Edit internship listing."}
+          description={id ? "Editing internship" : "Edit internship listing."}
           action={
             <Link href="/company/internships">
               <Button variant="secondary">Cancel</Button>
             </Link>
           }
         />
-        <form onSubmit={handleUpdate} className="space-y-6">
-          <Card>
-            <Input label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Machine Learning Intern" />
-            <Textarea label="Description" required rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className="mt-4" placeholder="Role description and responsibilities..." />
-            <Select label="Location type" options={locationOptions} value={locationType} onChange={(e) => setLocationType(e.target.value)} className="mt-4" />
-            <Input label="Required skills (comma-separated)" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Python, ML, SQL" className="mt-4" />
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Input label="Duration (weeks)" type="number" min={1} value={durationWeeks} onChange={(e) => setDurationWeeks(e.target.value)} />
-              <Input label="Open positions" type="number" min={1} value={openPositions} onChange={(e) => setOpenPositions(e.target.value)} />
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Input label="Start date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              <Input label="Application deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-            </div>
-          </Card>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" variant="primary">Update</Button>
-            <Button type="button" variant="secondary" onClick={handleSaveDraft}>Save as Draft</Button>
-          </div>
-        </form>
+        {loading ? (
+          <p className="mt-6 text-sm text-gray-600">Loading internship…</p>
+        ) : (
+          <InternshipForm
+            initialValues={initialValues ?? undefined}
+            onSubmit={handleSubmit}
+            onSaveDraft={handleSaveDraft}
+            submitLabel="Update"
+            submitting={submitting}
+            errorMessage={errorMessage}
+          />
+        )}
       </Container>
     </main>
   );
