@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Input, Textarea, Button, Card } from "@/components/ui";
+import { Input, Textarea, Button, Card, Table } from "@/components/ui";
+import { createClient } from "@/lib/supabase/client";
 
 export default function CompanyProfilePage() {
   const [name, setName] = useState("");
@@ -11,6 +12,44 @@ export default function CompanyProfilePage() {
   const [website, setWebsite] = useState("");
   const [description, setDescription] = useState("");
   const [saved, setSaved] = useState(false);
+  const [ratings, setRatings] = useState<{ id: string; rating: number; feedback: string | null; created_at: string }[]>([]);
+  const [averageRating, setAverageRating] = useState<number | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    const loadRatings = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: company } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+      if (!company) return;
+
+      const { data: rows } = await supabase
+        .from("ratings")
+        .select("id, rating, feedback, created_at")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      const safeRows = rows ?? [];
+      setRatings(safeRows);
+      if (safeRows.length > 0) {
+        const total = safeRows.reduce((sum, r) => sum + Number(r.rating), 0);
+        setAverageRating(total / safeRows.length);
+      } else {
+        setAverageRating(null);
+      }
+    };
+
+    loadRatings();
+  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +83,27 @@ export default function CompanyProfilePage() {
               />
               <p className="mt-2 text-sm text-gray-500">No file selected.</p>
             </div>
+          </Card>
+          <Card>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">Ratings received</h2>
+              <p className="text-sm text-gray-600">
+                {averageRating ? `Average ${averageRating.toFixed(1)} / 5` : "No ratings yet"}
+              </p>
+            </div>
+            {ratings.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500">No student ratings submitted yet.</p>
+            ) : (
+              <Table headers={["Rating", "Feedback", "Date"]} className="mt-4">
+                {ratings.map((r) => (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">{r.rating} / 5</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{r.feedback ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{new Date(r.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </Table>
+            )}
           </Card>
           <Button type="submit" variant="primary">Save changes</Button>
         </form>

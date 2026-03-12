@@ -1,10 +1,18 @@
--- Run this in Supabase SQL Editor to create the profiles table.
--- If you already have a profiles table with a different schema, drop it first:
---   DROP TABLE IF EXISTS public.profiles CASCADE;
--- Then run this script. After running, go to Dashboard → API Settings → "Reload schema cache" if needed.
 
-CREATE TYPE IF NOT EXISTS public.role AS ENUM
-  ('student', 'company', 'supervisor', 'admin');
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'role' AND n.nspname = 'public'
+  ) THEN
+    CREATE TYPE public.role AS ENUM
+      ('student', 'company', 'supervisor', 'admin');
+  END IF;
+END;
+$$;
 
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,

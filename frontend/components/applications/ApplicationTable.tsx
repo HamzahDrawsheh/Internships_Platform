@@ -16,13 +16,13 @@ export default function ApplicationTable({ applications, showViewAction = true }
         <tr key={app.id} className="hover:bg-gray-50">
           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">{app.internship_title ?? "—"}</td>
           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{app.company_name ?? "—"}</td>
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{new Date(app.created_at).toLocaleDateString()}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{new Date(app.applied_at).toLocaleDateString()}</td>
           <td className="whitespace-nowrap px-4 py-3">
             <ApplicationStatusBadge status={app.status} />
           </td>
           {showViewAction && (
             <td className="whitespace-nowrap px-4 py-3">
-                <Link href={`/internships/${app.internship_id}`} className="text-sm font-medium text-gray-600 hover:text-gray-900">
+                <Link href={`/internships/${app.position_id}`} className="text-sm font-medium text-gray-600 hover:text-gray-900">
                 View
               </Link>
             </td>

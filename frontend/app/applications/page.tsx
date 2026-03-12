@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button, Table, EmptyState } from "@/components/ui";
+import { Button } from "@/components/ui";
+import ApplicationsList from "./ApplicationsList";
 
 export default function MyApplicationsPage() {
-  const applications: unknown[] = [];
-
   return (
     <main className="py-8">
       <Container>
@@ -18,18 +17,7 @@ export default function MyApplicationsPage() {
             </Link>
           }
         />
-        {applications.length === 0 ? (
-          <EmptyState
-            title="No applications yet"
-            description="Apply to internships to see them here."
-            actionLabel="Browse internships"
-            actionHref="/internships"
-          />
-        ) : (
-          <Table headers={["Internship", "Company", "Applied date", "Status", "Action"]}>
-            <tr><td colSpan={5} className="px-4 py-3 text-sm text-gray-500">No rows</td></tr>
-          </Table>
-        )}
+        <ApplicationsList />
       </Container>
     </main>
   );

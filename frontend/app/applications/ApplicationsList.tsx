@@ -4,59 +4,145 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ApplicationTable from "@/components/applications/ApplicationTable";
 import EmptyState from "@/components/common/EmptyState";
+import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
 import type { Application } from "@/lib/types";
 
 export default function ApplicationsList() {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [studentId, setStudentId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [ratingValue, setRatingValue] = useState("5");
+  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!user) {
         setApplications([]);
         setLoading(false);
         return;
       }
-      supabase
+
+      const { data: student } = await supabase
+        .from("students")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!student) {
+        setApplications([]);
+        setLoading(false);
+        return;
+      }
+      setStudentId(student.id);
+
+      const { data: appRows, error: appError } = await supabase
         .from("applications")
-        .select(`
-          id,
-          internship_id,
-          student_id,
-          status,
-          cover_letter,
-          created_at,
-          internship:internships(
-            title,
-            company:profiles!company_id(full_name)
-          )
-        `)
-        .eq("student_id", user.id)
-        .order("created_at", { ascending: false })
-        .then(({ data, error }) => {
-          if (error) {
-            setApplications([]);
-          } else {
-            const rows = (data ?? []).map((row: Record<string, unknown>) => {
-              const inv = row.internship as { title?: string; company?: { full_name?: string } } | null;
-              return {
-                id: row.id,
-                internship_id: row.internship_id,
-                student_id: row.student_id,
-                status: row.status,
-                cover_letter: row.cover_letter,
-                created_at: row.created_at,
-                internship_title: inv?.title ?? null,
-                company_name: inv?.company?.full_name ?? null,
-              };
-            }) as Application[];
-            setApplications(rows);
-          }
-          setLoading(false);
-        });
-    });
+        .select("id, student_id, position_id, status, message, applied_at")
+        .eq("student_id", student.id)
+        .order("applied_at", { ascending: false });
+
+      if (appError || !appRows?.length) {
+        setApplications([]);
+        setLoading(false);
+        return;
+      }
+
+      const positionIds = [...new Set(appRows.map((row) => row.position_id))];
+      const { data: positions } = await supabase
+        .from("internship_positions")
+        .select("id, title, company_id")
+        .in("id", positionIds);
+
+      const positionsById = new Map((positions ?? []).map((p) => [p.id, p]));
+
+      const mapped: Application[] = appRows.map((row) => {
+        const pos = positionsById.get(row.position_id);
+        return {
+          id: row.id,
+          student_id: row.student_id,
+          position_id: row.position_id,
+          company_id: pos?.company_id,
+          status: row.status,
+          message: row.message,
+          applied_at: row.applied_at,
+          internship_title: pos?.title ?? null,
+          company_name: null,
+        };
+      });
+
+      setApplications(mapped);
+      setLoading(false);
+    };
+
+    load();
   }, []);
+
+  const acceptedToRate = applications.filter((a) => a.status === "accepted" && a.company_id);
+
+  const openRateModal = (app: Application) => {
+    setSelectedApp(app);
+    setRatingValue("5");
+    setFeedback("");
+    setError(null);
+    setSuccess(null);
+    setModalOpen(true);
+  };
+
+  const submitRating = async () => {
+    if (!selectedApp || !studentId || !selectedApp.company_id) return;
+
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    const supabase = createClient();
+
+    // Enforce accepted-only rating gate at app level before insert.
+    const { data: acceptedApplication } = await supabase
+      .from("applications")
+      .select("id")
+      .eq("id", selectedApp.id)
+      .eq("student_id", studentId)
+      .eq("status", "accepted")
+      .single();
+
+    if (!acceptedApplication) {
+      setError("You can only rate after your application is accepted.");
+      setSubmitting(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("ratings").insert({
+      student_id: studentId,
+      company_id: selectedApp.company_id,
+      position_id: selectedApp.position_id,
+      rating: Number(ratingValue),
+      feedback: feedback.trim() || null,
+    });
+
+    if (insertError) {
+      if (insertError.code === "23505") {
+        setError("You have already submitted a rating for this internship.");
+      } else {
+        setError(insertError.message);
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    setSuccess("Rating submitted successfully.");
+    setSubmitting(false);
+    setModalOpen(false);
+  };
 
   if (loading) return <p className="text-gray-600">Loading…</p>;
   if (applications.length === 0) {
@@ -69,5 +155,76 @@ export default function ApplicationsList() {
       />
     );
   }
-  return <ApplicationTable applications={applications} showViewAction />;
+  return (
+    <>
+      {error && (
+        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800" role="alert">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800" role="status">
+          {success}
+        </div>
+      )}
+      <ApplicationTable applications={applications} showViewAction />
+
+      <Card className="mt-6">
+        <h2 className="text-sm font-semibold text-gray-900">Rate companies</h2>
+        <p className="mt-1 text-sm text-gray-600">You can submit a rating only for accepted applications.</p>
+        {acceptedToRate.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">No accepted applications available for rating yet.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {acceptedToRate.map((app) => (
+              <div key={app.id} className="flex items-center justify-between rounded-md border border-gray-200 p-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{app.internship_title ?? "Internship"}</p>
+                  <p className="text-xs text-gray-500">Application accepted</p>
+                </div>
+                <Button variant="secondary" onClick={() => openRateModal(app)}>
+                  Leave rating
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Submit company rating"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={submitRating} disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit rating"}
+            </Button>
+          </>
+        }
+      >
+        <Select
+          label="Rating (1 to 5)"
+          value={ratingValue}
+          onChange={(e) => setRatingValue(e.target.value)}
+          options={[
+            { value: "5", label: "5 - Excellent" },
+            { value: "4", label: "4 - Good" },
+            { value: "3", label: "3 - Average" },
+            { value: "2", label: "2 - Poor" },
+            { value: "1", label: "1 - Very poor" },
+          ]}
+        />
+        <Textarea
+          label="Feedback"
+          rows={4}
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          className="mt-4"
+          placeholder="Share your internship experience..."
+        />
+      </Modal>
+    </>
+  );
 }

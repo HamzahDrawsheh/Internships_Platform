@@ -1,5 +1,6 @@
--- InternConnect Jordan — Supabase schema
--- Run in Supabase SQL Editor. Order matters (profiles first, then internships, applications).
+-- Deprecated schema draft (kept for reference only).
+-- Do not run this file for current app versions.
+-- Use `database_schema.sql` or Supabase migrations in `frontend/supabase/migrations/`.
 
 -- 1) Profiles (auth-linked)
 create table if not exists public.profiles (

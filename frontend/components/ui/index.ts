@@ -4,6 +4,7 @@ export { Card } from "./Card";
 export { EmptyState } from "./EmptyState";
 export { Input } from "./Input";
 export { Modal } from "./Modal";
+export { SearchBar } from "./SearchBar";
 export { Select, type SelectOption } from "./Select";
 export { Table } from "./Table";
 export { Textarea } from "./Textarea";

@@ -11,48 +11,76 @@ export default function StudentDashboardContent() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setApplications([]);
         setLoading(false);
         return;
       }
-      supabase
+
+      const { data: student } = await supabase
+        .from("students")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!student) {
+        setApplications([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: appRows, error: appError } = await supabase
         .from("applications")
-        .select(`
-          id,
-          internship_id,
-          student_id,
-          status,
-          created_at,
-          internship:internships(title, company:profiles!company_id(full_name))
-        `)
-        .eq("student_id", user.id)
-        .order("created_at", { ascending: false })
-        .then(({ data, error }) => {
-          if (error) setApplications([]);
-          else {
-            const rows = (data ?? []).map((row: Record<string, unknown>) => {
-              const inv = row.internship as { title?: string; company?: { full_name?: string } } | null;
-              return {
-                id: row.id,
-                internship_id: row.internship_id,
-                student_id: row.student_id,
-                status: row.status,
-                created_at: row.created_at,
-                internship_title: inv?.title ?? null,
-                company_name: inv?.company?.full_name ?? null,
-              };
-            }) as Application[];
-            setApplications(rows);
-          }
-          setLoading(false);
-        });
-    });
+        .select("id, student_id, position_id, status, message, applied_at")
+        .eq("student_id", student.id)
+        .order("applied_at", { ascending: false });
+
+      if (appError || !appRows?.length) {
+        setApplications([]);
+        setLoading(false);
+        return;
+      }
+
+      const positionIds = [...new Set(appRows.map((row) => row.position_id))];
+      const { data: positions } = await supabase
+        .from("internship_positions")
+        .select("id, title, company_id")
+        .in("id", positionIds);
+
+      const positionsById = new Map((positions ?? []).map((p) => [p.id, p]));
+      const companyIds = [...new Set((positions ?? []).map((p) => p.company_id))];
+      const { data: companies } = companyIds.length
+        ? await supabase.from("companies").select("id, company_name").in("id", companyIds)
+        : { data: [] as { id: string; company_name: string }[] };
+      const companiesById = new Map((companies ?? []).map((c) => [c.id, c.company_name]));
+
+      const mapped: Application[] = appRows.map((row) => {
+        const pos = positionsById.get(row.position_id);
+        return {
+          id: row.id,
+          student_id: row.student_id,
+          position_id: row.position_id,
+          status: row.status,
+          message: row.message,
+          applied_at: row.applied_at,
+          internship_title: pos?.title ?? null,
+          company_name: pos ? companiesById.get(pos.company_id) ?? null : null,
+        };
+      });
+
+      setApplications(mapped);
+      setLoading(false);
+    };
+
+    load();
   }, []);
 
   const total = applications.length;
-  const underReview = applications.filter((a) => a.status === "under_review").length;
+  const pending = applications.filter((a) => a.status === "pending").length;
   const accepted = applications.filter((a) => a.status === "accepted").length;
   const recent = applications.slice(0, 5);
 
@@ -66,8 +94,8 @@ export default function StudentDashboardContent() {
           <p className="text-2xl font-bold text-gray-900">{total}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Under review</p>
-          <p className="text-2xl font-bold text-gray-900">{underReview}</p>
+          <p className="text-sm text-gray-500">Pending</p>
+          <p className="text-2xl font-bold text-gray-900">{pending}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-gray-500">Accepted</p>

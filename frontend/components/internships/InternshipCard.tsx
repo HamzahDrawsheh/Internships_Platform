@@ -1,39 +1,34 @@
 import Link from "next/link";
-import Badge from "@/components/common/Badge";
-import Button from "@/components/common/Button";
-import type { Internship } from "@/lib/types";
-
-const locationLabel: Record<string, string> = {
-  remote: "Remote",
-  onsite: "On-site",
-  hybrid: "Hybrid",
-};
 
 interface InternshipCardProps {
-  internship: Internship;
+  id: string;
+  title: string;
+  companyName?: string;
+  locationType?: string;
+  skills?: string[];
+  deadline?: string;
 }
 
-export default function InternshipCard({ internship }: InternshipCardProps) {
+export function InternshipCard({ id, title, companyName, locationType, skills = [], deadline }: InternshipCardProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-gray-900">{internship.title}</h3>
-          <p className="mt-1 text-sm text-gray-600">{internship.company_name ?? "Company"}</p>
+    <Link href={`/internships/${id}`}>
+      <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm transition-all hover:border-[#7C3AED]/30 hover:shadow-md">
+        <h3 className="font-semibold text-[#0F172A]">{title}</h3>
+        {companyName && <p className="mt-1 text-sm text-[#0F172A]/70">{companyName}</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {locationType && (
+            <span className="rounded-lg bg-[#F3E8FF] px-2 py-1 text-xs font-medium text-[#7C3AED]">
+              {locationType}
+            </span>
+          )}
+          {skills.slice(0, 3).map((s) => (
+            <span key={s} className="rounded-lg bg-[#F8FAFC] px-2 py-1 text-xs text-[#0F172A]/80">
+              {s}
+            </span>
+          ))}
         </div>
-        <Badge variant="info">{locationLabel[internship.location_type ?? ""] ?? internship.location_type ?? "—"}</Badge>
+        {deadline && <p className="mt-3 text-xs text-[#0F172A]/60">Deadline: {deadline}</p>}
       </div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {(internship.skills ?? []).slice(0, 3).map((s) => (
-          <span key={s} className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{s}</span>
-        ))}
-      </div>
-      <p className="mt-2 text-xs text-gray-500">Deadline: {internship.deadline ? new Date(internship.deadline).toLocaleDateString() : "—"}</p>
-      <div className="mt-4">
-        <Link href={`/internships/${internship.id}`}>
-          <Button variant="secondary" className="w-full sm:w-auto">View Details</Button>
-        </Link>
-      </div>
-    </div>
+    </Link>
   );
 }

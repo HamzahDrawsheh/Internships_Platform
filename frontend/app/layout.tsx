@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "InternConnect Jordan",
-  description: "AI & Data Science Internship Platform — Connecting Students, Companies, Universities",
+  title: "AI Intern Jordan",
+  description: "AI & Data Science Internship Platform — Launch your AI Career in Jordan",
 };
 
 export default function RootLayout({

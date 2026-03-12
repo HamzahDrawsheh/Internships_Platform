@@ -4,47 +4,57 @@ import { Button } from "@/components/ui/Button";
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen">
-      <section className="py-16">
+    <main className="min-h-screen bg-[#F8FAFC]">
+      <section className="py-20 lg:py-28">
         <Container>
-          <h1 className="text-4xl font-bold text-gray-900">InternConnect Jordan</h1>
-          <p className="mt-4 max-w-2xl text-lg text-gray-600">
-            Connect AI & Data Science students with companies and universities. Find internships, apply in one click, and track your progress — all in one platform.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Link href="/auth/signup"><Button variant="primary">Sign Up</Button></Link>
-            <Link href="/auth/login"><Button variant="secondary">Login</Button></Link>
-            <Link href="/internships"><Button variant="secondary">Browse Internships</Button></Link>
-          </div>
-        </Container>
-      </section>
-
-      <section className="border-t border-gray-200 bg-gray-50/50">
-        <Container className="py-12">
-          <h2 className="text-2xl font-bold text-gray-900">How it works</h2>
-          <div className="mt-6 grid gap-8 sm:grid-cols-3">
+          <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white font-semibold" aria-hidden>1</span>
-              <h3 className="mt-4 font-semibold text-gray-900">Sign up & complete your profile</h3>
-              <p className="mt-2 text-sm text-gray-600">Students add skills and CV; companies add company info and create listings.</p>
+              <h1 className="text-4xl font-bold leading-tight text-[#0F172A] lg:text-5xl">
+                Launch your <span className="text-[#7C3AED]">AI Career</span> in Jordan
+              </h1>
+              <p className="mt-6 max-w-xl text-lg text-[#0F172A]/80">
+                Connect with top companies. Find AI & Data Science internships, apply in one click, and track your progress.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-4">
+                <Link href="/auth/signup"><Button variant="primary" className="px-6 py-3">Get Started</Button></Link>
+                <Link href="/auth/login"><Button variant="secondary" className="px-6 py-3">Login</Button></Link>
+              </div>
             </div>
-            <div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white font-semibold" aria-hidden>2</span>
-              <h3 className="mt-4 font-semibold text-gray-900">Discover & apply</h3>
-              <p className="mt-2 text-sm text-gray-600">Browse internships, filter by skill and location, and apply with one click.</p>
-            </div>
-            <div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white font-semibold" aria-hidden>3</span>
-              <h3 className="mt-4 font-semibold text-gray-900">Track & get placed</h3>
-              <p className="mt-2 text-sm text-gray-600">Follow application status and get notified when companies respond.</p>
+            <div className="flex justify-center">
+              <div className="flex h-80 w-full max-w-md items-center justify-center rounded-2xl border border-[#E2E8F0] bg-[#F3E8FF] shadow-sm lg:h-96">
+                <span className="text-6xl opacity-60">📊</span>
+              </div>
             </div>
           </div>
         </Container>
       </section>
 
-      <footer className="border-t border-gray-200 py-8">
+      <section className="border-t border-[#E2E8F0] bg-white py-16">
         <Container>
-          <p className="text-center text-sm text-gray-500">InternConnect Jordan · Contact: contact@internconnect.jo</p>
+          <h2 className="text-2xl font-bold text-[#0F172A]">How it works</h2>
+          <div className="mt-8 grid gap-8 sm:grid-cols-3">
+            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-6">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7C3AED] text-lg font-bold text-white">1</span>
+              <h3 className="mt-4 font-semibold text-[#0F172A]">Sign up & complete your profile</h3>
+              <p className="mt-2 text-sm text-[#0F172A]/70">Students add skills and CV; companies add info and create listings.</p>
+            </div>
+            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-6">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7C3AED] text-lg font-bold text-white">2</span>
+              <h3 className="mt-4 font-semibold text-[#0F172A]">Discover & apply</h3>
+              <p className="mt-2 text-sm text-[#0F172A]/70">Browse internships, filter by skill and location, apply with one click.</p>
+            </div>
+            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-6">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7C3AED] text-lg font-bold text-white">3</span>
+              <h3 className="mt-4 font-semibold text-[#0F172A]">Track & get placed</h3>
+              <p className="mt-2 text-sm text-[#0F172A]/70">Follow application status and get notified when companies respond.</p>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      <footer className="border-t border-[#E2E8F0] bg-white py-8">
+        <Container>
+          <p className="text-center text-sm text-[#0F172A]/60">AI Intern Jordan · Contact: contact@aiintern.jo</p>
         </Container>
       </footer>
     </main>

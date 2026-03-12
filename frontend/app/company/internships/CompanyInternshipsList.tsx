@@ -6,12 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 import Table from "@/components/common/Table";
 import Badge from "@/components/common/Badge";
 import EmptyState from "@/components/common/EmptyState";
+
 const statusVariant: Record<string, "default" | "success" | "warning" | "danger"> = {
   active: "success",
-  draft: "default",
-  paused: "warning",
-  closed: "danger",
-  pending: "warning",
+  inactive: "default",
 };
 
 type ListingRow = {
@@ -19,7 +17,6 @@ type ListingRow = {
   company_id: string;
   title: string;
   status: string;
-  deadline: string | null;
   created_at?: string;
   applicants_count?: number;
 };
@@ -30,40 +27,59 @@ export default function CompanyInternshipsList() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         setListings([]);
         setLoading(false);
         return;
       }
-      supabase
-        .from("internships")
-        .select("id, company_id, title, status, deadline, created_at")
-        .eq("company_id", user.id)
-        .order("created_at", { ascending: false })
-        .then(({ data: internships, error }) => {
-          if (error || !internships?.length) {
-            setListings([]);
-            setLoading(false);
-            return;
-          }
-          Promise.all(
-            internships.map((i) =>
-              supabase.from("applications").select("id", { count: "exact", head: true }).eq("internship_id", i.id)
-            )
-          ).then((counts) => {
-            const withCount: ListingRow[] = internships.map((i, idx) => ({
-              id: i.id,
-              company_id: i.company_id,
-              title: i.title,
-              status: i.status,
-              deadline: i.deadline ?? null,
-              created_at: i.created_at,
-              applicants_count: (counts[idx] as { count?: number })?.count ?? 0,
-            }));
-            setListings(withCount);
-          }).then(() => setLoading(false), () => setLoading(false));
-        });
+
+      const { data: company } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!company) {
+        setListings([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: positions, error } = await supabase
+        .from("internship_positions")
+        .select("id, company_id, title, is_active, created_at")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: false });
+
+      if (error || !positions?.length) {
+        setListings([]);
+        setLoading(false);
+        return;
+      }
+
+      const positionIds = positions.map((p) => p.id);
+      const { data: applications } = await supabase
+        .from("applications")
+        .select("id, position_id")
+        .in("position_id", positionIds);
+
+      const countByPositionId = new Map<string, number>();
+      (applications ?? []).forEach((app) => {
+        countByPositionId.set(app.position_id, (countByPositionId.get(app.position_id) ?? 0) + 1);
+      });
+
+      const withCount: ListingRow[] = positions.map((p) => ({
+        id: p.id,
+        company_id: p.company_id,
+        title: p.title,
+        status: p.is_active ? "active" : "inactive",
+        created_at: p.created_at,
+        applicants_count: countByPositionId.get(p.id) ?? 0,
+      }));
+
+      setListings(withCount);
+      setLoading(false);
     });
   }, []);
 
@@ -80,14 +96,14 @@ export default function CompanyInternshipsList() {
   }
 
   return (
-    <Table headers={["Title", "Status", "Deadline", "Applicants", "Actions"]}>
+    <Table headers={["Title", "Status", "Posted", "Applicants", "Actions"]}>
       {listings.map((i) => (
         <tr key={i.id} className="hover:bg-gray-50">
           <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">{i.title}</td>
           <td className="whitespace-nowrap px-4 py-3">
             <Badge variant={statusVariant[i.status] ?? "default"}>{i.status}</Badge>
           </td>
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{i.deadline ? new Date(i.deadline).toLocaleDateString() : "—"}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{i.created_at ? new Date(i.created_at).toLocaleDateString() : "—"}</td>
           <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{i.applicants_count ?? 0}</td>
           <td className="whitespace-nowrap px-4 py-3 text-sm">
             <span className="flex flex-wrap gap-2">
