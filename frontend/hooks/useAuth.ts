@@ -45,9 +45,6 @@ export function useAuth(): UseAuthResult {
 
     // Skip backend role calls on auth routes to avoid unnecessary 401s during login/signup
     if (isAuthRoute) {
-      setUser(null);
-      setRole(null);
-      setLoading(false);
       return;
     }
 
@@ -56,6 +53,9 @@ export function useAuth(): UseAuthResult {
         setUser(session.user);
         const r = await fetchRole();
         setRole(r);
+      } else {
+        setUser(null);
+        setRole(null);
       }
       setLoading(false);
     });

@@ -152,7 +152,7 @@ export default function ApplicantsPage() {
                 <td className="whitespace-nowrap px-4 py-3 text-sm">
                   <div className="flex flex-wrap gap-2">
                     <Button
-                      size="sm"
+                      className="px-3 py-1.5 text-xs"
                       variant="primary"
                       onClick={() => updateStatus(a.id, "accepted")}
                       disabled={updatingId === a.id}
@@ -160,7 +160,7 @@ export default function ApplicantsPage() {
                       Accept
                     </Button>
                     <Button
-                      size="sm"
+                      className="px-3 py-1.5 text-xs"
                       variant="secondary"
                       onClick={() => updateStatus(a.id, "rejected")}
                       disabled={updatingId === a.id}
@@ -168,7 +168,7 @@ export default function ApplicantsPage() {
                       Reject
                     </Button>
                     <Button
-                      size="sm"
+                      className="px-3 py-1.5 text-xs"
                       variant="secondary"
                       onClick={() => updateStatus(a.id, "under_review")}
                       disabled={updatingId === a.id}

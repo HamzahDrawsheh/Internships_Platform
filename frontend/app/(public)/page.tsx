@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { Container } from "@/components/layout/Container";
-import { Button } from "@/components/ui/Button";
 import { LandingHero } from "@/app/(public)/LandingHero";
 import { HowItWorks } from "@/app/(public)/HowItWorks";
 import { FeaturedInternships } from "@/app/(public)/FeaturedInternships";

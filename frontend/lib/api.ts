@@ -54,7 +54,6 @@ async function request<T>(
     : `${API_BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 
   // Debug logging to help diagnose connectivity issues
-  // eslint-disable-next-line no-console
   console.log("[API] Request", { method, url, hasToken: !!token, body });
 
   let res: Response;
@@ -69,7 +68,6 @@ async function request<T>(
           : undefined,
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error("[API] Network error", err);
     throw new ApiError(
       "Could not connect to the backend server. Make sure the API server is running.",
@@ -90,7 +88,6 @@ async function request<T>(
         ? String((errBody as { error: unknown }).error)
         : res.statusText || "Request failed";
 
-    // eslint-disable-next-line no-console
     console.error("[API] Error response", { status: res.status, body: errBody });
     throw new ApiError(message, res.status, errBody);
   }

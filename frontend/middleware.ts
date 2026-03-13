@@ -76,12 +76,12 @@ function isProtected(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: request.headers },
   });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseAnonKey) {
     return response;
   }
@@ -137,7 +137,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isProtected(pathname) && !isAllowedForRole(pathname, role)) {
-    const home = getRoleHome(role);
+    const home = role ? getRoleHome(role) : "/onboarding";
     return NextResponse.redirect(new URL(home, request.url));
   }
 

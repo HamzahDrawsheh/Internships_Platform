@@ -18,21 +18,20 @@ export default function EditInternshipPage() {
   const rawId = params?.id;
   const id = typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : "";
 
+  const hasValidId = Boolean(id);
+
   const [initialValues, setInitialValues] = useState<Partial<InternshipFormValues> | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasValidId);
   const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    hasValidId ? null : "Invalid internship id."
+  );
 
   useEffect(() => {
     if (!id) {
-      setErrorMessage("Invalid internship id.");
-      setLoading(false);
       return;
     }
-
     let cancelled = false;
-    setLoading(true);
-    setErrorMessage(null);
 
     api
       .get<Internship>(`/internships/${id}`)
