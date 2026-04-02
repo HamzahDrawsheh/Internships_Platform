@@ -4,29 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const studentLinks = [
-  { label: "Dashboard", href: "/dashboard/student" },
-  { label: "Browse Internships", href: "/internships" },
-  { label: "Browse Companies", href: "/companies" },
-  { label: "My Applications", href: "/applications" },
-  { label: "Profile", href: "/profile/student" },
-  { label: "Notifications", href: "/notifications" },
+  { label: "Dashboard", href: "/dashboard/student", icon: "🏠" },
+  { label: "Browse Internships", href: "/internships", icon: "💼" },
+  { label: "Browse Companies", href: "/companies", icon: "🏢" },
+  { label: "My Applications", href: "/applications", icon: "📄" },
+  { label: "Profile", href: "/profile/student", icon: "👤" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-64 shrink-0 border-r border-[#E2E8F0] bg-white py-6">
-      <nav className="space-y-1 px-4">
+    <aside className="w-64 shrink-0 border-r border-gray-200 bg-white/90 py-6 backdrop-blur transition-colors duration-300 dark:border-gray-800 dark:bg-gray-900/90">
+      <nav className="space-y-1.5 px-4">
         {studentLinks.map((l) => {
           const isActive = pathname === l.href || (l.href !== "/dashboard/student" && pathname.startsWith(l.href));
           return (
             <Link
               key={l.href}
               href={l.href}
-              className={`flex items-center rounded-xl px-4 py-3 text-sm font-medium ${
-                isActive ? "bg-[#F3E8FF] text-[#7C3AED]" : "text-[#0F172A] hover:bg-[#F8FAFC] hover:text-[#7C3AED]"
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 ${
+                isActive
+                  ? "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300"
+                  : "text-gray-800 hover:bg-gray-100 hover:text-purple-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-purple-300"
               }`}
             >
+              <span className="text-base" aria-hidden>
+                {l.icon}
+              </span>
               {l.label}
             </Link>
           );

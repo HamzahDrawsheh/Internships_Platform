@@ -6,7 +6,7 @@ import ApplicationsList from "./ApplicationsList";
 
 export default function MyApplicationsPage() {
   return (
-    <main className="py-8">
+    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container>
         <PageHeader
           title="My Applications"

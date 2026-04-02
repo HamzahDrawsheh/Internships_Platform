@@ -13,7 +13,7 @@ function isAuthPath(pathname: string): boolean {
   return AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
-function getRoleHome(role: ProfileRole): string {
+function getRoleHome(role: ProfileRole | null): string {
   switch (role) {
     case "student":
       return "/dashboard/student";
@@ -28,8 +28,50 @@ function getRoleHome(role: ProfileRole): string {
   }
 }
 
+function isCompanyOrSupervisorProtectedPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/company" ||
+    pathname.startsWith("/company") ||
+    pathname === "/dashboard/supervisor" ||
+    pathname.startsWith("/supervisor")
+  );
+}
+
+function getOnboardingStatePath(requestedRole: "company" | "supervisor" | null): string | null {
+  if (requestedRole === "company") return "/onboarding/company";
+  if (requestedRole === "supervisor") return "/onboarding/supervisor";
+  return null;
+}
+
+function isIntentRole(value: unknown): value is "company" | "supervisor" {
+  return value === "company" || value === "supervisor";
+}
+
+function hasRequiredOnboardingPayload(
+  requestedRole: "company" | "supervisor" | null,
+  payload: unknown
+): boolean {
+  if (!requestedRole || !payload || typeof payload !== "object") return false;
+  const record = payload as Record<string, unknown>;
+
+  if (requestedRole === "company") {
+    return typeof record.company_name === "string" && record.company_name.trim().length > 0;
+  }
+
+  return (
+    typeof record.full_name === "string" &&
+    record.full_name.trim().length > 0 &&
+    typeof record.university === "string" &&
+    record.university.trim().length > 0 &&
+    typeof record.department === "string" &&
+    record.department.trim().length > 0
+  );
+}
+
 function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
-  if (!role) return pathname === "/onboarding";
+  if (!role) {
+    return pathname === "/onboarding" || pathname.startsWith("/onboarding/") || pathname === "/pending-approval";
+  }
   if (pathname === "/dashboard") return false;
   switch (role) {
     case "student":
@@ -37,14 +79,16 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname === "/dashboard/student" ||
         pathname.startsWith("/internships") ||
         pathname.startsWith("/applications") ||
-        pathname === "/profile/student" ||
-        pathname.startsWith("/notifications")
+        pathname.startsWith("/profile/student") ||
+        pathname.startsWith("/notifications") ||
+        pathname.startsWith("/onboarding") ||
+        pathname === "/pending-approval"
       );
     case "company":
       return (
         pathname === "/dashboard/company" ||
         pathname.startsWith("/company") ||
-        pathname === "/profile/company" ||
+        pathname.startsWith("/profile/company") ||
         pathname.startsWith("/notifications")
       );
     case "supervisor":
@@ -54,7 +98,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname.startsWith("/notifications")
       );
     case "admin":
-      return pathname.startsWith("/admin") || pathname.startsWith("/notifications");
+      return pathname.startsWith("/admin") || pathname === "/dashboard/admin" || pathname.startsWith("/notifications");
     default:
       return false;
   }
@@ -63,6 +107,8 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
 function isProtected(pathname: string): boolean {
   return (
     pathname === "/onboarding" ||
+    pathname.startsWith("/onboarding/") ||
+    pathname === "/pending-approval" ||
     pathname.startsWith("/internships") ||
     pathname.startsWith("/applications") ||
     pathname.startsWith("/dashboard") ||
@@ -117,18 +163,84 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
+  if (profileError) {
+    console.error("middleware profile query error:", profileError);
+  }
   const role = (profile?.role as ProfileRole) ?? null;
 
+  const { data: latestUpgradeRequest, error: latestUpgradeRequestError } = await supabase
+    .from("role_upgrade_requests")
+    .select("requested_role, status, payload")
+    .eq("user_id", user.id)
+    .in("requested_role", ["company", "supervisor"])
+    .order("submitted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestUpgradeRequestError) {
+    console.error("middleware role_upgrade_requests query error:", latestUpgradeRequestError);
+  }
+  const onboardingRequestedRole =
+    latestUpgradeRequest?.requested_role === "company" || latestUpgradeRequest?.requested_role === "supervisor"
+      ? latestUpgradeRequest.requested_role
+      : null;
+  const onboardingRequestStatus = latestUpgradeRequest?.status ?? null;
+  const hasOnboardingPayload = hasRequiredOnboardingPayload(
+    onboardingRequestedRole,
+    latestUpgradeRequest?.payload ?? null
+  );
+
+  const metadataRole = isIntentRole(user.user_metadata?.role) ? user.user_metadata.role : null;
+  const intendedRole = role === "student" ? metadataRole ?? onboardingRequestedRole : null;
+  const onboardingPath = getOnboardingStatePath(intendedRole);
+
+  let onboardingTarget: string | null = null;
+  if (role === "student" && intendedRole) {
+    if (!latestUpgradeRequest) {
+      onboardingTarget = onboardingPath;
+    } else if (onboardingRequestStatus === "pending") {
+      onboardingTarget = hasOnboardingPayload ? "/pending-approval" : onboardingPath;
+    } else if (onboardingRequestStatus === "approved") {
+      onboardingTarget = intendedRole === "company" ? "/dashboard/company" : "/dashboard/supervisor";
+    } else if (onboardingRequestStatus === "rejected") {
+      onboardingTarget = onboardingPath;
+    } else {
+      onboardingTarget = onboardingPath;
+    }
+  }
+
+  const allowApprovedProtectedAccess =
+    role === "student" &&
+    intendedRole &&
+    onboardingRequestStatus === "approved" &&
+    isCompanyOrSupervisorProtectedPath(pathname);
+  if (allowApprovedProtectedAccess) {
+    return response;
+  }
+
   if (isAuthPath(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/callback";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    if (onboardingTarget) {
+      return NextResponse.redirect(new URL(onboardingTarget, request.url));
+    }
+    const home = getRoleHome(role);
+    return NextResponse.redirect(new URL(home, request.url));
+  }
+
+  if (
+    onboardingTarget &&
+    (isCompanyOrSupervisorProtectedPath(pathname) ||
+      pathname === "/dashboard/student" ||
+      pathname === "/dashboard" ||
+      pathname.startsWith("/onboarding") ||
+      pathname === "/pending-approval")
+  ) {
+    if (pathname !== onboardingTarget) {
+      return NextResponse.redirect(new URL(onboardingTarget, request.url));
+    }
   }
 
   if (isProtected(pathname) && !isAllowedForRole(pathname, role)) {

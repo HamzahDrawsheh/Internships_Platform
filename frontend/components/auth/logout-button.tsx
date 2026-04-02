@@ -15,7 +15,7 @@ export function LogoutButton() {
   };
 
   return (
-    <Button type="button" variant="secondary" onClick={handleLogout}>
+    <Button type="button" variant="secondary" onClick={handleLogout} className="transition-colors duration-300 dark:bg-slate-800 dark:text-white dark:border-slate-700 dark:hover:bg-slate-700">
       Logout
     </Button>
   );

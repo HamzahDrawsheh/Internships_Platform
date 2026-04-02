@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #ffffff;
@@ -8,6 +9,13 @@
   --primary-light: #F3E8FF;
   --gray-bg: #F8FAFC;
   --border-gray: #E2E8F0;
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #F8FAFC;
+  --gray-bg: #020617;
+  --border-gray: #334155;
 }
 
 @theme inline {
@@ -26,4 +34,48 @@ body {
   background: var(--gray-bg);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 650ms ease-out both;
+}
+
+.animate-delay-1 {
+  animation-delay: 120ms;
+}
+
+.animate-delay-2 {
+  animation-delay: 240ms;
+}
+
+.animate-float-y {
+  animation: float-y 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-float-y {
+    animation: none;
+  }
 }

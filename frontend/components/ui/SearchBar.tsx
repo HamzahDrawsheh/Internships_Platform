@@ -10,7 +10,7 @@ interface SearchBarProps {
 export function SearchBar({ value, onChange, placeholder = "Search…", className = "" }: SearchBarProps) {
   return (
     <div className={`relative ${className}`}>
-      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#0F172A]/50" aria-hidden>
+      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#0F172A]/50 transition-colors duration-300 dark:text-slate-400" aria-hidden>
         🔍
       </span>
       <input
@@ -18,7 +18,7 @@ export function SearchBar({ value, onChange, placeholder = "Search…", classNam
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-[#E2E8F0] bg-white py-3 pl-11 pr-4 text-[#0F172A] placeholder:text-[#0F172A]/50 focus:border-[#7C3AED] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20"
+        className="w-full rounded-xl border border-[#E2E8F0] bg-white py-3 pl-11 pr-4 text-[#0F172A] placeholder:text-[#0F172A]/50 transition-colors duration-300 focus:border-[#7C3AED] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400"
         aria-label="Search"
       />
     </div>

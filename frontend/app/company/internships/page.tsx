@@ -6,7 +6,7 @@ import CompanyInternshipsList from "./CompanyInternshipsList";
 
 export default function ManageInternshipsPage() {
   return (
-    <main className="py-8">
+    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container>
         <PageHeader
           title="Manage Internships"

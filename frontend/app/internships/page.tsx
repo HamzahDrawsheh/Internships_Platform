@@ -114,46 +114,54 @@ export default function BrowseInternshipsPage() {
   );
 
   return (
-    <main className="py-8">
+    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container>
         <PageHeader
           title="Browse Internships"
           description="Filter by location, skills, and posted date."
         />
         <div className="flex flex-col gap-6 lg:flex-row">
-          <aside className="w-full shrink-0 space-y-4 rounded-lg border border-gray-200 bg-gray-50/50 p-4 lg:w-64">
-            <h3 className="text-sm font-semibold text-gray-900">Filters</h3>
+          <aside className="w-full shrink-0 space-y-4 rounded-lg border border-gray-200 bg-gray-50/50 p-4 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white lg:w-64">
+            <h3 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Filters</h3>
             <Input
               label="Search"
               placeholder="Title or company..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
             />
             <Select
               label="Location type"
               options={locationOptions}
               value={locationType}
               onChange={(e) => setLocationType(e.target.value)}
+              className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
             <Select
               label="Skill"
               options={skillOptions}
               value={skill}
               onChange={(e) => setSkill(e.target.value)}
+              className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
             <Input
               label="Deadline before"
               type="date"
               value={deadlineBefore}
               onChange={(e) => setDeadlineBefore(e.target.value)}
+              className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
             />
-            <Button variant="secondary" onClick={clearFilters} className="w-full">
+            <Button
+              variant="secondary"
+              onClick={clearFilters}
+              className="w-full transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+            >
               Clear filters
             </Button>
           </aside>
           <div className="min-w-0 flex-1">
             {loading ? (
-              <p className="text-sm text-gray-500">Loading internships...</p>
+              <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading internships...</p>
             ) : cards.length === 0 ? (
               <EmptyState
                 title="No internships available yet."

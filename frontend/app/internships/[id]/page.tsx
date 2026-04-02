@@ -99,30 +99,65 @@ export default function InternshipDetailsPage() {
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.error("apply internship getUser error:", userError);
+      setError("Unable to verify your account.");
+      setSubmitting(false);
+      return;
+    }
 
     if (!user) {
       setError("Please log in first to apply.");
       setSubmitting(false);
       return;
     }
+    console.log("[apply internship] auth user id", user.id);
 
-    const { data: student } = await supabase
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profileError) {
+      console.error("apply internship role check error:", profileError);
+      setError("Unable to validate your role.");
+      setSubmitting(false);
+      return;
+    }
+    if (profile?.role && profile.role !== "student") {
+      setError("Only students can apply to internships.");
+      setSubmitting(false);
+      return;
+    }
+
+    const { data: student, error: studentError } = await supabase
       .from("students")
       .select("id")
       .eq("user_id", user.id)
       .single();
+    if (studentError) {
+      console.error("apply internship student lookup error:", studentError);
+    }
 
     if (!student) {
       setError("Student profile not found. Please complete your student profile first.");
       setSubmitting(false);
       return;
     }
+    console.log("[apply internship] resolved students.id", student.id);
 
-    const { error: insertError } = await supabase.from("applications").insert({
+    const applicationPayload = {
       student_id: student.id,
       position_id: position.id,
       message: coverLetter.trim() || null,
+    };
+    console.log("[apply internship] insert payload", applicationPayload);
+
+    const { error: insertError } = await supabase.from("applications").insert({
+      ...applicationPayload,
     });
 
     if (insertError) {

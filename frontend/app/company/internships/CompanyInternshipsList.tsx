@@ -83,7 +83,7 @@ export default function CompanyInternshipsList() {
     });
   }, []);
 
-  if (loading) return <p className="text-gray-600">Loading…</p>;
+  if (loading) return <p className="text-gray-600 transition-colors duration-300 dark:text-slate-400">Loading…</p>;
   if (listings.length === 0) {
     return (
       <EmptyState
@@ -98,22 +98,22 @@ export default function CompanyInternshipsList() {
   return (
     <Table headers={["Title", "Status", "Posted", "Applicants", "Actions"]}>
       {listings.map((i) => (
-        <tr key={i.id} className="hover:bg-gray-50">
-          <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">{i.title}</td>
+        <tr key={i.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
+          <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">{i.title}</td>
           <td className="whitespace-nowrap px-4 py-3">
             <Badge variant={statusVariant[i.status] ?? "default"}>{i.status}</Badge>
           </td>
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{i.created_at ? new Date(i.created_at).toLocaleDateString() : "—"}</td>
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{i.applicants_count ?? 0}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{i.created_at ? new Date(i.created_at).toLocaleDateString() : "—"}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{i.applicants_count ?? 0}</td>
           <td className="whitespace-nowrap px-4 py-3 text-sm">
             <span className="flex flex-wrap gap-2">
-              <Link href={`/company/internships/${i.id}/edit`} className="text-gray-600 hover:text-gray-900">Edit</Link>
-              <span className="text-gray-300">|</span>
-              <button type="button" className="text-gray-600 hover:text-gray-900">Pause</button>
-              <span className="text-gray-300">|</span>
-              <button type="button" className="text-gray-600 hover:text-gray-900">Close</button>
-              <span className="text-gray-300">|</span>
-              <Link href={`/company/internships/${i.id}/applications`} className="font-medium text-gray-900 hover:underline">View Applicants</Link>
+              <Link href={`/company/internships/${i.id}/edit`} className="text-gray-600 transition-colors duration-300 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white">Edit</Link>
+              <span className="text-gray-300 transition-colors duration-300 dark:text-slate-600">|</span>
+              <button type="button" className="text-gray-600 transition-colors duration-300 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white">Pause</button>
+              <span className="text-gray-300 transition-colors duration-300 dark:text-slate-600">|</span>
+              <button type="button" className="text-gray-600 transition-colors duration-300 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white">Close</button>
+              <span className="text-gray-300 transition-colors duration-300 dark:text-slate-600">|</span>
+              <Link href={`/company/internships/${i.id}/applications`} className="font-medium text-gray-900 transition-colors duration-300 hover:underline dark:text-white">View Applicants</Link>
             </span>
           </td>
         </tr>

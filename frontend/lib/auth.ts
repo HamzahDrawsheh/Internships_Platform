@@ -11,8 +11,8 @@ export interface Profile {
 
 /**
  * Ensure a row exists in profiles for the current user.
- * Uses user_metadata (role, full_name) from signup if profile is new.
- * Returns the profile; role may be null if not set (redirect to onboarding).
+ * Uses user_metadata for name only; role always defaults to student for safety.
+ * Returns the profile.
  */
 export async function ensureProfile(): Promise<Profile | null> {
   const supabase = await createClient();
@@ -27,7 +27,7 @@ export async function ensureProfile(): Promise<Profile | null> {
     .eq("id", user.id)
     .single();
 
-  const role = (existing?.role ?? user.user_metadata?.role ?? null) as ProfileRole | null;
+  const role = (existing?.role ?? "student") as ProfileRole;
   const full_name = existing?.full_name ?? user.user_metadata?.full_name ?? null;
   const email = user.email ?? null;
 
@@ -49,7 +49,7 @@ export async function ensureProfile(): Promise<Profile | null> {
       id: existing.id,
       email: existing.email ?? email,
       full_name: existing.full_name ?? full_name,
-      role: existing.role ?? role,
+      role: (existing.role ?? role) as ProfileRole,
     };
   }
 

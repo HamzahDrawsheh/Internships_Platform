@@ -13,16 +13,16 @@ export default function ApplicationTable({ applications, showViewAction = true }
   return (
     <Table headers={["Internship", "Company", "Applied date", "Status", ...(showViewAction ? ["Action"] : [])]}>
       {applications.map((app) => (
-        <tr key={app.id} className="hover:bg-gray-50">
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">{app.internship_title ?? "—"}</td>
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{app.company_name ?? "—"}</td>
-          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{new Date(app.applied_at).toLocaleDateString()}</td>
+        <tr key={app.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{app.internship_title ?? "—"}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{app.company_name ?? "—"}</td>
+          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{new Date(app.applied_at).toLocaleDateString()}</td>
           <td className="whitespace-nowrap px-4 py-3">
             <ApplicationStatusBadge status={app.status} />
           </td>
           {showViewAction && (
             <td className="whitespace-nowrap px-4 py-3">
-                <Link href={`/internships/${app.position_id}`} className="text-sm font-medium text-gray-600 hover:text-gray-900">
+                <Link href={`/internships/${app.position_id}`} className="text-sm font-medium text-gray-600 transition-colors duration-300 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white">
                 View
               </Link>
             </td>

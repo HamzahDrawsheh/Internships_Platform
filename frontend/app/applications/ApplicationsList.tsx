@@ -76,7 +76,7 @@ export default function ApplicationsList() {
           message: row.message,
           applied_at: row.applied_at,
           internship_title: pos?.title ?? null,
-          company_name: null,
+          company_name: undefined,
         };
       });
 
@@ -144,7 +144,7 @@ export default function ApplicationsList() {
     setModalOpen(false);
   };
 
-  if (loading) return <p className="text-gray-600">Loading…</p>;
+  if (loading) return <p className="text-gray-600 transition-colors duration-300 dark:text-slate-400">Loading…</p>;
   if (applications.length === 0) {
     return (
       <EmptyState
@@ -158,31 +158,35 @@ export default function ApplicationsList() {
   return (
     <>
       {error && (
-        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800" role="alert">
+        <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800 transition-colors duration-300 dark:border dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800" role="status">
+        <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800 transition-colors duration-300 dark:border dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300" role="status">
           {success}
         </div>
       )}
       <ApplicationTable applications={applications} showViewAction />
 
       <Card className="mt-6">
-        <h2 className="text-sm font-semibold text-gray-900">Rate companies</h2>
-        <p className="mt-1 text-sm text-gray-600">You can submit a rating only for accepted applications.</p>
+        <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Rate companies</h2>
+        <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">You can submit a rating only for accepted applications.</p>
         {acceptedToRate.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">No accepted applications available for rating yet.</p>
+          <p className="mt-3 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">No accepted applications available for rating yet.</p>
         ) : (
           <div className="mt-4 space-y-3">
             {acceptedToRate.map((app) => (
-              <div key={app.id} className="flex items-center justify-between rounded-md border border-gray-200 p-3">
+              <div key={app.id} className="flex items-center justify-between rounded-md border border-gray-200 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{app.internship_title ?? "Internship"}</p>
-                  <p className="text-xs text-gray-500">Application accepted</p>
+                  <p className="text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">{app.internship_title ?? "Internship"}</p>
+                  <p className="text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">Application accepted</p>
                 </div>
-                <Button variant="secondary" onClick={() => openRateModal(app)}>
+                <Button
+                  variant="secondary"
+                  className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                  onClick={() => openRateModal(app)}
+                >
                   Leave rating
                 </Button>
               </div>
@@ -197,7 +201,13 @@ export default function ApplicationsList() {
         title="Submit company rating"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="secondary"
+              className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+              onClick={() => setModalOpen(false)}
+            >
+              Cancel
+            </Button>
             <Button variant="primary" onClick={submitRating} disabled={submitting}>
               {submitting ? "Submitting..." : "Submit rating"}
             </Button>

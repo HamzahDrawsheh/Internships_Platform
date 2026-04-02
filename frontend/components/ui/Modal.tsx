@@ -35,28 +35,28 @@ export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) 
         aria-hidden
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+      <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-xl transition-colors duration-300 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 transition-colors duration-300 dark:border-slate-800">
+          <h2 id="modal-title" className="text-lg font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="rounded p-1 text-gray-400 transition-colors duration-300 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             aria-label="Close"
           >
             <span className="text-xl leading-none">&times;</span>
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-6 py-4">{children}</div>
+        <div className="max-h-[70vh] overflow-y-auto px-6 py-4 transition-colors duration-300 dark:text-white">{children}</div>
         {footer !== undefined ? (
-          <div className="flex justify-end gap-2 border-t border-gray-200 px-6 py-4">
+          <div className="flex justify-end gap-2 border-t border-gray-200 px-6 py-4 transition-colors duration-300 dark:border-slate-800">
             {footer}
           </div>
         ) : (
-          <div className="flex justify-end border-t border-gray-200 px-6 py-4">
-            <Button variant="secondary" onClick={onClose}>
+          <div className="flex justify-end border-t border-gray-200 px-6 py-4 transition-colors duration-300 dark:border-slate-800">
+            <Button variant="secondary" className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700" onClick={onClose}>
               Close
             </Button>
           </div>

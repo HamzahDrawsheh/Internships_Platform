@@ -21,16 +21,29 @@ export default function SignupPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const onboardingNextPath =
+    role === "company"
+      ? "/onboarding/company"
+      : role === "supervisor"
+        ? "/onboarding/supervisor"
+        : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     const supabase = createClient();
+    const callbackBase =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback`
+        : "/auth/callback";
+    const emailRedirectTo = onboardingNextPath
+      ? `${callbackBase}?next=${encodeURIComponent(onboardingNextPath)}`
+      : callbackBase;
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName, role } },
+      options: { data: { full_name: fullName, role }, emailRedirectTo },
     });
     setLoading(false);
     if (signUpError) {
@@ -46,11 +59,14 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-8">
-        <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white p-8 text-center shadow-sm">
-          <h2 className="text-lg font-semibold text-[#0F172A]">Account created</h2>
-          <p className="mt-2 text-sm text-[#0F172A]/70">Check your email to confirm your account.</p>
-          <Link href="/auth/login" className="mt-6 inline-block">
+      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-8 transition-colors duration-300 dark:bg-slate-950">
+        <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white p-8 text-center shadow-sm transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold text-[#0F172A] transition-colors duration-300 dark:text-white">Account created</h2>
+          <p className="mt-2 text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">Check your email to confirm your account.</p>
+          <Link
+            href={onboardingNextPath ? `/auth/login?next=${encodeURIComponent(onboardingNextPath)}` : "/auth/login"}
+            className="mt-6 inline-block"
+          >
             <Button variant="primary">Go to Login</Button>
           </Link>
         </div>
@@ -59,34 +75,42 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] p-4 sm:p-6 lg:p-8">
+    <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-4 transition-colors duration-300 sm:p-6 lg:p-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl items-center justify-center sm:min-h-[calc(100vh-3rem)] lg:min-h-[calc(100vh-4rem)]">
-        <div className="w-full overflow-hidden rounded-3xl border border-[#E9D5FF] bg-white shadow-[0_20px_60px_-25px_rgba(124,58,237,0.35)]">
+        <div className="w-full overflow-hidden rounded-2xl border border-purple-100 bg-white/70 shadow-xl backdrop-blur-xl transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900/80">
           <div className="grid grid-cols-1 lg:grid-cols-2">
-            <div className="flex items-center justify-center bg-[#F3E8FF] p-8 sm:p-10 lg:p-12">
+            <div className="flex items-center justify-center bg-[#F3E8FF] p-8 transition-colors duration-300 sm:p-10 lg:p-12 dark:bg-slate-800">
               <Image
                 src="/sign_png.png"
                 alt="Signup illustration"
                 width={500}
                 height={500}
-                className="h-auto w-full max-w-[500px] object-contain"
+                className="animate-float-y h-auto w-full max-w-[500px] object-contain drop-shadow-[0_16px_30px_rgba(124,58,237,0.25)]"
                 priority
               />
             </div>
             <div className="p-8 sm:p-10 lg:p-12">
-              <div className="mx-auto max-w-2xl">
+              <div className="mx-auto max-w-2xl py-4 lg:py-8">
                 <div className="mb-8">
                   <div className="flex gap-1">
-                    <div className={`h-2 flex-1 rounded-full ${step >= 1 ? "bg-[#7C3AED]" : "bg-[#E2E8F0]"}`} />
-                    <div className={`h-2 flex-1 rounded-full ${step >= 2 ? "bg-[#7C3AED]" : "bg-[#E2E8F0]"}`} />
+                    <div
+                      className={`h-2 flex-1 rounded-full transition-all duration-300 ${
+                        step >= 1 ? "bg-gradient-to-r from-purple-500 to-indigo-500" : "bg-[#E2E8F0]"
+                      }`}
+                    />
+                    <div
+                      className={`h-2 flex-1 rounded-full transition-all duration-300 ${
+                        step >= 2 ? "bg-gradient-to-r from-purple-500 to-indigo-500" : "bg-[#E2E8F0]"
+                      }`}
+                    />
                   </div>
-                  <p className="mt-2 text-sm text-[#0F172A]/70">Step {step} of 2</p>
+                  <p className="mt-2 text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">Step {step} of 2</p>
                 </div>
 
                 {step === 1 && (
                   <>
-                    <h1 className="text-2xl font-bold text-[#0F172A]">Create your account</h1>
-                    <p className="mt-2 text-sm text-[#0F172A]/70">Choose your account type to get started.</p>
+                    <h1 className="text-2xl font-bold text-[#0F172A] transition-colors duration-300 dark:text-white">Create your account</h1>
+                    <p className="mt-2 text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">Choose your account type to get started.</p>
                     <div className="mt-8 grid gap-4 sm:grid-cols-3">
                       {accountCards.map((card) => (
                         <button
@@ -95,16 +119,20 @@ export default function SignupPage() {
                           onClick={() => setRole(card.value)}
                           className={`rounded-2xl border-2 p-6 text-left transition-all ${
                             role === card.value
-                              ? "border-[#7C3AED] bg-[#F3E8FF]"
-                              : "border-[#E2E8F0] bg-white hover:border-[#7C3AED]/50"
+                              ? "border-purple-600 bg-purple-50 shadow-lg"
+                              : "border-gray-200 bg-white hover:scale-105 hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
                           }`}
                         >
-                          <span className="font-semibold text-[#0F172A]">{card.label}</span>
-                          <p className="mt-2 text-sm text-[#0F172A]/70">{card.desc}</p>
+                          <span className="font-semibold text-[#0F172A] transition-colors duration-300 dark:text-white">{card.label}</span>
+                          <p className="mt-2 text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">{card.desc}</p>
                         </button>
                       ))}
                     </div>
-                    <Button variant="primary" className="mt-8 w-full py-3" onClick={() => setStep(2)}>
+                    <Button
+                      variant="primary"
+                      className="mt-8 w-full bg-gradient-to-r from-purple-600 to-indigo-600 py-3 shadow-purple-500/30 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                      onClick={() => setStep(2)}
+                    >
                       Continue
                     </Button>
                   </>
@@ -112,8 +140,8 @@ export default function SignupPage() {
 
                 {step === 2 && (
                   <>
-                    <h1 className="text-2xl font-bold text-[#0F172A]">Your details</h1>
-                    <p className="mt-2 text-sm text-[#0F172A]/70">Account type: {role}</p>
+                    <h1 className="text-2xl font-bold text-[#0F172A] transition-colors duration-300 dark:text-white">Your details</h1>
+                    <p className="mt-2 text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">Account type: {role}</p>
                     {error && (
                       <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</div>
                     )}
@@ -132,7 +160,7 @@ export default function SignupPage() {
                   </>
                 )}
 
-                <p className="mt-8 text-center text-sm text-[#0F172A]/70">
+                <p className="mt-8 text-center text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">
                   Already have an account? <Link href="/auth/login" className="font-medium text-[#7C3AED] hover:text-[#6D28D9]">Login</Link>
                 </p>
               </div>

@@ -17,7 +17,7 @@ export function Select({ label, options, error, id, className = "", ...props }: 
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={selectId} className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor={selectId} className="mb-1 block text-sm font-medium text-gray-700 transition-colors duration-300 dark:text-slate-300">
           {label}
         </label>
       )}
@@ -25,7 +25,7 @@ export function Select({ label, options, error, id, className = "", ...props }: 
         id={selectId}
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? `${selectId}-error` : undefined}
-        className={`block w-full rounded-md border px-3 py-2 text-gray-900 shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 disabled:bg-gray-100 sm:text-sm ${error ? "border-red-500" : "border-gray-300"} ${className}`}
+        className={`block w-full rounded-md border bg-white px-3 py-2 text-gray-900 shadow-sm transition-colors duration-300 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 disabled:bg-gray-100 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-700 ${error ? "border-red-500" : "border-gray-300"} ${className}`}
         {...props}
       >
         {options.map((opt) => (

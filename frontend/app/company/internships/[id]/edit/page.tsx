@@ -38,7 +38,7 @@ export default function EditInternshipPage() {
   };
 
   return (
-    <main className="py-8">
+    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-2xl">
         <PageHeader
           title="Edit Internship"
