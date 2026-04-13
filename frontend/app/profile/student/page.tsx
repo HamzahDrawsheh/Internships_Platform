@@ -3,8 +3,87 @@
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Input, Textarea, Button, Card } from "@/components/ui";
+import { Input, Textarea, Button, Card, Select } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+
+function parseCsv(input: string): string[] {
+  return input
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+const preferredWorkTypeOptions = [
+  { value: "", label: "No preference" },
+  { value: "remote", label: "Remote" },
+  { value: "onsite", label: "On-site" },
+  { value: "hybrid", label: "Hybrid" },
+];
+
+const availabilityOptions = [
+  { value: "", label: "Not specified" },
+  { value: "part-time", label: "Part-time" },
+  { value: "full-time", label: "Full-time" },
+];
+
+const courseCategories = [
+  {
+    title: "Core Courses",
+    courses: [
+      "Introduction to Data Science",
+      "Introduction to Artificial Intelligence",
+      "Programming",
+      "Object-Oriented Programming (OOP)",
+      "Data Structures",
+      "Algorithms",
+      "Database Systems",
+      "Discrete Mathematics",
+    ],
+  },
+  {
+    title: "Mathematics & Statistics",
+    courses: [
+      "Calculus 1",
+      "Calculus 2",
+      "Linear Algebra",
+      "Probability & Statistics",
+      "Statistical Inference",
+      "Numerical Methods",
+    ],
+  },
+  {
+    title: "Artificial Intelligence",
+    courses: [
+      "Artificial Intelligence",
+      "Machine Learning",
+      "Deep Learning",
+      "Natural Language Processing (NLP)",
+      "Computer Vision",
+      "Intelligent Systems",
+    ],
+  },
+  {
+    title: "Data Science",
+    courses: [
+      "Data Mining",
+      "Big Data Analytics",
+      "Data Visualization",
+      "Data Warehousing",
+      "Business Intelligence",
+      "Predictive Analytics",
+    ],
+  },
+  {
+    title: "Technical Support",
+    courses: [
+      "Operating Systems",
+      "Computer Networks",
+      "Cloud Computing",
+      "Distributed Systems",
+      "Software Engineering",
+    ],
+  },
+];
 
 export default function StudentProfilePage() {
   const [name, setName] = useState("");
@@ -17,6 +96,16 @@ export default function StudentProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [takenCourses, setTakenCourses] = useState<string[]>([]);
+  const [customCourses, setCustomCourses] = useState("");
+  const [gpa, setGpa] = useState("");
+  const [technicalSkills, setTechnicalSkills] = useState("");
+  const [softSkills, setSoftSkills] = useState("");
+  const [preferredField, setPreferredField] = useState("");
+  const [preferredWorkType, setPreferredWorkType] = useState("");
+  const [preferredLocation, setPreferredLocation] = useState("");
+  const [availability, setAvailability] = useState("");
+  const predefinedCourses = courseCategories.flatMap((category) => category.courses);
 
   useEffect(() => {
     const supabase = createClient();
@@ -31,7 +120,7 @@ export default function StudentProfilePage() {
       } = await supabase.auth.getUser();
 
       if (userError) {
-        console.error("student profile getUser error:", userError);
+        console.error("student profile getUser error:", JSON.stringify(userError, null, 2));
         setError("Unable to load your profile.");
         setLoading(false);
         return;
@@ -43,14 +132,16 @@ export default function StudentProfilePage() {
         return;
       }
 
+      console.log("student profile load user.id:", user.id);
+
       const { data: profileRow, error: profileError } = await supabase
         .from("profiles")
         .select("full_name, role")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
-        console.error("student profile fetch profiles error:", profileError);
+        console.error("student profile fetch profiles error:", JSON.stringify(profileError, null, 2));
       } else {
         setName(profileRow?.full_name ?? "");
         if (profileRow?.role && profileRow.role !== "student") {
@@ -64,10 +155,10 @@ export default function StudentProfilePage() {
         .from("students")
         .select("university, major, skills, preferences")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (studentError && studentError.code !== "PGRST116") {
-        console.error("student profile fetch students error:", studentError);
+      if (studentError) {
+        console.error("student profile fetch students error:", JSON.stringify(studentError, null, 2));
         setError("Unable to load your student data.");
         setLoading(false);
         return;
@@ -90,6 +181,37 @@ export default function StudentProfilePage() {
         }
       }
 
+      const { data: preferencesRow, error: preferencesError } = await supabase
+        .from("student_additional_info")
+        .select(
+          "taken_courses, gpa, technical_skills, soft_skills, preferred_field, preferred_work_type, preferred_location, availability"
+        )
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (preferencesError) {
+        console.error(
+          "student profile fetch student_additional_info error:",
+          JSON.stringify(preferencesError, null, 2)
+        );
+      }
+      console.log("student profile fetched student_additional_info:", preferencesRow ?? null);
+
+      if (preferencesRow) {
+        const allTakenCourses = preferencesRow.taken_courses ?? [];
+        const selectedPredefined = allTakenCourses.filter((course) => predefinedCourses.includes(course));
+        const inferredCustom = allTakenCourses.filter((course) => !predefinedCourses.includes(course));
+        setTakenCourses(selectedPredefined);
+        setCustomCourses(inferredCustom.join(", "));
+        setGpa(preferencesRow.gpa != null ? String(preferencesRow.gpa) : "");
+        setTechnicalSkills((preferencesRow.technical_skills ?? []).join(", "));
+        setSoftSkills((preferencesRow.soft_skills ?? []).join(", "));
+        setPreferredField(preferencesRow.preferred_field ?? "");
+        setPreferredWorkType(preferencesRow.preferred_work_type ?? "");
+        setPreferredLocation(preferencesRow.preferred_location ?? "");
+        setAvailability(preferencesRow.availability ?? "");
+      }
+
       setLoading(false);
     };
 
@@ -109,7 +231,7 @@ export default function StudentProfilePage() {
     } = await supabase.auth.getUser();
 
     if (userError) {
-      console.error("student profile save getUser error:", userError);
+      console.error("student profile save getUser error:", JSON.stringify(userError, null, 2));
       setError("Unable to verify your session.");
       setSaving(false);
       return;
@@ -121,6 +243,8 @@ export default function StudentProfilePage() {
       return;
     }
 
+    console.log("student profile save user.id:", user.id);
+
     const { data: profileRow, error: profileError } = await supabase
       .from("profiles")
       .select("role")
@@ -128,7 +252,7 @@ export default function StudentProfilePage() {
       .single();
 
     if (profileError) {
-      console.error("student profile save role check error:", profileError);
+      console.error("student profile save role check error:", JSON.stringify(profileError, null, 2));
       setError("Unable to validate your account role.");
       setSaving(false);
       return;
@@ -155,6 +279,14 @@ export default function StudentProfilePage() {
       preferences: preferencesPayload,
     };
 
+    const parsedGpa = Number.parseFloat(gpa);
+    const validGpa = !gpa.trim() || (Number.isFinite(parsedGpa) && parsedGpa >= 0 && parsedGpa <= 4);
+    if (!validGpa) {
+      setError("GPA must be a number between 0 and 4.");
+      setSaving(false);
+      return;
+    }
+
     const { data: existingStudent, error: existingError } = await supabase
       .from("students")
       .select("id")
@@ -162,7 +294,7 @@ export default function StudentProfilePage() {
       .single();
 
     if (existingError && existingError.code !== "PGRST116") {
-      console.error("student profile check existing error:", existingError);
+      console.error("student profile check existing error:", JSON.stringify(existingError, null, 2));
       setError("Unable to save your student profile.");
       setSaving(false);
       return;
@@ -175,7 +307,7 @@ export default function StudentProfilePage() {
         .eq("user_id", user.id);
 
       if (updateError) {
-        console.error("student profile update error:", updateError);
+        console.error("student profile update error:", JSON.stringify(updateError, null, 2));
         setError(updateError.message);
         setSaving(false);
         return;
@@ -187,7 +319,7 @@ export default function StudentProfilePage() {
       });
 
       if (insertError) {
-        console.error("student profile insert error:", insertError);
+        console.error("student profile insert error:", JSON.stringify(insertError, null, 2));
         setError(insertError.message);
         setSaving(false);
         return;
@@ -200,10 +332,35 @@ export default function StudentProfilePage() {
       .eq("id", user.id);
 
     if (profileUpdateError) {
-      console.error("student profile update profiles error:", profileUpdateError);
+      console.error("student profile update profiles error:", JSON.stringify(profileUpdateError, null, 2));
       setError(profileUpdateError.message);
       setSaving(false);
       return;
+    }
+
+    const mergedTakenCourses = Array.from(new Set([...takenCourses, ...parseCsv(customCourses)]));
+    const additionalInfoPayload = {
+      user_id: user.id,
+      taken_courses: mergedTakenCourses,
+      gpa: gpa.trim() ? parsedGpa : null,
+      technical_skills: parseCsv(technicalSkills),
+      soft_skills: parseCsv(softSkills),
+      preferred_field: preferredField.trim() || null,
+      preferred_work_type: preferredWorkType || null,
+      preferred_location: preferredLocation.trim() || null,
+      availability: availability || null,
+    };
+    console.log("student profile upsert payload:", additionalInfoPayload);
+
+    const { error: additionalInfoError } = await supabase
+      .from("student_additional_info")
+      .upsert(additionalInfoPayload, { onConflict: "user_id" });
+
+    if (additionalInfoError) {
+      console.error(
+        "student profile save student_additional_info error:",
+        JSON.stringify(additionalInfoError, null, 2)
+      );
     }
 
     setSaved(true);
@@ -248,6 +405,99 @@ export default function StudentProfilePage() {
               className="mt-4"
               placeholder="Short bio for your profile"
             />
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+              Additional Information
+            </h2>
+            <div className="mt-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-800 dark:text-slate-200">Courses</h3>
+              {courseCategories.map((category) => (
+                <div key={category.title} className="rounded-md border border-gray-200 p-3 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{category.title}</h4>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {category.courses.map((course) => {
+                      const isChecked = takenCourses.includes(course);
+                      return (
+                        <label key={course} className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 dark:border-slate-600 dark:bg-slate-800"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              setTakenCourses((prev) =>
+                                e.target.checked ? [...prev, course] : prev.filter((item) => item !== course)
+                              );
+                            }}
+                          />
+                          <span>{course}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <Input
+                label="Other courses (comma-separated)"
+                value={customCourses}
+                onChange={(e) => setCustomCourses(e.target.value)}
+                placeholder="Reinforcement Learning, Time Series Analysis"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Input
+                label="GPA (optional)"
+                type="number"
+                min={0}
+                max={4}
+                step="0.01"
+                value={gpa}
+                onChange={(e) => setGpa(e.target.value)}
+                placeholder="e.g. 3.50"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Technical skills (comma-separated)"
+                value={technicalSkills}
+                onChange={(e) => setTechnicalSkills(e.target.value)}
+                placeholder="Python, TensorFlow, SQL"
+              />
+              <Input
+                label="Soft skills (comma-separated)"
+                value={softSkills}
+                onChange={(e) => setSoftSkills(e.target.value)}
+                placeholder="Communication, Teamwork"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Preferred field"
+                value={preferredField}
+                onChange={(e) => setPreferredField(e.target.value)}
+                placeholder="AI, Data Science, Web"
+              />
+              <Input
+                label="Preferred location"
+                value={preferredLocation}
+                onChange={(e) => setPreferredLocation(e.target.value)}
+                placeholder="Amman"
+              />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Preferred work type"
+                options={preferredWorkTypeOptions}
+                value={preferredWorkType}
+                onChange={(e) => setPreferredWorkType(e.target.value)}
+              />
+              <Select
+                label="Availability"
+                options={availabilityOptions}
+                value={availability}
+                onChange={(e) => setAvailability(e.target.value)}
+              />
+            </div>
           </Card>
           <Card>
             <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">CV upload</h2>

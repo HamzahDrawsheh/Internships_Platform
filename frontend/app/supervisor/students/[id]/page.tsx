@@ -20,8 +20,10 @@ export default function StudentDetailsPage() {
     university: string;
     major: string;
     year: string;
-    skills: string;
     bio: string;
+    gpa: number | null;
+    technical_skills: string[];
+    taken_courses: string[];
   } | null>(null);
   const [applications, setApplications] = useState<
     {
@@ -109,6 +111,18 @@ export default function StudentDetailsPage() {
         console.error("supervisor student details profile query error:", profileError);
       }
 
+      const { data: detailRows, error: detailRowsError } = await supabase
+        .from("v_application_student_details")
+        .select(
+          "student_id, university, major, year, bio, cv_url, internship_title, applied_at, application_status, gpa, technical_skills, taken_courses, supervisor_user_id"
+        )
+        .eq("supervisor_user_id", user.id)
+        .eq("student_id", student.id)
+        .order("applied_at", { ascending: false });
+      if (detailRowsError) {
+        console.error("supervisor student details view query error:", detailRowsError);
+      }
+
       let year = "—";
       let bio = "—";
       if (student.preferences) {
@@ -125,30 +139,19 @@ export default function StudentDetailsPage() {
         student_id: student.id,
         full_name: profile?.full_name?.trim() || "—",
         email: profile?.email ?? "—",
-        university: student.university ?? "—",
-        major: student.major ?? "—",
-        year,
-        skills: student.skills ?? "—",
-        bio,
+        university: detailRows?.[0]?.university ?? student.university ?? "—",
+        major: detailRows?.[0]?.major ?? student.major ?? "—",
+        year: detailRows?.[0]?.year ?? year,
+        bio: detailRows?.[0]?.bio ?? bio,
+        gpa: detailRows?.[0]?.gpa ?? null,
+        technical_skills: detailRows?.[0]?.technical_skills ?? [],
+        taken_courses: detailRows?.[0]?.taken_courses ?? [],
       });
 
-      const { data: appRows, error: appError } = await supabase
-        .from("applications")
-        .select("id, position_id, status, applied_at")
-        .eq("student_id", student.id)
-        .order("applied_at", { ascending: false });
-      if (appError) {
-        console.error("supervisor student details applications query error:", appError);
-        setError("Unable to load application history.");
-        setLoading(false);
-        return;
-      }
-
-      const safeApps = (appRows ??
+      const safeApps = (detailRows ??
         []) as {
-        id: string;
-        position_id: string;
-        status: "pending" | "accepted" | "rejected";
+        internship_title: string | null;
+        application_status: "pending" | "accepted" | "rejected";
         applied_at: string;
       }[];
 
@@ -158,34 +161,14 @@ export default function StudentDetailsPage() {
         return;
       }
 
-      const positionIds = [...new Set(safeApps.map((app) => app.position_id))];
-      const { data: positions, error: positionsError } = await supabase
-        .from("internship_positions")
-        .select("id, title, company_id")
-        .in("id", positionIds);
-      if (positionsError) {
-        console.error("supervisor student details positions query error:", positionsError);
-      }
-      const positionById = new Map((positions ?? []).map((position) => [position.id, position]));
-
-      const companyIds = [...new Set((positions ?? []).map((position) => position.company_id))];
-      const { data: companies, error: companiesError } = companyIds.length
-        ? await supabase.from("companies").select("id, company_name").in("id", companyIds)
-        : { data: [] as { id: string; company_name: string }[], error: null };
-      if (companiesError) {
-        console.error("supervisor student details companies query error:", companiesError);
-      }
-      const companyNameById = new Map((companies ?? []).map((company) => [company.id, company.company_name]));
-
       setApplications(
-        safeApps.map((application) => {
-          const position = positionById.get(application.position_id);
+        safeApps.map((application, index) => {
           return {
-            id: application.id,
+            id: `${student.id}-${index}`,
             applied_at: application.applied_at,
-            status: application.status,
-            internship_title: position?.title ?? "—",
-            company_name: position ? companyNameById.get(position.company_id) ?? "—" : "—",
+            status: application.application_status,
+            internship_title: application.internship_title ?? "—",
+            company_name: "—",
           };
         })
       );
@@ -223,8 +206,37 @@ export default function StudentDetailsPage() {
                 <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">University:</span> {studentInfo?.university ?? "—"}</p>
                 <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Major:</span> {studentInfo?.major ?? "—"}</p>
                 <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Year:</span> {studentInfo?.year ?? "—"}</p>
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</span> {studentInfo?.skills ?? "—"}</p>
                 <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Bio:</span> {studentInfo?.bio ?? "—"}</p>
+                <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Academic Info:</span> GPA: {studentInfo?.gpa != null ? studentInfo.gpa : "Not provided"}</p>
+                <div className="sm:col-span-2">
+                  <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</p>
+                  {studentInfo && studentInfo.technical_skills.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {studentInfo.technical_skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-500/20 dark:text-violet-200"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1">No data</p>
+                  )}
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Taken Courses:</p>
+                  {studentInfo && studentInfo.taken_courses.length > 0 ? (
+                    <ul className="mt-1 list-inside list-disc space-y-1">
+                      {studentInfo.taken_courses.map((course) => (
+                        <li key={course}>{course}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1">No data</p>
+                  )}
+                </div>
               </div>
             </Card>
             <section className="mt-6">

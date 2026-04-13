@@ -31,10 +31,12 @@ export default function ApplicantsPage() {
       university: string;
       major: string;
       year: string;
-      skills: string;
       bio: string;
       cv_url: string | null;
       internship_title: string;
+      gpa: number | null;
+      technical_skills: string[];
+      taken_courses: string[];
     }[]
   >([]);
 
@@ -115,6 +117,25 @@ export default function ApplicantsPage() {
       const studentById = new Map((students ?? []).map((s) => [s.id, s]));
 
       const userIds = [...new Set((students ?? []).map((s) => s.user_id))];
+      const { data: additionalInfoRows, error: additionalInfoError } = userIds.length
+        ? await supabase
+            .from("student_additional_info")
+            .select("user_id, gpa, technical_skills, taken_courses")
+            .in("user_id", userIds)
+        : {
+            data: [] as {
+              user_id: string;
+              gpa: number | null;
+              technical_skills: string[] | null;
+              taken_courses: string[] | null;
+            }[],
+            error: null,
+          };
+      if (additionalInfoError) {
+        console.error("company applicants additional info query error:", additionalInfoError);
+      }
+      const additionalInfoByUserId = new Map((additionalInfoRows ?? []).map((item) => [item.user_id, item]));
+
       const { data: profiles, error: profilesError } = userIds.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
         : { data: [] as { id: string; full_name: string | null; email: string | null }[], error: null };
@@ -147,6 +168,7 @@ export default function ApplicantsPage() {
             }
           }
           const profile = student ? profileByUserId.get(student.user_id) : null;
+          const additionalInfo = student ? additionalInfoByUserId.get(student.user_id) : null;
           const fallbackFromEmail =
             profile?.email && profile.email.includes("@") ? profile.email.split("@")[0] : "Student";
           const resolvedStudentName = profile?.fullName ?? fallbackFromEmail;
@@ -161,10 +183,12 @@ export default function ApplicantsPage() {
             university: student?.university ?? "—",
             major: student?.major ?? "—",
             year,
-            skills: student?.skills ?? "—",
             bio,
             cv_url: student?.cv_url ?? null,
             internship_title: position.title,
+            gpa: additionalInfo?.gpa ?? null,
+            technical_skills: additionalInfo?.technical_skills ?? [],
+            taken_courses: additionalInfo?.taken_courses ?? [],
           };
         })
       );
@@ -399,8 +423,37 @@ export default function ApplicantsPage() {
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">University:</span> {selected.university}</p>
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Major:</span> {selected.major}</p>
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Year:</span> {selected.year}</p>
-              <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</span> {selected.skills}</p>
               <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Bio:</span> {selected.bio}</p>
+              <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Academic Info:</span> GPA: {selected.gpa != null ? selected.gpa : "Not provided"}</p>
+              <div className="sm:col-span-2">
+                <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</p>
+                {selected.technical_skills.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selected.technical_skills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-500/20 dark:text-violet-200"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1">No data</p>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Taken Courses:</p>
+                {selected.taken_courses.length > 0 ? (
+                  <ul className="mt-1 list-inside list-disc space-y-1">
+                    {selected.taken_courses.map((course) => (
+                      <li key={course}>{course}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1">No data</p>
+                )}
+              </div>
               <p className="sm:col-span-2">
                 <span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">CV:</span>{" "}
                 {selected.cv_url ? (

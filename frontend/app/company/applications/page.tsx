@@ -11,6 +11,7 @@ type Application = {
   id: string;
   student_id: string;
   position_id: string;
+  internship_title: string;
   status: "pending" | "accepted" | "rejected";
   applied_at: string;
 };
@@ -19,10 +20,12 @@ type StudentDetail = {
   email: string;
   university: string;
   major: string;
-  skills: string;
   cvUrl: string | null;
   year: string;
   bio: string;
+  gpa: number | null;
+  technicalSkills: string[];
+  takenCourses: string[];
 };
 
 export default function CompanyApplicationsPage() {
@@ -106,13 +109,14 @@ export default function CompanyApplicationsPage() {
         return;
       }
 
-      const positionIds = safePositions.map((position) => position.id);
-      const { data: applicationsData, error: applicationsError } = await supabase
-        .from("applications")
-        .select("id, student_id, position_id, status, applied_at")
-        .in("position_id", positionIds)
+      const { data: viewRows, error: applicationsError } = await supabase
+        .from("v_application_student_details")
+        .select(
+          "application_id, student_id, internship_title, applied_at, application_status, company_user_id, gpa, technical_skills, taken_courses, student_name, email, university, major, year, bio, cv_url"
+        )
+        .eq("company_user_id", user.id)
         .order("applied_at", { ascending: false });
-      console.log("[company-applications] raw applications response", applicationsData);
+      console.log("[company-applications] raw view response", viewRows);
 
       if (applicationsError) {
         console.error("company applications query error:", applicationsError);
@@ -121,81 +125,49 @@ export default function CompanyApplicationsPage() {
         return;
       }
 
-      const safeApplications = (applicationsData ?? []) as Application[];
-      setApplications(safeApplications);
+      const safeRows = (viewRows ?? []) as {
+        application_id: string;
+        student_id: string;
+        internship_title: string | null;
+        applied_at: string;
+        application_status: "pending" | "accepted" | "rejected";
+        gpa: number | null;
+        technical_skills: string[] | null;
+        taken_courses: string[] | null;
+        student_name: string | null;
+        email: string | null;
+        university: string | null;
+        major: string | null;
+        year: string | null;
+        bio: string | null;
+        cv_url: string | null;
+      }[];
 
-      const studentIds = [...new Set(safeApplications.map((application) => application.student_id))];
-      const { data: studentsData, error: studentsError } = studentIds.length
-        ? await supabase
-            .from("students")
-            .select("id, user_id, university, major, skills, cv_url, preferences")
-            .in("id", studentIds)
-        : {
-            data: [] as {
-              id: string;
-              user_id: string;
-              university: string | null;
-              major: string | null;
-              skills: string | null;
-              cv_url: string | null;
-              preferences: string | null;
-            }[],
-            error: null,
-          };
-      console.log("[company-applications] raw students response", studentsData);
-      if (studentsError) {
-        console.error("company applications students query error:", studentsError);
-      }
-
-      const userIds = [...new Set((studentsData ?? []).map((student) => student.user_id))];
-      const { data: profilesData, error: profilesError } = userIds.length
-        ? await supabase
-            .from("profiles")
-            .select("id, full_name, email")
-            .in("id", userIds)
-        : { data: [] as { id: string; full_name: string | null; email: string | null }[], error: null };
-      console.log("[company-applications] raw profiles response", profilesData);
-      if (profilesError) {
-        console.error("company applications profiles query error:", profilesError);
-      }
-
-      const profileByUserId = new Map(
-        (profilesData ?? []).map((profile) => [
-          profile.id,
-          {
-            fullName: profile.full_name?.trim() || null,
-            email: profile.email ?? null,
-          },
-        ])
+      setApplications(
+        safeRows.map((row) => ({
+          id: row.application_id,
+          student_id: row.student_id,
+          position_id:
+            safePositions.find((position) => position.title === (row.internship_title ?? ""))?.id ?? "",
+          internship_title: row.internship_title ?? "—",
+          status: row.application_status,
+          applied_at: row.applied_at,
+        }))
       );
+
       const detailsMap = new Map<string, StudentDetail>();
-      (studentsData ?? []).forEach((student) => {
-        let year = "—";
-        let bio = "—";
-        if (student.preferences) {
-          try {
-            const parsed = JSON.parse(student.preferences) as { year?: string | null; bio?: string | null };
-            year = parsed?.year?.trim() ? parsed.year : "—";
-            bio = parsed?.bio?.trim() ? parsed.bio : "—";
-          } catch {
-            bio = student.preferences;
-          }
-        }
-
-        const profile = profileByUserId.get(student.user_id);
-        const fallbackFromEmail =
-          profile?.email && profile.email.includes("@") ? profile.email.split("@")[0] : "Student";
-        const mergedFullName = profile?.fullName ?? fallbackFromEmail;
-
-        detailsMap.set(student.id, {
-          fullName: mergedFullName,
-          email: profile?.email ?? "—",
-          university: student.university ?? "—",
-          major: student.major ?? "—",
-          skills: student.skills ?? "—",
-          cvUrl: student.cv_url ?? null,
-          year,
-          bio,
+      safeRows.forEach((row) => {
+        detailsMap.set(row.student_id, {
+          fullName: row.student_name?.trim() || "Student",
+          email: row.email ?? "—",
+          university: row.university ?? "—",
+          major: row.major ?? "—",
+          cvUrl: row.cv_url ?? null,
+          year: row.year ?? "—",
+          bio: row.bio ?? "—",
+          gpa: row.gpa ?? null,
+          technicalSkills: row.technical_skills ?? [],
+          takenCourses: row.taken_courses ?? [],
         });
       });
       console.log("[company-applications] merged student details map", Array.from(detailsMap.entries()));
@@ -380,7 +352,7 @@ export default function CompanyApplicationsPage() {
                   {studentDetailById.get(application.student_id)?.university ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">
-                  {titleByPositionId.get(application.position_id) ?? "—"}
+                  {application.internship_title}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
                   {new Date(application.applied_at).toLocaleDateString()}
@@ -439,9 +411,43 @@ export default function CompanyApplicationsPage() {
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Email:</span> {selectedStudent?.email ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">University:</span> {selectedStudent?.university ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Major:</span> {selectedStudent?.major ?? "—"}</p>
-            <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</span> {selectedStudent?.skills ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Year:</span> {selectedStudent?.year ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Bio:</span> {selectedStudent?.bio ?? "—"}</p>
+            <div className="mt-2 rounded-md bg-gray-50 p-3 transition-colors duration-300 dark:bg-slate-800">
+              <p>
+                <span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Academic Info:</span>{" "}
+                GPA: {selectedStudent?.gpa != null ? selectedStudent.gpa : "Not provided"}
+              </p>
+              <div className="mt-2">
+                <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</p>
+                {selectedStudent && selectedStudent.technicalSkills.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedStudent.technicalSkills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-500/20 dark:text-violet-200"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1">No data</p>
+                )}
+              </div>
+              <div className="mt-2">
+                <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Taken Courses:</p>
+                {selectedStudent && selectedStudent.takenCourses.length > 0 ? (
+                  <ul className="mt-1 list-inside list-disc space-y-1">
+                    {selectedStudent.takenCourses.map((course) => (
+                      <li key={course}>{course}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1">No data</p>
+                )}
+              </div>
+            </div>
             <p>
               <span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">CV:</span>{" "}
               {selectedStudent?.cvUrl ? (
@@ -457,7 +463,7 @@ export default function CompanyApplicationsPage() {
                 "Not provided"
               )}
             </p>
-            <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Internship:</span> {titleByPositionId.get(selectedApplication.position_id) ?? "—"}</p>
+            <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Internship:</span> {selectedApplication.internship_title}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Applied:</span> {new Date(selectedApplication.applied_at).toLocaleDateString()}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Status:</span> <span className="capitalize">{selectedApplication.status}</span></p>
             {selectedApplication.status !== "pending" && (
