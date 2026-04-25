@@ -5,12 +5,14 @@ const statusVariant: Record<ApplicationStatus, "default" | "info" | "warning" | 
   pending: "warning",
   accepted: "success",
   rejected: "danger",
+  completed: "info",
 };
 
 const statusLabel: Record<ApplicationStatus, string> = {
   pending: "Pending",
   accepted: "Accepted",
   rejected: "Rejected",
+  completed: "Completed",
 };
 
 interface ApplicationStatusBadgeProps {

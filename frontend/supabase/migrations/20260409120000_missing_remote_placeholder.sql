@@ -1,0 +1,8 @@
+-- =========================================================
+-- Placeholder migration (no-op)
+-- Version: 20260409120000
+-- =========================================================
+-- This migration version exists in remote Supabase migration history.
+-- The original SQL file is currently missing from git/local migrations.
+-- This placeholder is added only to align local migration history with remote.
+-- Do not edit or replace this file unless the original migration is recovered.
