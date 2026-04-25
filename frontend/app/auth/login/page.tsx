@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Input, Button } from "@/components/ui";
+import { normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
 
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
@@ -30,13 +31,14 @@ function hasRequiredOnboardingPayload(
     return typeof record.company_name === "string" && record.company_name.trim().length > 0;
   }
 
+  const deptRaw = typeof record.department === "string" ? record.department.trim() : "";
+  const deptOk = deptRaw.length > 0 && normalizeDepartmentAlias(deptRaw) !== null;
   return (
     typeof record.full_name === "string" &&
     record.full_name.trim().length > 0 &&
     typeof record.university === "string" &&
     record.university.trim().length > 0 &&
-    typeof record.department === "string" &&
-    record.department.trim().length > 0
+    deptOk
   );
 }
 

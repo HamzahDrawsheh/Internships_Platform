@@ -17,6 +17,7 @@ export default function ReportsExportPage() {
       student_name: string;
       student_email: string;
       university: string;
+      department: string;
       major: string;
       company_name: string;
       internship_title: string;
@@ -54,7 +55,7 @@ export default function ReportsExportPage() {
 
       const { data: supervisor, error: supervisorError } = await supabase
         .from("supervisors")
-        .select("id")
+        .select("id, department")
         .eq("user_id", user.id)
         .maybeSingle();
       if (supervisorError) {
@@ -63,7 +64,7 @@ export default function ReportsExportPage() {
         setLoading(false);
         return;
       }
-      if (!supervisor) {
+      if (!supervisor?.department) {
         setRows([]);
         setLoading(false);
         return;
@@ -71,17 +72,22 @@ export default function ReportsExportPage() {
 
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
-        .select("id, user_id, university, major")
-        .eq("supervisor_id", supervisor.id);
+        .select("id, user_id, university, department, major")
+        .eq("department", supervisor.department);
       if (studentsError) {
         console.error("supervisor reports students query error:", studentsError);
-        setError("Unable to load assigned students.");
+        setError("Unable to load students in your department.");
         setLoading(false);
         return;
       }
 
-      const safeStudents = (studentsData ??
-        []) as { id: string; user_id: string; university: string | null; major: string | null }[];
+      const safeStudents = (studentsData ?? []) as {
+        id: string;
+        user_id: string;
+        university: string | null;
+        department: string | null;
+        major: string | null;
+      }[];
       if (safeStudents.length === 0) {
         setRows([]);
         setLoading(false);
@@ -159,6 +165,7 @@ export default function ReportsExportPage() {
             student_name: profile?.full_name?.trim() || "—",
             student_email: profile?.email ?? "—",
             university: student?.university ?? "—",
+            department: student?.department ?? "—",
             major: student?.major ?? "—",
             company_name: company?.company_name ?? "—",
             internship_title: position?.title ?? "—",
@@ -179,7 +186,7 @@ export default function ReportsExportPage() {
       <Container>
         <PageHeader
           title="Applications Monitoring"
-          description="All internship applications from students assigned to you."
+          description="Internship applications from students in your academic department."
         />
         {loading ? (
           <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading applications...</p>
@@ -188,12 +195,12 @@ export default function ReportsExportPage() {
         ) : rows.length === 0 ? (
           <EmptyState
             title="No applications to monitor yet"
-            description="Assigned students do not have any internship applications yet."
+            description="Students in your department do not have any internship applications yet."
           />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
             <Table
-              headers={["Student", "Email", "University", "Major", "Company", "Internship", "Applied", "Status", "Actions"]}
+              headers={["Student", "Email", "University", "Department", "Major", "Company", "Internship", "Applied", "Status", "Actions"]}
               className="dark:divide-slate-800 dark:[&_thead]:bg-slate-800 dark:[&_tbody]:bg-slate-900 dark:[&_th]:border-slate-800 dark:[&_th]:text-slate-300 dark:[&_tr]:border-slate-800"
             >
               {rows.map((row) => (
@@ -201,6 +208,7 @@ export default function ReportsExportPage() {
                   <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{row.student_name}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.student_email}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.university}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.department}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.major}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.company_name}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{row.internship_title}</td>

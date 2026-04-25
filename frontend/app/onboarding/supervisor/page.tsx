@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, Select } from "@/components/ui";
 import { ApprovalStatusCard } from "@/components/onboarding/ApprovalStatusCard";
+import { academicDepartmentSelectOptions, isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
+
+const departmentOptions = [{ value: "", label: "Select your department" }, ...academicDepartmentSelectOptions];
 
 export default function SupervisorOnboardingPage() {
   const router = useRouter();
@@ -83,7 +86,12 @@ export default function SupervisorOnboardingPage() {
 
         if (payloadFullName && !fullName) setFullName(payloadFullName);
         if (payloadUniversity && !university) setUniversity(payloadUniversity);
-        if (payloadDepartment && !department) setDepartment(payloadDepartment);
+        if (payloadDepartment && !department) {
+          const mapped =
+            normalizeDepartmentAlias(payloadDepartment) ??
+            (isValidDepartment(payloadDepartment.trim()) ? (payloadDepartment.trim() as (typeof academicDepartmentSelectOptions)[number]["value"]) : null);
+          if (mapped) setDepartment(mapped);
+        }
 
         if (pendingRequest.status === "pending") {
           setLatestStatus("pending");
@@ -109,13 +117,18 @@ export default function SupervisorOnboardingPage() {
       return;
     }
 
+    if (!isValidDepartment(department.trim())) {
+      setError("Please choose a valid department from the list.");
+      return;
+    }
+
     setLoading(true);
     const supabase = createClient();
 
     const payload = {
       full_name: fullName.trim(),
       university: university.trim(),
-      department: department.trim(),
+      department: department.trim() as (typeof academicDepartmentSelectOptions)[number]["value"],
     };
 
     const requestMutation =
@@ -210,12 +223,12 @@ export default function SupervisorOnboardingPage() {
                 value={university}
                 onChange={(e) => setUniversity(e.target.value)}
               />
-              <Input
+              <Select
                 label="Department"
-                placeholder="Computer Science Department"
                 required
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
+                options={departmentOptions}
               />
               <Button type="submit" variant="primary" className="w-full" disabled={loading}>
                 {loading ? "Submitting..." : "Submit request"}

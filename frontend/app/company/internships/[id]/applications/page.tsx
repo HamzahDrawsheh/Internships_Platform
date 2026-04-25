@@ -29,6 +29,7 @@ export default function ApplicantsPage() {
       message: string | null;
       student_name: string;
       university: string;
+      department: string;
       major: string;
       year: string;
       bio: string;
@@ -96,13 +97,14 @@ export default function ApplicantsPage() {
       const { data: students, error: studentsError } = studentIds.length
         ? await supabase
             .from("students")
-            .select("id, user_id, university, major, skills, preferences, cv_url")
+            .select("id, user_id, university, department, major, skills, preferences, cv_url")
             .in("id", studentIds)
         : {
             data: [] as {
               id: string;
               user_id: string;
               university: string | null;
+              department: string | null;
               major: string | null;
               skills: string | null;
               preferences: string | null;
@@ -181,6 +183,7 @@ export default function ApplicantsPage() {
             message: app.message,
             student_name: resolvedStudentName,
             university: student?.university ?? "—",
+            department: student?.department ?? "—",
             major: student?.major ?? "—",
             year,
             bio,
@@ -340,12 +343,14 @@ export default function ApplicantsPage() {
             description="Applicants will appear here when students apply."
           />
         ) : (
-          <Table headers={["Student name", "University / major / year", "Skills", "Status", "Actions"]}>
+          <Table headers={["Student name", "University / dept / major / year", "Skills", "Status", "Actions"]}>
             {rows.map((app) => (
               <tr key={app.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
                 <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{app.student_name}</td>
-                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{`${app.university} / ${app.major} / ${app.year}`}</td>
-                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{app.skills}</td>
+                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{`${app.university} / ${app.department} / ${app.major} / ${app.year}`}</td>
+                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
+                  {app.technical_skills.length ? app.technical_skills.join(", ") : "—"}
+                </td>
                 <td className="px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">{app.status}</td>
                 <td className="px-4 py-3 text-sm">
                   <div className="flex flex-wrap gap-2">
@@ -421,6 +426,7 @@ export default function ApplicantsPage() {
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Status:</span> <span className="capitalize">{selected.status}</span></p>
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Student:</span> {selected.student_name}</p>
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">University:</span> {selected.university}</p>
+              <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Department:</span> {selected.department}</p>
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Major:</span> {selected.major}</p>
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Year:</span> {selected.year}</p>
               <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Bio:</span> {selected.bio}</p>

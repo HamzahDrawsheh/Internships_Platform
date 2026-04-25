@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import type { ProfileRole } from "@/lib/types";
 
 const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/verify"];
@@ -58,13 +59,15 @@ function hasRequiredOnboardingPayload(
     return typeof record.company_name === "string" && record.company_name.trim().length > 0;
   }
 
+  const department = typeof record.department === "string" ? record.department.trim() : "";
+  const departmentOk =
+    department.length > 0 && (isValidDepartment(department) || normalizeDepartmentAlias(department) !== null);
   return (
     typeof record.full_name === "string" &&
     record.full_name.trim().length > 0 &&
     typeof record.university === "string" &&
     record.university.trim().length > 0 &&
-    typeof record.department === "string" &&
-    record.department.trim().length > 0
+    departmentOk
   );
 }
 

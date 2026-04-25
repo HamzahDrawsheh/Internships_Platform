@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button, Card, EmptyState, Input } from "@/components/ui";
+import { Button, Card, EmptyState, Input, Select } from "@/components/ui";
+import { academicDepartmentSelectOptions, isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
+
+const supervisorDepartmentOptions = [{ value: "", label: "Select your department" }, ...academicDepartmentSelectOptions];
 
 type SupervisorProfile = {
   user_id: string;
@@ -110,7 +113,10 @@ export default function SupervisorProfilePage() {
           : "—",
       };
       setProfile(mapped);
-      setDepartmentInput(supervisorRow.department ?? "");
+      const deptRaw = supervisorRow.department ?? "";
+      const deptForSelect =
+        normalizeDepartmentAlias(deptRaw) ?? (isValidDepartment(deptRaw.trim()) ? deptRaw.trim() : "");
+      setDepartmentInput(deptForSelect);
       setTitleInput(supervisorRow.title ?? "");
       setLoading(false);
     };
@@ -138,9 +144,16 @@ export default function SupervisorProfilePage() {
       return;
     }
 
+    const deptTrim = departmentInput.trim();
+    if (!isValidDepartment(deptTrim)) {
+      setError("Please choose a valid department from the list.");
+      setSaving(false);
+      return;
+    }
+
     const updatePayload = {
       user_id: user.id,
-      department: departmentInput.trim() || null,
+      department: deptTrim,
       title: titleInput.trim() || null,
     };
 
@@ -155,11 +168,11 @@ export default function SupervisorProfilePage() {
       return;
     }
 
-    setProfile((prev) =>
+      setProfile((prev) =>
       prev
         ? {
             ...prev,
-            department: departmentInput.trim() || "—",
+            department: deptTrim,
             title: titleInput.trim() || "—",
           }
         : prev
@@ -212,11 +225,12 @@ export default function SupervisorProfilePage() {
               <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Role:</span> {profile.role}</p>
               {editing ? (
                 <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
-                  <Input
+                  <Select
                     label="Department"
+                    required
                     value={departmentInput}
                     onChange={(e) => setDepartmentInput(e.target.value)}
-                    placeholder="Enter department"
+                    options={supervisorDepartmentOptions}
                   />
                   <Input
                     label="Title"

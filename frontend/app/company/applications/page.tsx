@@ -19,6 +19,7 @@ type StudentDetail = {
   fullName: string;
   email: string;
   university: string;
+  department: string;
   major: string;
   cvUrl: string | null;
   year: string;
@@ -72,7 +73,7 @@ export default function CompanyApplicationsPage() {
         .maybeSingle();
 
       if (companyError) {
-        console.error("company applications company error:", companyError);
+        console.error("company applications company error:", JSON.stringify(companyError, null, 2));
         setError("Could not load company profile.");
         setLoading(false);
         return;
@@ -94,7 +95,7 @@ export default function CompanyApplicationsPage() {
         .eq("company_id", company.id);
 
       if (positionsError) {
-        console.error("company applications positions error:", positionsError);
+        console.error("company applications positions error:", JSON.stringify(positionsError, null, 2));
         setError("Could not load internship posts.");
         setLoading(false);
         return;
@@ -105,72 +106,137 @@ export default function CompanyApplicationsPage() {
 
       if (safePositions.length === 0) {
         setApplications([]);
+        setStudentDetailById(new Map());
         setLoading(false);
         return;
       }
 
-      const { data: viewRows, error: applicationsError } = await supabase
-        .from("v_application_student_details")
-        .select(
-          "application_id, student_id, internship_title, applied_at, application_status, company_user_id, gpa, technical_skills, taken_courses, student_name, email, university, major, year, bio, cv_url"
-        )
-        .eq("company_user_id", user.id)
+      const positionIds = safePositions.map((p) => p.id);
+      const titleByPositionId = new Map(safePositions.map((p) => [p.id, p.title]));
+
+      const { data: appsData, error: applicationsError } = await supabase
+        .from("applications")
+        .select("id, student_id, position_id, status, applied_at")
+        .in("position_id", positionIds)
         .order("applied_at", { ascending: false });
-      console.log("[company-applications] raw view response", viewRows);
 
       if (applicationsError) {
-        console.error("company applications query error:", applicationsError);
-        setError("Could not load applications.");
+        console.error(
+          "company applications query error:",
+          JSON.stringify(applicationsError, null, 2),
+          "message:",
+          applicationsError.message,
+          "code:",
+          applicationsError.code,
+          "details:",
+          applicationsError.details,
+          "hint:",
+          applicationsError.hint
+        );
+        setError(applicationsError.message || "Could not load applications.");
         setLoading(false);
         return;
       }
 
-      const safeRows = (viewRows ?? []) as {
-        application_id: string;
+      const baseApps = (appsData ?? []) as {
+        id: string;
         student_id: string;
-        internship_title: string | null;
+        position_id: string;
+        status: "pending" | "accepted" | "rejected";
         applied_at: string;
-        application_status: "pending" | "accepted" | "rejected";
-        gpa: number | null;
-        technical_skills: string[] | null;
-        taken_courses: string[] | null;
-        student_name: string | null;
-        email: string | null;
-        university: string | null;
-        major: string | null;
-        year: string | null;
-        bio: string | null;
-        cv_url: string | null;
       }[];
 
+      const studentIds = [...new Set(baseApps.map((a) => a.student_id))];
+
+      const { data: studentsData, error: studentsError } = studentIds.length
+        ? await supabase
+            .from("students")
+            .select("id, user_id, university, department, major, preferences, cv_url")
+            .in("id", studentIds)
+        : { data: [] as Record<string, unknown>[], error: null };
+
+      if (studentsError) {
+        console.error("company applications students error:", JSON.stringify(studentsError, null, 2));
+        setError(studentsError.message || "Could not load applicant profiles.");
+        setLoading(false);
+        return;
+      }
+
+      const studentsList = (studentsData ?? []) as {
+        id: string;
+        user_id: string;
+        university: string | null;
+        department?: string | null;
+        major: string | null;
+        preferences: string | null;
+        cv_url: string | null;
+      }[];
+      const studentById = new Map(studentsList.map((s) => [s.id, s]));
+      const profileUserIds = [...new Set(studentsList.map((s) => s.user_id))];
+
+      const { data: profilesData, error: profilesError } = profileUserIds.length
+        ? await supabase.from("profiles").select("id, full_name, email").in("id", profileUserIds)
+        : { data: [] as { id: string; full_name: string | null; email: string | null }[], error: null };
+
+      if (profilesError) {
+        console.error("company applications profiles error:", JSON.stringify(profilesError, null, 2));
+      }
+
+      const { data: additionalRows, error: additionalError } = profileUserIds.length
+        ? await supabase
+            .from("student_additional_info")
+            .select("user_id, gpa, technical_skills, taken_courses")
+            .in("user_id", profileUserIds)
+        : { data: [] as { user_id: string; gpa: number | null; technical_skills: string[] | null; taken_courses: string[] | null }[], error: null };
+
+      if (additionalError) {
+        console.error("company applications student_additional_info error:", JSON.stringify(additionalError, null, 2));
+      }
+
+      const profileById = new Map((profilesData ?? []).map((p) => [p.id, p]));
+      const additionalByUserId = new Map((additionalRows ?? []).map((r) => [r.user_id, r]));
+
+      const detailsMap = new Map<string, StudentDetail>();
+      for (const s of studentsList) {
+        const profile = profileById.get(s.user_id);
+        const extra = additionalByUserId.get(s.user_id);
+        let year = "—";
+        let bio = "—";
+        if (s.preferences) {
+          try {
+            const parsed = JSON.parse(s.preferences) as { year?: string | null; bio?: string | null };
+            year = parsed?.year?.trim() ? parsed.year : "—";
+            bio = parsed?.bio?.trim() ? parsed.bio : "—";
+          } catch {
+            bio = s.preferences;
+          }
+        }
+        detailsMap.set(s.id, {
+          fullName: profile?.full_name?.trim() || "Student",
+          email: profile?.email ?? "—",
+          university: s.university ?? "—",
+          department: (s.department as string | null | undefined)?.trim() || "—",
+          major: s.major ?? "—",
+          cvUrl: s.cv_url ?? null,
+          year,
+          bio,
+          gpa: extra?.gpa ?? null,
+          technicalSkills: extra?.technical_skills ?? [],
+          takenCourses: extra?.taken_courses ?? [],
+        });
+      }
+
       setApplications(
-        safeRows.map((row) => ({
-          id: row.application_id,
+        baseApps.map((row) => ({
+          id: row.id,
           student_id: row.student_id,
-          position_id:
-            safePositions.find((position) => position.title === (row.internship_title ?? ""))?.id ?? "",
-          internship_title: row.internship_title ?? "—",
-          status: row.application_status,
+          position_id: row.position_id,
+          internship_title: titleByPositionId.get(row.position_id)?.trim() || "—",
+          status: row.status,
           applied_at: row.applied_at,
         }))
       );
 
-      const detailsMap = new Map<string, StudentDetail>();
-      safeRows.forEach((row) => {
-        detailsMap.set(row.student_id, {
-          fullName: row.student_name?.trim() || "Student",
-          email: row.email ?? "—",
-          university: row.university ?? "—",
-          major: row.major ?? "—",
-          cvUrl: row.cv_url ?? null,
-          year: row.year ?? "—",
-          bio: row.bio ?? "—",
-          gpa: row.gpa ?? null,
-          technicalSkills: row.technical_skills ?? [],
-          takenCourses: row.taken_courses ?? [],
-        });
-      });
-      console.log("[company-applications] merged student details map", Array.from(detailsMap.entries()));
       setStudentDetailById(detailsMap);
       setLoading(false);
     };
@@ -340,7 +406,7 @@ export default function CompanyApplicationsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
           <Table
-            headers={["Student", "University", "Internship", "Applied", "Status", "Actions"]}
+            headers={["Student", "University", "Department", "Internship", "Applied", "Status", "Actions"]}
             className="dark:divide-slate-800 dark:[&_thead]:bg-slate-800 dark:[&_tbody]:bg-slate-900 dark:[&_th]:border-slate-800 dark:[&_th]:text-slate-300 dark:[&_tr]:border-slate-800"
           >
             {applications.map((application) => (
@@ -350,6 +416,9 @@ export default function CompanyApplicationsPage() {
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
                   {studentDetailById.get(application.student_id)?.university ?? "—"}
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
+                  {studentDetailById.get(application.student_id)?.department ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">
                   {application.internship_title}
@@ -410,6 +479,7 @@ export default function CompanyApplicationsPage() {
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Student:</span> {selectedStudent?.fullName ?? "Student"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Email:</span> {selectedStudent?.email ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">University:</span> {selectedStudent?.university ?? "—"}</p>
+            <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Department:</span> {selectedStudent?.department ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Major:</span> {selectedStudent?.major ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Year:</span> {selectedStudent?.year ?? "—"}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Bio:</span> {selectedStudent?.bio ?? "—"}</p>

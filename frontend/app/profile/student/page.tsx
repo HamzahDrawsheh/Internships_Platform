@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Input, Textarea, Button, Card, Select } from "@/components/ui";
+import { academicDepartmentSelectOptions, isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
+
+const studentDepartmentOptions = [{ value: "", label: "Select your department" }, ...academicDepartmentSelectOptions];
 
 function parseCsv(input: string): string[] {
   return input
@@ -88,6 +91,7 @@ const courseCategories = [
 export default function StudentProfilePage() {
   const [name, setName] = useState("");
   const [university, setUniversity] = useState("");
+  const [department, setDepartment] = useState("");
   const [major, setMajor] = useState("");
   const [year, setYear] = useState("");
   const [skills, setSkills] = useState("");
@@ -153,7 +157,7 @@ export default function StudentProfilePage() {
 
       const { data: studentRow, error: studentError } = await supabase
         .from("students")
-        .select("university, major, skills, preferences")
+        .select("university, department, major, skills, preferences")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -166,6 +170,9 @@ export default function StudentProfilePage() {
 
       if (studentRow) {
         setUniversity(studentRow.university ?? "");
+        const dept = studentRow.department as string | null | undefined;
+        const mapped = dept ? normalizeDepartmentAlias(dept) ?? (isValidDepartment(dept) ? dept : null) : null;
+        setDepartment(mapped ?? "");
         setMajor(studentRow.major ?? "");
         setSkills(studentRow.skills ?? "");
 
@@ -198,9 +205,9 @@ export default function StudentProfilePage() {
       console.log("student profile fetched student_additional_info:", preferencesRow ?? null);
 
       if (preferencesRow) {
-        const allTakenCourses = preferencesRow.taken_courses ?? [];
-        const selectedPredefined = allTakenCourses.filter((course) => predefinedCourses.includes(course));
-        const inferredCustom = allTakenCourses.filter((course) => !predefinedCourses.includes(course));
+        const allTakenCourses = (preferencesRow.taken_courses ?? []) as string[];
+        const selectedPredefined = allTakenCourses.filter((course: string) => predefinedCourses.includes(course));
+        const inferredCustom = allTakenCourses.filter((course: string) => !predefinedCourses.includes(course));
         setTakenCourses(selectedPredefined);
         setCustomCourses(inferredCustom.join(", "));
         setGpa(preferencesRow.gpa != null ? String(preferencesRow.gpa) : "");
@@ -264,6 +271,12 @@ export default function StudentProfilePage() {
       return;
     }
 
+    if (!isValidDepartment(department.trim())) {
+      setError("Please choose your academic department from the list.");
+      setSaving(false);
+      return;
+    }
+
     const preferencesPayload =
       year.trim() || bio.trim()
         ? JSON.stringify({
@@ -274,6 +287,7 @@ export default function StudentProfilePage() {
 
     const studentPayload = {
       university: university.trim() || null,
+      department: department.trim(),
       major: major.trim() || null,
       skills: skills.trim() || null,
       preferences: preferencesPayload,
@@ -386,6 +400,13 @@ export default function StudentProfilePage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
               <Input label="University" value={university} onChange={(e) => setUniversity(e.target.value)} placeholder="University name" />
+              <Select
+                label="Department"
+                required
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                options={studentDepartmentOptions}
+              />
               <Input label="Major" value={major} onChange={(e) => setMajor(e.target.value)} placeholder="e.g. Computer Science" />
               <Input label="Year" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 3rd, 4th" />
             </div>

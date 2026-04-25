@@ -11,6 +11,7 @@ type PreviewStudent = {
   full_name: string;
   email: string;
   university: string;
+  department: string;
   major: string;
 };
 
@@ -56,7 +57,7 @@ export default function SupervisorDashboardPage() {
 
       const { data: supervisor, error: supervisorError } = await supabase
         .from("supervisors")
-        .select("id")
+        .select("id, department")
         .eq("user_id", user.id)
         .maybeSingle();
       if (supervisorError) {
@@ -66,7 +67,7 @@ export default function SupervisorDashboardPage() {
         return;
       }
 
-      if (!supervisor) {
+      if (!supervisor?.department) {
         setAssignedStudents(0);
         setTotalApplications(0);
         setAcceptedApplications(0);
@@ -79,8 +80,8 @@ export default function SupervisorDashboardPage() {
 
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
-        .select("id, user_id, university, major, created_at")
-        .eq("supervisor_id", supervisor.id)
+        .select("id, user_id, university, department, major, created_at")
+        .eq("department", supervisor.department)
         .order("created_at", { ascending: false });
 
       if (studentsError) {
@@ -95,6 +96,7 @@ export default function SupervisorDashboardPage() {
           id: string;
           user_id: string;
           university: string | null;
+          department: string | null;
           major: string | null;
           created_at: string;
         }[];
@@ -142,6 +144,7 @@ export default function SupervisorDashboardPage() {
           full_name: profile?.full_name?.trim() || "—",
           email: profile?.email ?? "—",
           university: student.university ?? "—",
+          department: student.department ?? "—",
           major: student.major ?? "—",
         };
       });
@@ -165,7 +168,7 @@ export default function SupervisorDashboardPage() {
                 Welcome back, {supervisorName} 👋
               </h1>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Monitor your assigned students and internship activity
+                Monitor students in your department and their internship activity
               </p>
             </div>
           </div>
@@ -180,7 +183,7 @@ export default function SupervisorDashboardPage() {
           <>
             <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <article className="animate-fade-up rounded-2xl bg-purple-100 p-6 text-purple-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-purple-500/10 dark:text-purple-300">
-                <p className="text-sm font-medium">Assigned students</p>
+                <p className="text-sm font-medium">Students (your department)</p>
                 <p className="mt-4 text-3xl font-bold">{assignedStudents}</p>
               </article>
               <article className="animate-fade-up rounded-2xl bg-indigo-100 p-6 text-indigo-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -202,12 +205,12 @@ export default function SupervisorDashboardPage() {
             </section>
             <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Students Overview</h2>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Latest assigned students</p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Latest students in your department</p>
               {showEmptyStudents ? (
                 <EmptyState
                   className="mt-4"
                   title="No data yet"
-                  description="No students assigned yet."
+                  description="No students in your department yet."
                   actionLabel="View students"
                   actionHref="/supervisor/students"
                 />
@@ -215,7 +218,7 @@ export default function SupervisorDashboardPage() {
                 <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">No data yet.</p>
               ) : (
                 <Table
-                  headers={["Student", "Email", "University", "Major"]}
+                  headers={["Student", "Email", "University", "Department", "Major"]}
                   className="mt-4 rounded-2xl border-gray-200 shadow-sm dark:border-gray-700 [&_thead]:bg-gray-50 dark:[&_thead]:bg-gray-800/80 [&_th]:font-semibold [&_th]:tracking-wide [&_th]:text-gray-500 dark:[&_th]:text-gray-300 [&_tbody]:bg-white dark:[&_tbody]:bg-gray-900"
                 >
                   {previewStudents.map((student) => (
@@ -223,6 +226,7 @@ export default function SupervisorDashboardPage() {
                       <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{student.full_name}</td>
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">{student.email}</td>
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">{student.university}</td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">{student.department}</td>
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">{student.major}</td>
                     </tr>
                   ))}

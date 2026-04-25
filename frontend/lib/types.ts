@@ -1,5 +1,7 @@
 // Shared domain types aligned with current Supabase schema.
 
+export type { AcademicDepartment } from "./departments";
+
 export type LocationType = "remote" | "onsite" | "hybrid";
 export type ApplicationStatus = "pending" | "accepted" | "rejected";
 export type InternshipStatus = "active" | "inactive";
