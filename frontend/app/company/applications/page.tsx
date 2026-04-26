@@ -5,6 +5,7 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import type { ApplicationStatus } from "@/lib/types";
 
 type Position = { id: string; title: string };
 type Application = {
@@ -12,7 +13,7 @@ type Application = {
   student_id: string;
   position_id: string;
   internship_title: string;
-  status: "pending" | "accepted" | "rejected";
+  status: ApplicationStatus;
   applied_at: string;
 };
 type StudentDetail = {
@@ -142,7 +143,7 @@ export default function CompanyApplicationsPage() {
         id: string;
         student_id: string;
         position_id: string;
-        status: "pending" | "accepted" | "rejected";
+        status: ApplicationStatus;
         applied_at: string;
       }[];
 
@@ -256,7 +257,7 @@ export default function CompanyApplicationsPage() {
     ? studentDetailById.get(selectedApplication.student_id) ?? null
     : null;
 
-  const updateApplicationStatus = async (status: "accepted" | "rejected") => {
+  const updateApplicationStatus = async (status: ApplicationStatus) => {
     if (!selectedApplicationId) return;
 
     setActionLoading(true);
@@ -325,8 +326,11 @@ export default function CompanyApplicationsPage() {
         return;
       }
 
-      if (appRow.status !== "pending") {
-        setError("This application has already been finalized.");
+      const canTransition =
+        (appRow.status === "pending" && (status === "accepted" || status === "rejected")) ||
+        (appRow.status === "accepted" && status === "completed");
+      if (!canTransition) {
+        setError("Invalid status transition for this application.");
         return;
       }
 
@@ -356,16 +360,24 @@ export default function CompanyApplicationsPage() {
           : "Internship";
 
       if (targetUserId) {
-        const message =
+        const message = status === "accepted"
+          ? `🎉 Your application for ${internshipTitle} at ${companyName} has been accepted.`
+          : status === "rejected"
+            ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
+            : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
+        const title =
           status === "accepted"
-            ? `🎉 Your application for ${internshipTitle} at ${companyName} has been accepted.`
-            : `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`;
+            ? "Application accepted"
+            : status === "rejected"
+              ? "Application rejected"
+              : "Internship completed";
+        const type = status === "completed" ? "info" : status;
 
         const { error: notificationError } = await supabase.from("notifications").insert({
           user_id: targetUserId,
-          title: status === "accepted" ? "Application accepted" : "Application rejected",
+          title,
           message,
-          type: status,
+          type,
           is_read: false,
           related_application_id: selectedApplicationId,
         });
@@ -455,20 +467,33 @@ export default function CompanyApplicationsPage() {
             <Button variant="secondary" onClick={() => setDetailOpen(false)} disabled={actionLoading}>
               Close
             </Button>
-            <Button
-              variant="danger"
-              onClick={() => updateApplicationStatus("rejected")}
-              disabled={actionLoading || !selectedApplication || selectedApplication.status !== "pending"}
-            >
-              {actionLoading ? "Updating..." : "Reject"}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => updateApplicationStatus("accepted")}
-              disabled={actionLoading || !selectedApplication || selectedApplication.status !== "pending"}
-            >
-              {actionLoading ? "Updating..." : "Accept"}
-            </Button>
+            {selectedApplication?.status === "pending" && (
+              <>
+                <Button
+                  variant="danger"
+                  onClick={() => updateApplicationStatus("rejected")}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? "Updating..." : "Reject"}
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => updateApplicationStatus("accepted")}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? "Updating..." : "Accept"}
+                </Button>
+              </>
+            )}
+            {selectedApplication?.status === "accepted" && (
+              <Button
+                variant="secondary"
+                onClick={() => updateApplicationStatus("completed")}
+                disabled={actionLoading}
+              >
+                {actionLoading ? "Updating..." : "Mark as completed"}
+              </Button>
+            )}
           </>
         }
       >
@@ -536,7 +561,7 @@ export default function CompanyApplicationsPage() {
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Internship:</span> {selectedApplication.internship_title}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Applied:</span> {new Date(selectedApplication.applied_at).toLocaleDateString()}</p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Status:</span> <span className="capitalize">{selectedApplication.status}</span></p>
-            {selectedApplication.status !== "pending" && (
+            {(selectedApplication.status === "rejected" || selectedApplication.status === "completed") && (
               <p className="rounded-md bg-gray-50 p-2 text-xs text-gray-600 transition-colors duration-300 dark:bg-slate-800 dark:text-slate-400">
                 This application is already finalized and cannot be changed.
               </p>

@@ -3,7 +3,7 @@
 export type { AcademicDepartment } from "./departments";
 
 export type LocationType = "remote" | "onsite" | "hybrid";
-export type ApplicationStatus = "pending" | "accepted" | "rejected";
+export type ApplicationStatus = "pending" | "accepted" | "rejected" | "completed";
 export type InternshipStatus = "active" | "inactive";
 export type ProfileRole = "student" | "company" | "supervisor" | "admin";
 

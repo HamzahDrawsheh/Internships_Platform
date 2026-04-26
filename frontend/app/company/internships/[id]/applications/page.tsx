@@ -7,6 +7,7 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button, Table, Modal, Textarea, EmptyState } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import type { ApplicationStatus } from "@/lib/types";
 
 export default function ApplicantsPage() {
   const params = useParams();
@@ -24,7 +25,7 @@ export default function ApplicantsPage() {
       id: string;
       student_id: string;
       student_user_id: string;
-      status: "pending" | "accepted" | "rejected";
+      status: ApplicationStatus;
       applied_at: string;
       message: string | null;
       student_name: string;
@@ -210,7 +211,7 @@ export default function ApplicantsPage() {
     setDetailOpen(true);
   };
 
-  const updateStatus = async (applicationId: string, status: "accepted" | "rejected") => {
+  const updateStatus = async (applicationId: string, status: ApplicationStatus) => {
     setActionMessage(null);
     setActionLoading(true);
     const supabase = createClient();
@@ -271,8 +272,11 @@ export default function ApplicantsPage() {
       return;
     }
 
-    if (appRow.status !== "pending") {
-      setActionMessage("This application has already been finalized.");
+    const canTransition =
+      (appRow.status === "pending" && (status === "accepted" || status === "rejected")) ||
+      (appRow.status === "accepted" && status === "completed");
+    if (!canTransition) {
+      setActionMessage("Invalid status transition for this application.");
       setActionLoading(false);
       return;
     }
@@ -301,13 +305,22 @@ export default function ApplicantsPage() {
       const message =
         status === "accepted"
           ? `🎉 Your application for ${internshipTitle} at ${companyName} has been accepted.`
-          : `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`;
+          : status === "rejected"
+            ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
+            : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
+      const titleText =
+        status === "accepted"
+          ? "Application accepted"
+          : status === "rejected"
+            ? "Application rejected"
+            : "Internship completed";
+      const type = status === "completed" ? "info" : status;
 
       const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: studentRow.user_id,
-        title: status === "accepted" ? "Application accepted" : "Application rejected",
+        title: titleText,
         message,
-        type: status,
+        type,
         is_read: false,
         related_application_id: applicationId,
       });
@@ -354,20 +367,33 @@ export default function ApplicantsPage() {
                 <td className="px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">{app.status}</td>
                 <td className="px-4 py-3 text-sm">
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="primary"
-                      onClick={() => updateStatus(app.id, "accepted")}
-                      disabled={actionLoading || app.status !== "pending"}
-                    >
-                      {actionLoading ? "Updating..." : "Accept"}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={() => updateStatus(app.id, "rejected")}
-                      disabled={actionLoading || app.status !== "pending"}
-                    >
-                      {actionLoading ? "Updating..." : "Reject"}
-                    </Button>
+                    {app.status === "pending" && (
+                      <>
+                        <Button
+                          variant="primary"
+                          onClick={() => updateStatus(app.id, "accepted")}
+                          disabled={actionLoading}
+                        >
+                          {actionLoading ? "Updating..." : "Accept"}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => updateStatus(app.id, "rejected")}
+                          disabled={actionLoading}
+                        >
+                          {actionLoading ? "Updating..." : "Reject"}
+                        </Button>
+                      </>
+                    )}
+                    {app.status === "accepted" && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => updateStatus(app.id, "completed")}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? "Updating..." : "Mark as completed"}
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       onClick={() => handleViewDetails(app.id)}
@@ -388,20 +414,33 @@ export default function ApplicantsPage() {
           footer={
             <>
               <Button variant="secondary" onClick={() => setDetailOpen(false)} disabled={actionLoading}>Close</Button>
-              <Button
-                variant="danger"
-                onClick={() => selected && updateStatus(selected.id, "rejected")}
-                disabled={actionLoading || !selected || selected.status !== "pending"}
-              >
-                {actionLoading ? "Updating..." : "Reject"}
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => selected && updateStatus(selected.id, "accepted")}
-                disabled={actionLoading || !selected || selected.status !== "pending"}
-              >
-                {actionLoading ? "Updating..." : "Accept"}
-              </Button>
+              {selected?.status === "pending" && (
+                <>
+                  <Button
+                    variant="danger"
+                    onClick={() => selected && updateStatus(selected.id, "rejected")}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? "Updating..." : "Reject"}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => selected && updateStatus(selected.id, "accepted")}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? "Updating..." : "Accept"}
+                  </Button>
+                </>
+              )}
+              {selected?.status === "accepted" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => selected && updateStatus(selected.id, "completed")}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? "Updating..." : "Mark as completed"}
+                </Button>
+              )}
             </>
           }
         >

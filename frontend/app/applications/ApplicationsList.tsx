@@ -9,12 +9,21 @@ import type { Application } from "@/lib/types";
 
 export default function ApplicationsList() {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [evaluatedApplicationIds, setEvaluatedApplicationIds] = useState<Set<string>>(new Set());
   const [studentId, setStudentId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [ratingValue, setRatingValue] = useState("5");
   const [feedback, setFeedback] = useState("");
+  const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
+  const [selectedEvaluationApp, setSelectedEvaluationApp] = useState<Application | null>(null);
+  const [overallRating, setOverallRating] = useState("5");
+  const [mentorshipRating, setMentorshipRating] = useState("5");
+  const [environmentRating, setEnvironmentRating] = useState("5");
+  const [skillsRating, setSkillsRating] = useState("5");
+  const [wouldRecommend, setWouldRecommend] = useState("yes");
+  const [otherNotes, setOtherNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,6 +89,22 @@ export default function ApplicationsList() {
         };
       });
 
+      const applicationIds = mapped.map((app) => app.id);
+      if (applicationIds.length > 0) {
+        const { data: evaluationRows } = await supabase
+          .from("student_training_evaluations")
+          .select("application_id")
+          .eq("student_id", student.id)
+          .in("application_id", applicationIds);
+
+        const evaluatedIds = new Set(
+          ((evaluationRows ?? []) as { application_id: string }[]).map((row) => row.application_id)
+        );
+        setEvaluatedApplicationIds(evaluatedIds);
+      } else {
+        setEvaluatedApplicationIds(new Set());
+      }
+
       setApplications(mapped);
       setLoading(false);
     };
@@ -88,6 +113,7 @@ export default function ApplicationsList() {
   }, []);
 
   const acceptedToRate = applications.filter((a) => a.status === "accepted" && a.company_id);
+  const completedApplications = applications.filter((a) => a.status === "completed");
 
   const openRateModal = (app: Application) => {
     setSelectedApp(app);
@@ -96,6 +122,97 @@ export default function ApplicationsList() {
     setError(null);
     setSuccess(null);
     setModalOpen(true);
+  };
+
+  const openEvaluationModal = (app: Application) => {
+    setSelectedEvaluationApp(app);
+    setOverallRating("5");
+    setMentorshipRating("5");
+    setEnvironmentRating("5");
+    setSkillsRating("5");
+    setWouldRecommend("yes");
+    setOtherNotes("");
+    setError(null);
+    setSuccess(null);
+    setEvaluationModalOpen(true);
+  };
+
+  const submitTrainingEvaluation = async () => {
+    if (!selectedEvaluationApp || !studentId) return;
+
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    const supabase = createClient();
+
+    // Defensive check: application must still be completed and owned by this student.
+    const { data: completedApplication } = await supabase
+      .from("applications")
+      .select("id")
+      .eq("id", selectedEvaluationApp.id)
+      .eq("student_id", studentId)
+      .eq("status", "completed")
+      .single();
+
+    if (!completedApplication) {
+      setError("Training evaluation is available only for completed applications.");
+      setSubmitting(false);
+      return;
+    }
+
+    // Defensive check: no prior evaluation for this application.
+    const { data: existingEvaluation } = await supabase
+      .from("student_training_evaluations")
+      .select("id")
+      .eq("application_id", selectedEvaluationApp.id)
+      .maybeSingle();
+
+    if (existingEvaluation) {
+      setEvaluatedApplicationIds((prev) => {
+        const next = new Set(prev);
+        next.add(selectedEvaluationApp.id);
+        return next;
+      });
+      setError("Training evaluation already submitted for this application.");
+      setSubmitting(false);
+      setEvaluationModalOpen(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("student_training_evaluations").insert({
+      application_id: selectedEvaluationApp.id,
+      student_id: studentId,
+      overall_rating: Number(overallRating),
+      mentorship_rating: Number(mentorshipRating),
+      environment_rating: Number(environmentRating),
+      skills_rating: Number(skillsRating),
+      would_recommend: wouldRecommend === "yes",
+      other_notes: otherNotes.trim() || null,
+    });
+
+    if (insertError) {
+      if (insertError.code === "23505") {
+        setEvaluatedApplicationIds((prev) => {
+          const next = new Set(prev);
+          next.add(selectedEvaluationApp.id);
+          return next;
+        });
+        setError("Training evaluation already submitted for this application.");
+      } else {
+        setError(insertError.message);
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    setEvaluatedApplicationIds((prev) => {
+      const next = new Set(prev);
+      next.add(selectedEvaluationApp.id);
+      return next;
+    });
+    setSuccess("Training evaluation submitted successfully.");
+    setSubmitting(false);
+    setEvaluationModalOpen(false);
   };
 
   const submitRating = async () => {
@@ -169,6 +286,43 @@ export default function ApplicationsList() {
       )}
       <ApplicationTable applications={applications} showViewAction />
 
+      {completedApplications.length > 0 && (
+        <Card className="mt-6">
+          <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+            Training evaluation status
+          </h2>
+          <div className="mt-4 space-y-3">
+            {completedApplications.map((app) => {
+              const submitted = evaluatedApplicationIds.has(app.id);
+              return (
+                <div
+                  key={app.id}
+                  className="flex items-center justify-between rounded-md border border-gray-200 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">
+                      {app.internship_title ?? "Internship"}
+                    </p>
+                    <p className="text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
+                      {submitted ? "Training evaluation submitted" : "Training evaluation available"}
+                    </p>
+                  </div>
+                  {!submitted && (
+                    <Button
+                      variant="secondary"
+                      className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                      onClick={() => openEvaluationModal(app)}
+                    >
+                      Evaluate training
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       <Card className="mt-6">
         <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Rate companies</h2>
         <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">You can submit a rating only for accepted applications.</p>
@@ -194,6 +348,96 @@ export default function ApplicationsList() {
           </div>
         )}
       </Card>
+
+      <Modal
+        isOpen={evaluationModalOpen}
+        onClose={() => setEvaluationModalOpen(false)}
+        title="Submit training evaluation"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+              onClick={() => setEvaluationModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={submitTrainingEvaluation} disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit evaluation"}
+            </Button>
+          </>
+        }
+      >
+        <Select
+          label="Overall rating (1 to 5)"
+          value={overallRating}
+          onChange={(e) => setOverallRating(e.target.value)}
+          options={[
+            { value: "5", label: "5 - Excellent" },
+            { value: "4", label: "4 - Good" },
+            { value: "3", label: "3 - Average" },
+            { value: "2", label: "2 - Poor" },
+            { value: "1", label: "1 - Very poor" },
+          ]}
+        />
+        <Select
+          label="Mentorship rating (1 to 5)"
+          value={mentorshipRating}
+          onChange={(e) => setMentorshipRating(e.target.value)}
+          options={[
+            { value: "5", label: "5 - Excellent" },
+            { value: "4", label: "4 - Good" },
+            { value: "3", label: "3 - Average" },
+            { value: "2", label: "2 - Poor" },
+            { value: "1", label: "1 - Very poor" },
+          ]}
+          className="mt-4"
+        />
+        <Select
+          label="Environment rating (1 to 5)"
+          value={environmentRating}
+          onChange={(e) => setEnvironmentRating(e.target.value)}
+          options={[
+            { value: "5", label: "5 - Excellent" },
+            { value: "4", label: "4 - Good" },
+            { value: "3", label: "3 - Average" },
+            { value: "2", label: "2 - Poor" },
+            { value: "1", label: "1 - Very poor" },
+          ]}
+          className="mt-4"
+        />
+        <Select
+          label="Skills gain rating (1 to 5)"
+          value={skillsRating}
+          onChange={(e) => setSkillsRating(e.target.value)}
+          options={[
+            { value: "5", label: "5 - Excellent" },
+            { value: "4", label: "4 - Good" },
+            { value: "3", label: "3 - Average" },
+            { value: "2", label: "2 - Poor" },
+            { value: "1", label: "1 - Very poor" },
+          ]}
+          className="mt-4"
+        />
+        <Select
+          label="Would you recommend this training?"
+          value={wouldRecommend}
+          onChange={(e) => setWouldRecommend(e.target.value)}
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+          className="mt-4"
+        />
+        <Textarea
+          label="Other notes"
+          rows={4}
+          value={otherNotes}
+          onChange={(e) => setOtherNotes(e.target.value)}
+          className="mt-4"
+          placeholder="Share any additional notes about your training..."
+        />
+      </Modal>
 
       <Modal
         isOpen={modalOpen}
