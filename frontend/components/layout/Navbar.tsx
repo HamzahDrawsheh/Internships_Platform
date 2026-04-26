@@ -11,6 +11,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [homeHref, setHomeHref] = useState("/onboarding");
   const [themeMounted, setThemeMounted] = useState(false);
   const roleResolvedRef = useRef(false);
   const { theme, setTheme } = useTheme();
@@ -48,6 +49,25 @@ export default function Navbar() {
         return;
       }
       setIsAuthenticated(true);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      const role = profile?.role;
+      if (role === "student") {
+        setHomeHref("/dashboard/student");
+      } else if (role === "supervisor") {
+        setHomeHref("/dashboard/supervisor");
+      } else if (role === "company") {
+        setHomeHref("/dashboard/company");
+      } else if (role === "admin") {
+        setHomeHref("/admin/dashboard");
+      } else {
+        setHomeHref("/onboarding");
+      }
     };
 
     resolveHomeHref();
@@ -72,6 +92,17 @@ export default function Navbar() {
               <span aria-hidden>{themeMounted && theme === "dark" ? "☀️" : "🌙"}</span>
               <span className="hidden md:inline">{themeMounted && theme === "dark" ? "Light" : "Dark"}</span>
             </button>
+
+            {!isHomePage && isAuthenticated && (
+              <Link
+                href={homeHref}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                aria-label="Home"
+              >
+                <span aria-hidden>🏠</span>
+                <span className="hidden md:inline">Home</span>
+              </Link>
+            )}
 
             {isHomePage && (
               <div className="flex items-center gap-3">

@@ -9,7 +9,6 @@ export default function StudentDashboardContent() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("Student");
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -18,14 +17,12 @@ export default function StudentDashboardContent() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        setUserId(null);
         setUserName("Student");
         setApplications([]);
         setLoading(false);
         return;
       }
 
-      setUserId(user.id);
       const fallbackName = user.email?.split("@")[0] || "Student";
       const metadataName =
         (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
@@ -152,38 +149,6 @@ export default function StudentDashboardContent() {
     return "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300";
   };
 
-  const handleTestRoleHack = async () => {
-    if (!userId) {
-      console.warn("[Test Role Hack] No authenticated user found.");
-      return;
-    }
-
-    const supabase = createClient();
-    const result = await supabase
-      .from("profiles")
-      .update({ role: "admin" })
-      .eq("id", userId)
-      .select();
-
-    console.log("[Test Role Hack] update profiles role=admin result:", result);
-  };
-
-  const handleTestNormalUpdate = async () => {
-    if (!userId) {
-      console.warn("[Test Normal Profile Update] No authenticated user found.");
-      return;
-    }
-
-    const supabase = createClient();
-    const result = await supabase
-      .from("profiles")
-      .update({ full_name: "toleen" })
-      .eq("id", userId)
-      .select();
-
-    console.log("[Test Normal Profile Update] result:", result);
-  };
-
   return (
     <div className="space-y-8">
       <section className="animate-fade-up rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
@@ -198,31 +163,11 @@ export default function StudentDashboardContent() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href="/internships"
-              className="inline-flex items-center rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-            >
-              Browse Internships
-            </Link>
-            <Link
               href="/profile/student"
               className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
             >
               Update Profile
             </Link>
-            <button
-              type="button"
-              onClick={handleTestRoleHack}
-              className="inline-flex items-center rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition-all duration-300 hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 dark:border-rose-400/40 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 dark:focus-visible:ring-offset-gray-900"
-            >
-              Test Role Hack
-            </button>
-            <button
-              type="button"
-              onClick={handleTestNormalUpdate}
-              className="inline-flex items-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-all duration-300 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20 dark:focus-visible:ring-offset-gray-900"
-            >
-              Test Normal Update
-            </button>
           </div>
         </div>
       </section>

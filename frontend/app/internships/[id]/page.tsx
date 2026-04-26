@@ -202,7 +202,7 @@ export default function InternshipDetailsPage() {
   }
 
   return (
-    <main className="py-8">
+    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-4xl">
         {error && (
           <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800" role="alert">
@@ -217,8 +217,8 @@ export default function InternshipDetailsPage() {
 
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{position.title}</h1>
-            <p className="mt-1 text-gray-600">{companyName}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{position.title}</h1>
+            <p className="mt-1 text-gray-600 dark:text-gray-300">{companyName}</p>
             <Badge variant="info" className="mt-2">
               {locationLabel[position.location ?? ""] ?? position.location ?? "On-site"}
             </Badge>
@@ -231,40 +231,40 @@ export default function InternshipDetailsPage() {
           </div>
         </div>
 
-        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-900">
           <section>
-            <h2 className="text-sm font-semibold text-gray-900">Description</h2>
-            <p className="mt-2 whitespace-pre-wrap text-gray-600">{position.description ?? "No description provided."}</p>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Description</h2>
+            <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-300">{position.description ?? "No description provided."}</p>
           </section>
           <section>
-            <h2 className="text-sm font-semibold text-gray-900">Required skills</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Required skills</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               {skills.length === 0 ? (
-                <p className="text-sm text-gray-500">No specific requirements listed.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No specific requirements listed.</p>
               ) : (
                 skills.map((s) => (
-                <Badge key={s} variant="default">{s}</Badge>
+                <Badge key={s} variant="default" className="dark:border-slate-600 dark:bg-slate-800 dark:text-gray-100">{s}</Badge>
                 ))
               )}
             </div>
           </section>
           <section className="grid gap-4 sm:grid-cols-3">
             <div>
-              <span className="text-sm text-gray-500">Duration</span>
-              <p className="font-medium text-gray-900">{position.duration ?? "Not specified"}</p>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Duration</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{position.duration ?? "Not specified"}</p>
             </div>
             <div>
-              <span className="text-sm text-gray-500">Type</span>
-              <p className="font-medium text-gray-900">{position.type ?? "Not specified"}</p>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Type</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{position.type ?? "Not specified"}</p>
             </div>
             <div>
-              <span className="text-sm text-gray-500">Posted</span>
-              <p className="font-medium text-gray-900">{new Date(position.created_at).toLocaleDateString()}</p>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Posted</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{new Date(position.created_at).toLocaleDateString()}</p>
             </div>
           </section>
-          <section className="rounded border border-gray-100 bg-gray-50/50 p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Company</h2>
-            <p className="mt-1 text-sm text-gray-600">
+          <section className="rounded border border-gray-100 bg-gray-50/50 p-4 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800/60">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Company</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
               {companyName}
               {ratingInfo.average
                 ? ` — Rating ${ratingInfo.average.toFixed(1)} / 5 (${ratingInfo.count})`
@@ -274,7 +274,7 @@ export default function InternshipDetailsPage() {
         </div>
 
         <p className="mt-4">
-          <Link href="/internships" className="text-sm font-medium text-gray-900 hover:underline">
+          <Link href="/internships" className="text-sm font-medium text-gray-900 hover:underline dark:text-gray-100">
             ← Back to listings
           </Link>
         </p>
@@ -292,7 +292,7 @@ export default function InternshipDetailsPage() {
             </>
           }
         >
-          <p className="text-sm text-gray-600">Your profile will be sent to the company. Optionally add a cover letter below.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Your profile will be sent to the company. Optionally add a cover letter below.</p>
           <Textarea
             label="Cover letter (optional)"
             rows={4}

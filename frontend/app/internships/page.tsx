@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -41,6 +42,17 @@ export default function BrowseInternshipsPage() {
       company_name?: string;
     }[]
   >([]);
+  const [recommended, setRecommended] = useState<
+    {
+      internship_id: string;
+      title: string;
+      company_name: string;
+      similarity_score: number;
+      match_percentage: number;
+    }[]
+  >([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
+  const [recommendedMessage, setRecommendedMessage] = useState<string | null>(null);
 
   const clearFilters = () => {
     setSearch("");
@@ -54,6 +66,62 @@ export default function BrowseInternshipsPage() {
 
     const load = async () => {
       setLoading(true);
+      setRecommendedLoading(true);
+      setRecommendedMessage(null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setRecommended([]);
+        setRecommendedLoading(false);
+        setRecommendedMessage("Sign in as a student to see AI-powered recommendations.");
+      } else {
+        const { data: studentRow } = await supabase
+          .from("students")
+          .select("id, embedding")
+          .eq("user_id", user.id)
+          .single();
+
+        if (!studentRow) {
+          setRecommended([]);
+          setRecommendedLoading(false);
+          setRecommendedMessage("Complete your student onboarding to unlock recommendations.");
+        } else if (!studentRow.embedding) {
+          setRecommended([]);
+          setRecommendedLoading(false);
+          setRecommendedMessage(
+            "We are preparing your recommendations. Please complete your profile details and try again soon."
+          );
+        } else {
+          const { data: recommendationRows, error: recommendationError } = await supabase.rpc(
+            "get_student_recommended_internships",
+            { p_student_id: studentRow.id, p_limit: 6 }
+          );
+
+          if (recommendationError) {
+            setRecommended([]);
+            setRecommendedMessage("Unable to load recommendations right now. Please try again later.");
+          } else {
+            setRecommended(
+              (recommendationRows ?? []).map((row) => ({
+                internship_id: row.internship_id,
+                title: row.title,
+                company_name: row.company_name,
+                similarity_score: Number(row.similarity_score ?? 0),
+                match_percentage: Number(row.match_percentage ?? 0),
+              }))
+            );
+            if (!recommendationRows?.length) {
+              setRecommendedMessage(
+                "No recommendations available yet. New matches will appear as internships are posted."
+              );
+            }
+          }
+          setRecommendedLoading(false);
+        }
+      }
 
       let query = supabase
         .from("internship_positions")
@@ -120,6 +188,58 @@ export default function BrowseInternshipsPage() {
           title="Browse Internships"
           description="Filter by location, skills, and posted date."
         />
+        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-colors duration-300 dark:border-gray-800 dark:bg-slate-900">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+                Recommended Internships
+              </h2>
+              <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">
+                Recommended based on your profile, skills, and preferences.
+              </p>
+            </div>
+          </div>
+
+          {recommendedLoading ? (
+            <p className="mt-4 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
+              Loading recommendations...
+            </p>
+          ) : recommended.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-600 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
+              {recommendedMessage ?? "No recommendations available yet."}
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {recommended.map((item) => (
+                <div
+                  key={item.internship_id}
+                  className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 transition-colors duration-300 dark:border-purple-400/20 dark:bg-purple-500/10"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {item.title}
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{item.company_name}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-500/20 dark:text-purple-300">
+                      {Math.max(0, Math.min(100, Math.round(item.match_percentage)))}% match
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-600 dark:text-gray-300">
+                    Recommended based on your profile, skills, and preferences.
+                  </p>
+                  <Link
+                    href={`/internships/${item.internship_id}`}
+                    className="mt-3 inline-flex items-center rounded-lg border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 transition-all duration-300 hover:bg-purple-50 hover:text-purple-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-purple-400/40 dark:text-purple-300 dark:hover:bg-purple-500/15 dark:hover:text-purple-200 dark:focus-visible:ring-offset-gray-900"
+                  >
+                    View internship
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
         <div className="flex flex-col gap-6 lg:flex-row">
           <aside className="w-full shrink-0 space-y-4 rounded-lg border border-gray-200 bg-gray-50/50 p-4 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white lg:w-64">
             <h3 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Filters</h3>
