@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Badge, Button, Modal, Textarea, EmptyState } from "@/components/ui";
+import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
 import { createClient } from "@/lib/supabase/client";
 
 const locationLabel: Record<string, string> = { remote: "Remote", onsite: "On-site", hybrid: "Hybrid" };
@@ -270,6 +271,9 @@ export default function InternshipDetailsPage() {
                 ? ` — Rating ${ratingInfo.average.toFixed(1)} / 5 (${ratingInfo.count})`
                 : " — No ratings yet"}
             </p>
+            <div className="mt-4">
+              <CompanyEvaluationPanel companyId={position.company_id} variant="default" />
+            </div>
           </section>
         </div>
 

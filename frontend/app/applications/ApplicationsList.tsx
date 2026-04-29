@@ -7,6 +7,32 @@ import EmptyState from "@/components/common/EmptyState";
 import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
 import type { Application } from "@/lib/types";
 
+/** Calls server-side analysis only; failures are logged and never thrown. */
+async function requestFeedbackAnalysis(feedbackId: string): Promise<void> {
+  try {
+    const res = await fetch("/api/feedback/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedback_id: feedbackId }),
+    });
+    let payload: unknown = null;
+    try {
+      payload = await res.json();
+    } catch {
+      // ignore invalid JSON
+    }
+    const record = payload as { ok?: boolean; error?: unknown } | null;
+    const ok = res.ok && record?.ok === true;
+    if (!ok) {
+      const msg =
+        record?.error != null ? String(record.error) : `${res.status} ${res.statusText}`;
+      console.error("[ApplicationsList] Feedback AI analysis failed:", msg);
+    }
+  } catch (err) {
+    console.error("[ApplicationsList] Feedback AI analysis request error:", err);
+  }
+}
+
 export default function ApplicationsList() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [evaluatedApplicationIds, setEvaluatedApplicationIds] = useState<Set<string>>(new Set());
@@ -179,16 +205,20 @@ export default function ApplicationsList() {
       return;
     }
 
-    const { error: insertError } = await supabase.from("student_training_evaluations").insert({
-      application_id: selectedEvaluationApp.id,
-      student_id: studentId,
-      overall_rating: Number(overallRating),
-      mentorship_rating: Number(mentorshipRating),
-      environment_rating: Number(environmentRating),
-      skills_rating: Number(skillsRating),
-      would_recommend: wouldRecommend === "yes",
-      other_notes: otherNotes.trim() || null,
-    });
+    const { data: insertedRow, error: insertError } = await supabase
+      .from("student_training_evaluations")
+      .insert({
+        application_id: selectedEvaluationApp.id,
+        student_id: studentId,
+        overall_rating: Number(overallRating),
+        mentorship_rating: Number(mentorshipRating),
+        environment_rating: Number(environmentRating),
+        skills_rating: Number(skillsRating),
+        would_recommend: wouldRecommend === "yes",
+        other_notes: otherNotes.trim() || null,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       if (insertError.code === "23505") {
@@ -205,6 +235,11 @@ export default function ApplicationsList() {
       return;
     }
 
+    const feedbackId = insertedRow?.id;
+    if (!feedbackId) {
+      console.error("[ApplicationsList] Insert succeeded but no feedback id returned.");
+    }
+
     setEvaluatedApplicationIds((prev) => {
       const next = new Set(prev);
       next.add(selectedEvaluationApp.id);
@@ -213,6 +248,10 @@ export default function ApplicationsList() {
     setSuccess("Training evaluation submitted successfully.");
     setSubmitting(false);
     setEvaluationModalOpen(false);
+
+    if (feedbackId) {
+      void requestFeedbackAnalysis(feedbackId);
+    }
   };
 
   const submitRating = async () => {

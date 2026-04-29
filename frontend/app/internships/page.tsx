@@ -105,7 +105,15 @@ export default function BrowseInternshipsPage() {
             setRecommendedMessage("Unable to load recommendations right now. Please try again later.");
           } else {
             setRecommended(
-              (recommendationRows ?? []).map((row) => ({
+              (
+                (recommendationRows ?? []) as {
+                  internship_id: string;
+                  title: string;
+                  company_name: string;
+                  similarity_score: unknown;
+                  match_percentage: unknown;
+                }[]
+              ).map((row) => ({
                 internship_id: row.internship_id,
                 title: row.title,
                 company_name: row.company_name,
