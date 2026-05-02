@@ -32,7 +32,6 @@ export default function InternshipDetailsPage() {
     company_id: string;
   } | null>(null);
   const [companyName, setCompanyName] = useState<string>("Company");
-  const [ratingInfo, setRatingInfo] = useState<{ average: number | null; count: number }>({ average: null, count: 0 });
 
   useEffect(() => {
     const supabase = createClient();
@@ -59,19 +58,6 @@ export default function InternshipDetailsPage() {
         .eq("id", pos.company_id)
         .single();
       setCompanyName(company?.company_name ?? "Company");
-
-      const { data: ratings } = await supabase
-        .from("ratings")
-        .select("rating")
-        .eq("company_id", pos.company_id);
-
-      const safeRatings = ratings ?? [];
-      if (safeRatings.length > 0) {
-        const total = safeRatings.reduce((sum, r) => sum + Number(r.rating), 0);
-        setRatingInfo({ average: total / safeRatings.length, count: safeRatings.length });
-      } else {
-        setRatingInfo({ average: null, count: 0 });
-      }
 
       setLoading(false);
     };
@@ -265,12 +251,7 @@ export default function InternshipDetailsPage() {
           </section>
           <section className="rounded border border-gray-100 bg-gray-50/50 p-4 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800/60">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Company</h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-              {companyName}
-              {ratingInfo.average
-                ? ` — Rating ${ratingInfo.average.toFixed(1)} / 5 (${ratingInfo.count})`
-                : " — No ratings yet"}
-            </p>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{companyName}</p>
             <div className="mt-4">
               <CompanyEvaluationPanel companyId={position.company_id} variant="default" />
             </div>

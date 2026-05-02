@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export type CompanyEvaluationSummary = {
   avg_score: number | null;
+  avg_rating: number | null;
   total_feedbacks: number;
   company_level: "white" | "gray" | "black" | null;
 };
@@ -43,6 +44,12 @@ export function parseCompanyEvaluationRpc(data: unknown): CompanyEvaluationSumma
     avgScore = Number.isFinite(n) ? n : null;
   }
 
+  let avgRating: number | null = null;
+  if (o.avg_rating !== null && o.avg_rating !== undefined) {
+    const n = typeof o.avg_rating === "number" ? o.avg_rating : Number(o.avg_rating);
+    avgRating = Number.isFinite(n) ? n : null;
+  }
+
   const rawLevel = o.company_level;
   let company_level: CompanyEvaluationSummary["company_level"] = null;
   if (typeof rawLevel === "string") {
@@ -52,6 +59,7 @@ export function parseCompanyEvaluationRpc(data: unknown): CompanyEvaluationSumma
 
   return {
     avg_score: avgScore,
+    avg_rating: avgRating,
     total_feedbacks: Math.floor(totalFeedbacks),
     company_level,
   };
@@ -118,7 +126,7 @@ export function CompanyEvaluationDisplay({
         role="status"
         aria-live="polite"
       >
-        Loading evaluation…
+        Loading company evaluation…
       </div>
     );
   }
@@ -131,16 +139,20 @@ export function CompanyEvaluationDisplay({
     );
   }
 
-  const hasTrainingFeedback = summary != null && summary.total_feedbacks > 0;
+  const hasEvaluations = summary != null && summary.total_feedbacks > 0;
 
-  if (!hasTrainingFeedback) {
+  if (!hasEvaluations) {
     return (
       <p className={`text-sm text-slate-500 dark:text-slate-400 ${className}`}>Not evaluated yet</p>
     );
   }
 
-  const scorePct =
-    summary.avg_score != null ? Math.round(Math.min(1, Math.max(0, summary.avg_score)) * 1000) / 10 : null;
+  const ratingDisplay =
+    summary.avg_rating != null
+      ? `${Math.round(Math.min(5, Math.max(1, summary.avg_rating)) * 10) / 10} / 5`
+      : summary.avg_score != null
+        ? `${Math.round(Math.min(1, Math.max(0, summary.avg_score)) * 1000) / 10}%`
+        : null;
 
   const levelRaw = summary.company_level;
   const level: "white" | "gray" | "black" =
@@ -154,11 +166,11 @@ export function CompanyEvaluationDisplay({
         >
           {levelLabel(level)}
         </span>
-        {scorePct != null && (
-          <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">{scorePct}%</span>
+        {ratingDisplay != null && (
+          <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">{ratingDisplay}</span>
         )}
         <span className="text-xs text-slate-500 dark:text-slate-500">
-          {summary.total_feedbacks} feedback{summary.total_feedbacks === 1 ? "" : "s"}
+          {summary.total_feedbacks} evaluation{summary.total_feedbacks === 1 ? "" : "s"}
         </span>
       </div>
     );
@@ -175,20 +187,23 @@ export function CompanyEvaluationDisplay({
           {levelLabel(level)}
         </span>
       </div>
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+      <p className="mt-3 text-sm font-medium text-slate-800 dark:text-slate-100">Company Evaluation</p>
+      <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-slate-500 dark:text-slate-400">Score</dt>
+          <dt className="text-slate-500 dark:text-slate-400">Average Rating</dt>
           <dd className="font-medium tabular-nums text-slate-900 dark:text-white">
-            {scorePct != null ? `${scorePct}%` : "—"}
+            {summary.avg_rating != null
+              ? `${Math.round(Math.min(5, Math.max(1, summary.avg_rating)) * 10) / 10} / 5`
+              : "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500 dark:text-slate-400">Training feedbacks</dt>
+          <dt className="text-slate-500 dark:text-slate-400">Evaluations</dt>
           <dd className="font-medium text-slate-900 dark:text-white">{summary.total_feedbacks}</dd>
         </div>
       </dl>
       <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
-        Based on aggregated AI analysis of completed training feedback (no raw comments shown).
+        Based on completed internship evaluations.
       </p>
     </div>
   );
