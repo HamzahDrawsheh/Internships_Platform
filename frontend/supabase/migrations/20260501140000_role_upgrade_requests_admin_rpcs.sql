@@ -82,6 +82,8 @@ using (public.is_admin_user())
 with check (public.is_admin_user());
 
 -- 4) Approve (SECURITY DEFINER — bypasses RLS for transactional profile + request update)
+drop function if exists public.approve_role_upgrade_request(uuid);
+
 create or replace function public.approve_role_upgrade_request(p_request_id uuid)
 returns void
 language plpgsql
@@ -124,6 +126,8 @@ end;
 $$;
 
 -- 5) Reject
+drop function if exists public.reject_role_upgrade_request(uuid, text);
+
 create or replace function public.reject_role_upgrade_request(
   p_request_id uuid,
   p_admin_notes text default null

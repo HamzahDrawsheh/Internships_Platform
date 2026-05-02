@@ -5,6 +5,7 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { openCompanyApplicantCv } from "@/lib/open-company-cv";
 import type { ApplicationStatus } from "@/lib/types";
 
 type Position = { id: string; title: string };
@@ -22,7 +23,7 @@ type StudentDetail = {
   university: string;
   department: string;
   major: string;
-  cvUrl: string | null;
+  hasCv: boolean;
   year: string;
   bio: string;
   gpa: number | null;
@@ -41,6 +42,7 @@ export default function CompanyApplicationsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [cvOpeningId, setCvOpeningId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -152,7 +154,7 @@ export default function CompanyApplicationsPage() {
       const { data: studentsData, error: studentsError } = studentIds.length
         ? await supabase
             .from("students")
-            .select("id, user_id, university, department, major, preferences, cv_url")
+            .select("id, user_id, university, department, major, preferences, cv_path")
             .in("id", studentIds)
         : { data: [] as Record<string, unknown>[], error: null };
 
@@ -170,7 +172,7 @@ export default function CompanyApplicationsPage() {
         department?: string | null;
         major: string | null;
         preferences: string | null;
-        cv_url: string | null;
+        cv_path: string | null;
       }[];
       const studentById = new Map(studentsList.map((s) => [s.id, s]));
       const profileUserIds = [...new Set(studentsList.map((s) => s.user_id))];
@@ -218,7 +220,7 @@ export default function CompanyApplicationsPage() {
           university: s.university ?? "—",
           department: (s.department as string | null | undefined)?.trim() || "—",
           major: s.major ?? "—",
-          cvUrl: s.cv_url ?? null,
+          hasCv: Boolean(s.cv_path?.trim()),
           year,
           bio,
           gpa: extra?.gpa ?? null,
@@ -398,6 +400,18 @@ export default function CompanyApplicationsPage() {
     }
   };
 
+  const handleOpenApplicantCv = async (applicationId: string) => {
+    setCvOpeningId(applicationId);
+    setError(null);
+    try {
+      await openCompanyApplicantCv(applicationId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open CV.");
+    } finally {
+      setCvOpeningId(null);
+    }
+  };
+
   return (
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
     <Container>
@@ -418,7 +432,7 @@ export default function CompanyApplicationsPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
           <Table
-            headers={["Student", "University", "Department", "Internship", "Applied", "Status", "Actions"]}
+            headers={["Student", "University", "Department", "Internship", "Applied", "Status", "CV", "Actions"]}
             className="dark:divide-slate-800 dark:[&_thead]:bg-slate-800 dark:[&_tbody]:bg-slate-900 dark:[&_th]:border-slate-800 dark:[&_th]:text-slate-300 dark:[&_tr]:border-slate-800"
           >
             {applications.map((application) => (
@@ -440,6 +454,19 @@ export default function CompanyApplicationsPage() {
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">
                   {application.status}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm">
+                  {studentDetailById.get(application.student_id)?.hasCv ? (
+                    <Button
+                      variant="secondary"
+                      disabled={cvOpeningId === application.id}
+                      onClick={() => void handleOpenApplicantCv(application.id)}
+                    >
+                      {cvOpeningId === application.id ? "Opening..." : "Open CV"}
+                    </Button>
+                  ) : (
+                    <span className="text-gray-500 transition-colors duration-300 dark:text-slate-400">No CV uploaded</span>
+                  )}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">
                   <Button
@@ -543,19 +570,18 @@ export default function CompanyApplicationsPage() {
                 )}
               </div>
             </div>
-            <p>
+            <p className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">CV:</span>{" "}
-              {selectedStudent?.cvUrl ? (
-                <a
-                  href={selectedStudent.cvUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[#7C3AED] hover:underline"
+              {selectedStudent?.hasCv && selectedApplication ? (
+                <Button
+                  variant="secondary"
+                  disabled={cvOpeningId === selectedApplication.id}
+                  onClick={() => void handleOpenApplicantCv(selectedApplication.id)}
                 >
-                  Open CV
-                </a>
+                  {cvOpeningId === selectedApplication.id ? "Opening..." : "Open CV"}
+                </Button>
               ) : (
-                "Not provided"
+                <span className="text-gray-500 transition-colors duration-300 dark:text-slate-400">No CV uploaded</span>
               )}
             </p>
             <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Internship:</span> {selectedApplication.internship_title}</p>

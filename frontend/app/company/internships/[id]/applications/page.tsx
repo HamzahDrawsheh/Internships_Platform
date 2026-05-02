@@ -7,6 +7,7 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button, Table, Modal, Textarea, EmptyState } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { openCompanyApplicantCv } from "@/lib/open-company-cv";
 import type { ApplicationStatus } from "@/lib/types";
 
 export default function ApplicantsPage() {
@@ -20,6 +21,7 @@ export default function ApplicantsPage() {
   const [title, setTitle] = useState("Applicants");
   const [companyName, setCompanyName] = useState("Company");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cvOpeningId, setCvOpeningId] = useState<string | null>(null);
   const [rows, setRows] = useState<
     {
       id: string;
@@ -34,7 +36,7 @@ export default function ApplicantsPage() {
       major: string;
       year: string;
       bio: string;
-      cv_url: string | null;
+      cv_path: string | null;
       internship_title: string;
       gpa: number | null;
       technical_skills: string[];
@@ -98,7 +100,7 @@ export default function ApplicantsPage() {
       const { data: students, error: studentsError } = studentIds.length
         ? await supabase
             .from("students")
-            .select("id, user_id, university, department, major, skills, preferences, cv_url")
+            .select("id, user_id, university, department, major, skills, preferences, cv_path")
             .in("id", studentIds)
         : {
             data: [] as {
@@ -109,7 +111,7 @@ export default function ApplicantsPage() {
               major: string | null;
               skills: string | null;
               preferences: string | null;
-              cv_url: string | null;
+              cv_path: string | null;
             }[],
             error: null,
           };
@@ -188,7 +190,7 @@ export default function ApplicantsPage() {
             major: student?.major ?? "—",
             year,
             bio,
-            cv_url: student?.cv_url ?? null,
+            cv_path: student?.cv_path ?? null,
             internship_title: position.title,
             gpa: additionalInfo?.gpa ?? null,
             technical_skills: additionalInfo?.technical_skills ?? [],
@@ -204,6 +206,18 @@ export default function ApplicantsPage() {
   }, [id]);
 
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+
+  const handleOpenApplicantCv = async (applicationId: string) => {
+    setCvOpeningId(applicationId);
+    setActionMessage(null);
+    try {
+      await openCompanyApplicantCv(applicationId);
+    } catch (e) {
+      setActionMessage(e instanceof Error ? e.message : "Could not open CV.");
+    } finally {
+      setCvOpeningId(null);
+    }
+  };
 
   const handleViewDetails = (applicationId: string) => {
     setSelectedId(applicationId);
@@ -356,7 +370,7 @@ export default function ApplicantsPage() {
             description="Applicants will appear here when students apply."
           />
         ) : (
-          <Table headers={["Student name", "University / dept / major / year", "Skills", "Status", "Actions"]}>
+          <Table headers={["Student name", "University / dept / major / year", "Skills", "Status", "CV", "Actions"]}>
             {rows.map((app) => (
               <tr key={app.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
                 <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{app.student_name}</td>
@@ -365,6 +379,19 @@ export default function ApplicantsPage() {
                   {app.technical_skills.length ? app.technical_skills.join(", ") : "—"}
                 </td>
                 <td className="px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">{app.status}</td>
+                <td className="px-4 py-3 text-sm">
+                  {app.cv_path?.trim() ? (
+                    <Button
+                      variant="secondary"
+                      disabled={cvOpeningId === app.id}
+                      onClick={() => void handleOpenApplicantCv(app.id)}
+                    >
+                      {cvOpeningId === app.id ? "Opening..." : "Open CV"}
+                    </Button>
+                  ) : (
+                    <span className="text-gray-500 transition-colors duration-300 dark:text-slate-400">No CV uploaded</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm">
                   <div className="flex flex-wrap gap-2">
                     {app.status === "pending" && (
@@ -499,14 +526,18 @@ export default function ApplicantsPage() {
                   <p className="mt-1">No data</p>
                 )}
               </div>
-              <p className="sm:col-span-2">
+              <p className="flex flex-wrap items-center gap-2 sm:col-span-2">
                 <span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">CV:</span>{" "}
-                {selected.cv_url ? (
-                  <a href={selected.cv_url} target="_blank" rel="noreferrer" className="text-[#7C3AED] hover:underline">
-                    Open CV
-                  </a>
+                {selected.cv_path?.trim() ? (
+                  <Button
+                    variant="secondary"
+                    disabled={cvOpeningId === selected.id}
+                    onClick={() => void handleOpenApplicantCv(selected.id)}
+                  >
+                    {cvOpeningId === selected.id ? "Opening..." : "Open CV"}
+                  </Button>
                 ) : (
-                  "—"
+                  <span className="text-gray-500 transition-colors duration-300 dark:text-slate-400">No CV uploaded</span>
                 )}
               </p>
             </div>

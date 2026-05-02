@@ -29,6 +29,9 @@ const availabilityOptions = [
   { value: "full-time", label: "Full-time" },
 ];
 
+const CV_BUCKET = "student-cvs";
+const MAX_CV_BYTES = 5 * 1024 * 1024;
+
 const courseCategories = [
   {
     title: "Core Courses",
@@ -109,6 +112,12 @@ export default function StudentProfilePage() {
   const [preferredWorkType, setPreferredWorkType] = useState("");
   const [preferredLocation, setPreferredLocation] = useState("");
   const [availability, setAvailability] = useState("");
+  const [studentRowId, setStudentRowId] = useState<string | null>(null);
+  const [cvPath, setCvPath] = useState<string | null>(null);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvMessage, setCvMessage] = useState<string | null>(null);
+  const [cvUploadError, setCvUploadError] = useState<string | null>(null);
   const predefinedCourses = courseCategories.flatMap((category) => category.courses);
 
   useEffect(() => {
@@ -157,7 +166,7 @@ export default function StudentProfilePage() {
 
       const { data: studentRow, error: studentError } = await supabase
         .from("students")
-        .select("university, department, major, skills, preferences")
+        .select("id, university, department, major, skills, preferences, cv_path")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -169,6 +178,8 @@ export default function StudentProfilePage() {
       }
 
       if (studentRow) {
+        setStudentRowId(studentRow.id);
+        setCvPath(typeof studentRow.cv_path === "string" && studentRow.cv_path.trim() ? studentRow.cv_path.trim() : null);
         setUniversity(studentRow.university ?? "");
         const dept = studentRow.department as string | null | undefined;
         const mapped = dept ? normalizeDepartmentAlias(dept) ?? (isValidDepartment(dept) ? dept : null) : null;
@@ -326,17 +337,25 @@ export default function StudentProfilePage() {
         setSaving(false);
         return;
       }
+      setStudentRowId(existingStudent.id);
     } else {
-      const { error: insertError } = await supabase.from("students").insert({
-        user_id: user.id,
-        ...studentPayload,
-      });
+      const { data: insertedStudent, error: insertError } = await supabase
+        .from("students")
+        .insert({
+          user_id: user.id,
+          ...studentPayload,
+        })
+        .select("id")
+        .single();
 
       if (insertError) {
         console.error("student profile insert error:", JSON.stringify(insertError, null, 2));
         setError(insertError.message);
         setSaving(false);
         return;
+      }
+      if (insertedStudent?.id) {
+        setStudentRowId(insertedStudent.id);
       }
     }
 
@@ -379,6 +398,71 @@ export default function StudentProfilePage() {
 
     setSaved(true);
     setSaving(false);
+  };
+
+  const handleCvUpload = async () => {
+    setCvMessage(null);
+    setCvUploadError(null);
+
+    if (!studentRowId) {
+      setCvUploadError("Save your profile once with a valid department before uploading a CV.");
+      return;
+    }
+
+    if (!cvFile) {
+      setCvUploadError("Choose a PDF file first.");
+      return;
+    }
+
+    const lower = cvFile.name.toLowerCase();
+    if (!lower.endsWith(".pdf")) {
+      setCvUploadError("Only PDF files are allowed.");
+      return;
+    }
+
+    if (cvFile.type && cvFile.type !== "application/pdf") {
+      setCvUploadError("Only PDF files are allowed.");
+      return;
+    }
+
+    if (cvFile.size > MAX_CV_BYTES) {
+      setCvUploadError("PDF must be 5MB or smaller.");
+      return;
+    }
+
+    setCvUploading(true);
+    const supabase = createClient();
+
+    const objectPath = `students/${studentRowId}/cv.pdf`;
+
+    const { error: uploadError } = await supabase.storage.from(CV_BUCKET).upload(objectPath, cvFile, {
+      upsert: true,
+      contentType: "application/pdf",
+    });
+
+    if (uploadError) {
+      console.error("student CV upload error:", uploadError);
+      setCvUploadError(uploadError.message || "Upload failed.");
+      setCvUploading(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("students")
+      .update({ cv_path: objectPath, cv_url: null })
+      .eq("id", studentRowId);
+
+    if (updateError) {
+      console.error("student CV path update error:", updateError);
+      setCvUploadError(updateError.message || "Saved file but could not update profile.");
+      setCvUploading(false);
+      return;
+    }
+
+    setCvPath(objectPath);
+    setCvFile(null);
+    setCvMessage("CV uploaded successfully.");
+    setCvUploading(false);
   };
 
   return (
@@ -522,16 +606,53 @@ export default function StudentProfilePage() {
           </Card>
           <Card>
             <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">CV upload</h2>
-            <p className="mt-1 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Upload a PDF (max 5MB). Upload logic will be connected later.</p>
-            <div className="mt-4">
-              <input
-                type="file"
-                accept=".pdf"
-                className="block w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 transition-colors duration-300 file:mr-4 file:rounded file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-white dark:hover:file:bg-slate-600"
-                aria-label="Upload CV (PDF)"
-                onChange={() => {}}
-              />
-              <p className="mt-2 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">No file selected. Upload will be implemented with storage integration.</p>
+            <p className="mt-1 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
+              PDF only, max 5MB. Your CV is stored privately; companies only get a temporary link when they review your
+              application.
+            </p>
+            {cvMessage && (
+              <div
+                className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-800 transition-colors duration-300 dark:border dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300"
+                role="status"
+              >
+                {cvMessage}
+              </div>
+            )}
+            {cvUploadError && (
+              <div
+                className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-800 transition-colors duration-300 dark:border dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                role="alert"
+              >
+                {cvUploadError}
+              </div>
+            )}
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  disabled={cvUploading || !studentRowId}
+                  className="block w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 transition-colors duration-300 file:mr-4 file:rounded file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-white dark:hover:file:bg-slate-600"
+                  aria-label="Upload CV (PDF)"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setCvFile(file);
+                    setCvMessage(null);
+                    setCvUploadError(null);
+                  }}
+                />
+                <p className="mt-2 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
+                  {cvPath ? "A CV is on file (cv.pdf). You can replace it below." : "No CV uploaded yet."}
+                  {!studentRowId && (
+                    <span className="mt-1 block text-amber-700 dark:text-amber-300">
+                      Save your profile with a valid department first, then upload your CV.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <Button type="button" variant="secondary" disabled={cvUploading || !studentRowId || !cvFile} onClick={() => void handleCvUpload()}>
+                {cvUploading ? "Uploading..." : "Upload CV"}
+              </Button>
             </div>
           </Card>
           <Button type="submit" variant="primary" disabled={loading || saving}>
