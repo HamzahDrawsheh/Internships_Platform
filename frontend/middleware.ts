@@ -82,6 +82,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname === "/dashboard/student" ||
         pathname.startsWith("/internships") ||
         pathname.startsWith("/applications") ||
+        pathname.startsWith("/companies") ||
         pathname.startsWith("/profile/student") ||
         pathname.startsWith("/notifications") ||
         pathname.startsWith("/onboarding") ||
@@ -91,6 +92,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
       return (
         pathname === "/dashboard/company" ||
         pathname.startsWith("/company") ||
+        pathname.startsWith("/companies") ||
         pathname.startsWith("/profile/company") ||
         pathname.startsWith("/notifications")
       );
@@ -98,10 +100,16 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
       return (
         pathname === "/dashboard/supervisor" ||
         pathname.startsWith("/supervisor") ||
+        pathname.startsWith("/companies") ||
         pathname.startsWith("/notifications")
       );
     case "admin":
-      return pathname.startsWith("/admin") || pathname === "/dashboard/admin" || pathname.startsWith("/notifications");
+      return (
+        pathname.startsWith("/admin") ||
+        pathname === "/dashboard/admin" ||
+        pathname.startsWith("/companies") ||
+        pathname.startsWith("/notifications")
+      );
     default:
       return false;
   }
@@ -114,6 +122,7 @@ function isProtected(pathname: string): boolean {
     pathname === "/pending-approval" ||
     pathname.startsWith("/internships") ||
     pathname.startsWith("/applications") ||
+    pathname.startsWith("/companies") ||
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/company") ||
     pathname.startsWith("/supervisor") ||

@@ -15,14 +15,4 @@ alter table if exists public.students
   add column if not exists embedding vector(1536),
   add column if not exists embedding_updated_at timestamptz;
 
--- Vector similarity indexes (IVFFlat + cosine distance).
--- Note: ivfflat works best when table has enough rows and index is analyzed.
-create index if not exists idx_internship_positions_embedding_ivfflat
-  on public.internship_positions
-  using ivfflat (embedding vector_cosine_ops)
-  with (lists = 100);
-
-create index if not exists idx_students_embedding_ivfflat
-  on public.students
-  using ivfflat (embedding vector_cosine_ops)
-  with (lists = 100);
+-- Vector indexes are intentionally deferred because this Supabase pgvector build does not expose vector_cosine_ops for ivfflat/hnsw. Similarity RPCs still work without indexes but may be slower.

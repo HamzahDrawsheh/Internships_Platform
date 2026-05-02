@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 const OPENAI_MODEL = process.env.OPENAI_FEEDBACK_MODEL ?? "gpt-4o-mini";
 
@@ -140,6 +141,32 @@ Ratings:
 
 export async function POST(request: Request) {
   try {
+    let supabaseAuth;
+    try {
+      supabaseAuth = await createClient();
+    } catch {
+      return NextResponse.json({ ok: false, error: "Server configuration error" }, { status: 500 });
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseAuth.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ ok: false, error: "Unauthenticated" }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAuth
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      return NextResponse.json({ ok: false, error: "Unable to verify permissions" }, { status: 500 });
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -159,6 +186,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "feedback_id is required" }, { status: 400 });
     }
 
+    const isAdmin = profile?.role === "admin";
+
+    if (!isAdmin) {
+      const { data: ownRow, error: ownError } = await supabaseAuth
+        .from("student_training_evaluations")
+        .select("id")
+        .eq("id", feedbackId)
+        .maybeSingle();
+
+      if (ownError) {
+        return NextResponse.json({ ok: false, error: "Unable to verify access" }, { status: 500 });
+      }
+
+      if (!ownRow) {
+        return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const supabase = createAdminClient();
 
     const { data: evaluation, error: fetchError } = await supabase
@@ -173,7 +218,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: fetchError.message }, { status: 500 });
     }
     if (!evaluation) {
-      return NextResponse.json({ ok: false, error: "Feedback not found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: "Feedback not found" }, { status: 400 });
     }
 
     const feedbackText =
@@ -206,7 +251,7 @@ export async function POST(request: Request) {
 
     const content = completion.choices[0]?.message?.content;
     if (!content) {
-      return NextResponse.json({ ok: false, error: "OpenAI returned empty content" }, { status: 502 });
+      return NextResponse.json({ ok: false, error: "OpenAI returned empty content" }, { status: 500 });
     }
 
     let parsed: ParsedAnalysis;
@@ -215,7 +260,7 @@ export async function POST(request: Request) {
       parsed = parseAnalysisPayload(rawJson);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to parse AI JSON";
-      return NextResponse.json({ ok: false, error: message }, { status: 502 });
+      return NextResponse.json({ ok: false, error: message }, { status: 500 });
     }
 
     const analyzedAt = new Date().toISOString();
