@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Table from "@/components/common/Table";
+import { CompanyAiFeedbackSummary } from "@/components/companies/CompanyAiFeedbackSummary";
 
 type Row = { id: string; status: string; applied_at: string; internship_title?: string; student_name?: string };
 type RatingRow = { id: string; rating: number; feedback: string | null; created_at: string };
@@ -13,12 +14,14 @@ export default function CompanyDashboardContent() {
   const [recentApplicants, setRecentApplicants] = useState<Row[]>([]);
   const [ratings, setRatings] = useState<RatingRow[]>([]);
   const [averageRating, setAverageRating] = useState<number | null>(null);
+  const [companyRecordId, setCompanyRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
+        setCompanyRecordId(null);
         setLoading(false);
         return;
       }
@@ -30,6 +33,7 @@ export default function CompanyDashboardContent() {
         .single();
 
       if (!company) {
+        setCompanyRecordId(null);
         setInternshipCount(0);
         setApplicationCount(0);
         setRecentApplicants([]);
@@ -38,6 +42,8 @@ export default function CompanyDashboardContent() {
         setLoading(false);
         return;
       }
+
+      setCompanyRecordId(company.id);
 
       const { data: positions } = await supabase
         .from("internship_positions")
@@ -154,6 +160,8 @@ export default function CompanyDashboardContent() {
           <p className="mt-4 text-3xl font-bold">{internshipCount}</p>
         </article>
       </section>
+
+      {companyRecordId ? <CompanyAiFeedbackSummary companyId={companyRecordId} /> : null}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap items-start justify-between gap-3">
