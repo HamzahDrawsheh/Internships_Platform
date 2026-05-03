@@ -17,6 +17,12 @@ type TrainingEvaluationSummary = {
   created_at: string;
 };
 
+type CompanyRatingSummary = {
+  rating: number;
+  feedback: string | null;
+  created_at: string;
+};
+
 /** Calls server-side analysis only; failures are logged and never thrown. */
 async function requestFeedbackAnalysis(feedbackId: string): Promise<void> {
   try {
@@ -49,6 +55,10 @@ export default function ApplicationsList() {
   const [trainingEvaluationByAppId, setTrainingEvaluationByAppId] = useState<
     Record<string, TrainingEvaluationSummary>
   >({});
+  /** Matches ratings.unique(student_id, company_id, position_id) to each application row */
+  const [ratingByApplicationId, setRatingByApplicationId] = useState<
+    Record<string, CompanyRatingSummary>
+  >({});
   const [studentId, setStudentId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -58,6 +68,8 @@ export default function ApplicationsList() {
   const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
   const [evaluationViewModalOpen, setEvaluationViewModalOpen] = useState(false);
   const [viewEvaluationApplicationId, setViewEvaluationApplicationId] = useState<string | null>(null);
+  const [ratingViewModalOpen, setRatingViewModalOpen] = useState(false);
+  const [viewRatingApplicationId, setViewRatingApplicationId] = useState<string | null>(null);
   const [selectedEvaluationApp, setSelectedEvaluationApp] = useState<Application | null>(null);
   const [overallRating, setOverallRating] = useState("5");
   const [mentorshipRating, setMentorshipRating] = useState("5");
@@ -103,6 +115,7 @@ export default function ApplicationsList() {
 
       if (appError || !appRows?.length) {
         setApplications([]);
+        setRatingByApplicationId({});
         setLoading(false);
         return;
       }
@@ -166,6 +179,27 @@ export default function ApplicationsList() {
         setTrainingEvaluationByAppId({});
       }
 
+      const { data: ratingRows } = await supabase
+        .from("ratings")
+        .select("company_id, position_id, rating, feedback, created_at")
+        .eq("student_id", student.id);
+
+      const ratingByApp: Record<string, CompanyRatingSummary> = {};
+      for (const app of mapped) {
+        if (!app.company_id || !app.position_id) continue;
+        const row = (ratingRows ?? []).find(
+          (r) => r.company_id === app.company_id && r.position_id === app.position_id
+        );
+        if (row) {
+          ratingByApp[app.id] = {
+            rating: row.rating as number,
+            feedback: row.feedback as string | null,
+            created_at: row.created_at as string,
+          };
+        }
+      }
+      setRatingByApplicationId(ratingByApp);
+
       setApplications(mapped);
       setLoading(false);
     };
@@ -173,7 +207,9 @@ export default function ApplicationsList() {
     load();
   }, []);
 
-  const acceptedToRate = applications.filter((a) => a.status === "accepted" && a.company_id);
+  const rateableApplications = applications.filter(
+    (a) => (a.status === "accepted" || a.status === "completed") && a.company_id
+  );
   const completedApplications = applications.filter((a) => a.status === "completed");
 
   const openRateModal = (app: Application) => {
@@ -199,6 +235,12 @@ export default function ApplicationsList() {
     if (!trainingEvaluationByAppId[applicationId]) return;
     setViewEvaluationApplicationId(applicationId);
     setEvaluationViewModalOpen(true);
+  };
+
+  const openViewRatingModal = (applicationId: string) => {
+    if (!ratingByApplicationId[applicationId]) return;
+    setViewRatingApplicationId(applicationId);
+    setRatingViewModalOpen(true);
   };
 
   const openEvaluationModal = (app: Application) => {
@@ -346,28 +388,32 @@ export default function ApplicationsList() {
     setSuccess(null);
     const supabase = createClient();
 
-    // Enforce accepted-only rating gate at app level before insert.
-    const { data: acceptedApplication } = await supabase
+    // Enforce accepted-or-completed rating gate at app level before insert.
+    const { data: rateableApplication } = await supabase
       .from("applications")
       .select("id")
       .eq("id", selectedApp.id)
       .eq("student_id", studentId)
-      .eq("status", "accepted")
-      .single();
+      .in("status", ["accepted", "completed"])
+      .maybeSingle();
 
-    if (!acceptedApplication) {
-      setError("You can only rate after your application is accepted.");
+    if (!rateableApplication) {
+      setError("You can only rate after your application is accepted or completed.");
       setSubmitting(false);
       return;
     }
 
-    const { error: insertError } = await supabase.from("ratings").insert({
-      student_id: studentId,
-      company_id: selectedApp.company_id,
-      position_id: selectedApp.position_id,
-      rating: Number(ratingValue),
-      feedback: feedback.trim() || null,
-    });
+    const { data: insertedRow, error: insertError } = await supabase
+      .from("ratings")
+      .insert({
+        student_id: studentId,
+        company_id: selectedApp.company_id,
+        position_id: selectedApp.position_id,
+        rating: Number(ratingValue),
+        feedback: feedback.trim() || null,
+      })
+      .select("rating, feedback, created_at")
+      .single();
 
     if (insertError) {
       if (insertError.code === "23505") {
@@ -377,6 +423,26 @@ export default function ApplicationsList() {
       }
       setSubmitting(false);
       return;
+    }
+
+    if (insertedRow) {
+      const summary: CompanyRatingSummary = {
+        rating: insertedRow.rating as number,
+        feedback: insertedRow.feedback as string | null,
+        created_at: insertedRow.created_at as string,
+      };
+      setRatingByApplicationId((prev) => {
+        const next = { ...prev };
+        for (const app of applications) {
+          if (
+            app.company_id === selectedApp.company_id &&
+            app.position_id === selectedApp.position_id
+          ) {
+            next[app.id] = summary;
+          }
+        }
+        return next;
+      });
     }
 
     setSuccess("Rating submitted successfully.");
@@ -466,29 +532,118 @@ export default function ApplicationsList() {
 
       <Card className="mt-6">
         <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Rate companies</h2>
-        <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">You can submit a rating only for accepted applications.</p>
-        {acceptedToRate.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">No accepted applications available for rating yet.</p>
+        <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
+          You can submit a rating for accepted or completed applications.
+        </p>
+        {rateableApplications.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
+            No accepted or completed applications available for rating yet.
+          </p>
         ) : (
           <div className="mt-4 space-y-3">
-            {acceptedToRate.map((app) => (
-              <div key={app.id} className="flex items-center justify-between rounded-md border border-gray-200 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">{app.internship_title ?? "Internship"}</p>
-                  <p className="text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">Application accepted</p>
-                </div>
-                <Button
-                  variant="secondary"
-                  className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-                  onClick={() => openRateModal(app)}
+            {rateableApplications.map((app) => {
+              const existingRating = ratingByApplicationId[app.id];
+              const submitted = Boolean(existingRating);
+              return (
+                <div
+                  key={app.id}
+                  className="flex flex-col gap-3 rounded-md border border-gray-200 p-3 transition-colors duration-300 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900"
                 >
-                  Leave rating
-                </Button>
-              </div>
-            ))}
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">
+                      {app.internship_title ?? "Internship"}
+                    </p>
+                    <p className="text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
+                      {submitted ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
+                          Rating submitted
+                          <span aria-hidden="true">✅</span>
+                        </span>
+                      ) : app.status === "completed" ? (
+                        "Internship completed — eligible to rate"
+                      ) : (
+                        "Application accepted — eligible to rate"
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {submitted ? (
+                      <Button
+                        variant="secondary"
+                        className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                        onClick={() => openViewRatingModal(app.id)}
+                      >
+                        View Rating
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                        onClick={() => openRateModal(app)}
+                      >
+                        Leave rating
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>
+
+      <Modal
+        isOpen={ratingViewModalOpen}
+        onClose={() => {
+          setRatingViewModalOpen(false);
+          setViewRatingApplicationId(null);
+        }}
+        title="Your company rating"
+        footer={
+          <Button
+            variant="secondary"
+            className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+            onClick={() => {
+              setRatingViewModalOpen(false);
+              setViewRatingApplicationId(null);
+            }}
+          >
+            Close
+          </Button>
+        }
+      >
+        {viewRatingApplicationId &&
+          (() => {
+            const r = ratingByApplicationId[viewRatingApplicationId];
+            const app = applications.find((a) => a.id === viewRatingApplicationId);
+            if (!r) return <p className="text-sm text-gray-600 dark:text-slate-400">No rating data.</p>;
+            const submittedAt = new Date(r.created_at);
+            const dateLabel = Number.isNaN(submittedAt.getTime())
+              ? "—"
+              : submittedAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+            return (
+              <div className="space-y-4 text-sm text-gray-800 dark:text-slate-200">
+                {app?.internship_title && (
+                  <p>
+                    <span className="font-medium text-gray-900 dark:text-white">Internship: </span>
+                    {app.internship_title}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 dark:text-slate-400">Submitted {dateLabel}</p>
+                <p>
+                  <span className="font-medium text-gray-900 dark:text-white">Overall rating: </span>
+                  {r.rating} / 5
+                </p>
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Feedback</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-md bg-gray-50 p-3 text-gray-700 dark:bg-slate-800 dark:text-slate-300">
+                    {r.feedback?.trim() ? r.feedback : "—"}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+      </Modal>
 
       <Modal
         isOpen={evaluationViewModalOpen}
