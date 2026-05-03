@@ -102,12 +102,25 @@ export default function CreateInternshipPage() {
         is_active: isActive,
       };
 
-      const { error: insertError } = await supabase.from("internship_positions").insert(payload);
+      const { data: inserted, error: insertError } = await supabase
+        .from("internship_positions")
+        .insert(payload)
+        .select("id")
+        .single();
 
       if (insertError) {
         console.error("create internship insert error:", insertError);
         setError("Failed to create internship. Please try again.");
         return;
+      }
+
+      if (inserted?.id) {
+        void fetch("/api/embeddings/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ scope: "internship", internshipId: inserted.id }),
+        }).catch(() => {});
       }
 
       setSuccess(isActive ? "Internship published successfully." : "Internship draft saved.");

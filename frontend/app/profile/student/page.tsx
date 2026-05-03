@@ -91,6 +91,8 @@ const courseCategories = [
   },
 ];
 
+const PREDEFINED_COURSES = courseCategories.flatMap((category) => category.courses);
+
 export default function StudentProfilePage() {
   const [name, setName] = useState("");
   const [university, setUniversity] = useState("");
@@ -118,7 +120,6 @@ export default function StudentProfilePage() {
   const [cvUploading, setCvUploading] = useState(false);
   const [cvMessage, setCvMessage] = useState<string | null>(null);
   const [cvUploadError, setCvUploadError] = useState<string | null>(null);
-  const predefinedCourses = courseCategories.flatMap((category) => category.courses);
 
   useEffect(() => {
     const supabase = createClient();
@@ -217,8 +218,8 @@ export default function StudentProfilePage() {
 
       if (preferencesRow) {
         const allTakenCourses = (preferencesRow.taken_courses ?? []) as string[];
-        const selectedPredefined = allTakenCourses.filter((course: string) => predefinedCourses.includes(course));
-        const inferredCustom = allTakenCourses.filter((course: string) => !predefinedCourses.includes(course));
+        const selectedPredefined = allTakenCourses.filter((course: string) => PREDEFINED_COURSES.includes(course));
+        const inferredCustom = allTakenCourses.filter((course: string) => !PREDEFINED_COURSES.includes(course));
         setTakenCourses(selectedPredefined);
         setCustomCourses(inferredCustom.join(", "));
         setGpa(preferencesRow.gpa != null ? String(preferencesRow.gpa) : "");
@@ -395,6 +396,13 @@ export default function StudentProfilePage() {
         JSON.stringify(additionalInfoError, null, 2)
       );
     }
+
+    void fetch("/api/embeddings/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ scope: "student" }),
+    }).catch(() => {});
 
     setSaved(true);
     setSaving(false);
