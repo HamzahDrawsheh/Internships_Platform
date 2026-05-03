@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
+import { SupervisorAiInsights } from "@/components/supervisor/SupervisorAiInsights";
 import { EmptyState, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,7 +25,9 @@ export default function SupervisorDashboardPage() {
   const [acceptedApplications, setAcceptedApplications] = useState(0);
   const [pendingApplications, setPendingApplications] = useState(0);
   const [rejectedApplications, setRejectedApplications] = useState(0);
+  const [completedInternships, setCompletedInternships] = useState(0);
   const [previewStudents, setPreviewStudents] = useState<PreviewStudent[]>([]);
+  const [departmentInsightsEligible, setDepartmentInsightsEligible] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -62,21 +65,26 @@ export default function SupervisorDashboardPage() {
         .maybeSingle();
       if (supervisorError) {
         console.error("supervisor dashboard supervisor query error:", supervisorError);
+        setDepartmentInsightsEligible(false);
         setError("Unable to load supervisor profile.");
         setLoading(false);
         return;
       }
 
-      if (!supervisor?.department) {
+      if (!supervisor?.department?.trim()) {
+        setDepartmentInsightsEligible(false);
         setAssignedStudents(0);
         setTotalApplications(0);
         setAcceptedApplications(0);
         setPendingApplications(0);
         setRejectedApplications(0);
+        setCompletedInternships(0);
         setPreviewStudents([]);
         setLoading(false);
         return;
       }
+
+      setDepartmentInsightsEligible(true);
 
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
@@ -107,6 +115,7 @@ export default function SupervisorDashboardPage() {
         setAcceptedApplications(0);
         setPendingApplications(0);
         setRejectedApplications(0);
+        setCompletedInternships(0);
         setPreviewStudents([]);
         setLoading(false);
         return;
@@ -121,11 +130,13 @@ export default function SupervisorDashboardPage() {
         console.error("supervisor dashboard applications query error:", applicationsError);
       }
 
-      const safeApplications = (applicationsData ?? []) as { status: "pending" | "accepted" | "rejected"; student_id: string }[];
+      type AppStatus = "pending" | "accepted" | "rejected" | "completed";
+      const safeApplications = (applicationsData ?? []) as { status: AppStatus; student_id: string }[];
       setTotalApplications(safeApplications.length);
       setAcceptedApplications(safeApplications.filter((application) => application.status === "accepted").length);
       setPendingApplications(safeApplications.filter((application) => application.status === "pending").length);
       setRejectedApplications(safeApplications.filter((application) => application.status === "rejected").length);
+      setCompletedInternships(safeApplications.filter((application) => application.status === "completed").length);
 
       const profileIds = [...new Set(safeStudents.map((student) => student.user_id))];
       const { data: profilesData, error: profilesError } = profileIds.length
@@ -157,6 +168,12 @@ export default function SupervisorDashboardPage() {
   }, []);
 
   const showEmptyStudents = useMemo(() => !loading && !error && assignedStudents === 0, [loading, error, assignedStudents]);
+
+  const completionRateLabel = useMemo(() => {
+    if (totalApplications === 0) return "—";
+    const pct = (completedInternships / totalApplications) * 100;
+    return `${pct.toFixed(1)}%`;
+  }, [totalApplications, completedInternships]);
 
   return (
     <main className="py-6 sm:py-8">
@@ -203,6 +220,38 @@ export default function SupervisorDashboardPage() {
                 <p className="mt-4 text-3xl font-bold">{rejectedApplications}</p>
               </article>
             </section>
+            <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Department Performance</h2>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Aggregates for students in your department only (read-only).
+              </p>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-sky-50 p-5 text-sky-950 shadow-sm transition-all duration-300 dark:border-sky-900/40 dark:bg-sky-500/10 dark:text-sky-100">
+                  <p className="text-sm font-medium text-sky-900 dark:text-sky-200">Total students</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{assignedStudents}</p>
+                </article>
+                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-slate-50 p-5 text-slate-900 shadow-sm transition-all duration-300 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Total applications</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{totalApplications}</p>
+                </article>
+                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-teal-50 p-5 text-teal-950 shadow-sm transition-all duration-300 dark:border-teal-900/40 dark:bg-teal-500/10 dark:text-teal-100">
+                  <p className="text-sm font-medium text-teal-900 dark:text-teal-200">Completed internships</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{completedInternships}</p>
+                </article>
+                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-violet-50 p-5 text-violet-950 shadow-sm transition-all duration-300 dark:border-violet-900/40 dark:bg-violet-500/10 dark:text-violet-100">
+                  <p className="text-sm font-medium text-violet-900 dark:text-violet-200">Completion rate</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{completionRateLabel}</p>
+                  {totalApplications === 0 ? (
+                    <p className="mt-1 text-xs text-violet-700/80 dark:text-violet-300/80">No applications yet</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-violet-700/80 dark:text-violet-300/80">
+                      Completed ÷ all department applications
+                    </p>
+                  )}
+                </article>
+              </div>
+            </section>
+            <SupervisorAiInsights eligible={departmentInsightsEligible} className="mt-8" />
             <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Students Overview</h2>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Latest students in your department</p>
