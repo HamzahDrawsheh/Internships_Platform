@@ -7,6 +7,16 @@ import EmptyState from "@/components/common/EmptyState";
 import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
 import type { Application } from "@/lib/types";
 
+type TrainingEvaluationSummary = {
+  overall_rating: number;
+  mentorship_rating: number;
+  environment_rating: number;
+  skills_rating: number;
+  would_recommend: boolean;
+  other_notes: string | null;
+  created_at: string;
+};
+
 /** Calls server-side analysis only; failures are logged and never thrown. */
 async function requestFeedbackAnalysis(feedbackId: string): Promise<void> {
   try {
@@ -35,7 +45,10 @@ async function requestFeedbackAnalysis(feedbackId: string): Promise<void> {
 
 export default function ApplicationsList() {
   const [applications, setApplications] = useState<Application[]>([]);
-  const [evaluatedApplicationIds, setEvaluatedApplicationIds] = useState<Set<string>>(new Set());
+  /** Completed applications that already have a row in student_training_evaluations */
+  const [trainingEvaluationByAppId, setTrainingEvaluationByAppId] = useState<
+    Record<string, TrainingEvaluationSummary>
+  >({});
   const [studentId, setStudentId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -43,6 +56,8 @@ export default function ApplicationsList() {
   const [ratingValue, setRatingValue] = useState("5");
   const [feedback, setFeedback] = useState("");
   const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
+  const [evaluationViewModalOpen, setEvaluationViewModalOpen] = useState(false);
+  const [viewEvaluationApplicationId, setViewEvaluationApplicationId] = useState<string | null>(null);
   const [selectedEvaluationApp, setSelectedEvaluationApp] = useState<Application | null>(null);
   const [overallRating, setOverallRating] = useState("5");
   const [mentorshipRating, setMentorshipRating] = useState("5");
@@ -119,16 +134,36 @@ export default function ApplicationsList() {
       if (applicationIds.length > 0) {
         const { data: evaluationRows } = await supabase
           .from("student_training_evaluations")
-          .select("application_id")
+          .select(
+            "application_id, overall_rating, mentorship_rating, environment_rating, skills_rating, would_recommend, other_notes, created_at"
+          )
           .eq("student_id", student.id)
           .in("application_id", applicationIds);
 
-        const evaluatedIds = new Set(
-          ((evaluationRows ?? []) as { application_id: string }[]).map((row) => row.application_id)
-        );
-        setEvaluatedApplicationIds(evaluatedIds);
+        const byApp: Record<string, TrainingEvaluationSummary> = {};
+        for (const row of (evaluationRows ?? []) as {
+          application_id: string;
+          overall_rating: number;
+          mentorship_rating: number;
+          environment_rating: number;
+          skills_rating: number;
+          would_recommend: boolean;
+          other_notes: string | null;
+          created_at: string;
+        }[]) {
+          byApp[row.application_id] = {
+            overall_rating: row.overall_rating,
+            mentorship_rating: row.mentorship_rating,
+            environment_rating: row.environment_rating,
+            skills_rating: row.skills_rating,
+            would_recommend: row.would_recommend,
+            other_notes: row.other_notes,
+            created_at: row.created_at,
+          };
+        }
+        setTrainingEvaluationByAppId(byApp);
       } else {
-        setEvaluatedApplicationIds(new Set());
+        setTrainingEvaluationByAppId({});
       }
 
       setApplications(mapped);
@@ -148,6 +183,22 @@ export default function ApplicationsList() {
     setError(null);
     setSuccess(null);
     setModalOpen(true);
+  };
+
+  const summaryFromForm = (): TrainingEvaluationSummary => ({
+    overall_rating: Number(overallRating),
+    mentorship_rating: Number(mentorshipRating),
+    environment_rating: Number(environmentRating),
+    skills_rating: Number(skillsRating),
+    would_recommend: wouldRecommend === "yes",
+    other_notes: otherNotes.trim() || null,
+    created_at: new Date().toISOString(),
+  });
+
+  const openViewEvaluationModal = (applicationId: string) => {
+    if (!trainingEvaluationByAppId[applicationId]) return;
+    setViewEvaluationApplicationId(applicationId);
+    setEvaluationViewModalOpen(true);
   };
 
   const openEvaluationModal = (app: Application) => {
@@ -194,11 +245,29 @@ export default function ApplicationsList() {
       .maybeSingle();
 
     if (existingEvaluation) {
-      setEvaluatedApplicationIds((prev) => {
-        const next = new Set(prev);
-        next.add(selectedEvaluationApp.id);
-        return next;
-      });
+      const { data: existingRow } = await supabase
+        .from("student_training_evaluations")
+        .select(
+          "overall_rating, mentorship_rating, environment_rating, skills_rating, would_recommend, other_notes, created_at"
+        )
+        .eq("application_id", selectedEvaluationApp.id)
+        .maybeSingle();
+
+      if (existingRow) {
+        setTrainingEvaluationByAppId((prev) => ({
+          ...prev,
+          [selectedEvaluationApp.id]: {
+            overall_rating: existingRow.overall_rating as number,
+            mentorship_rating: existingRow.mentorship_rating as number,
+            environment_rating: existingRow.environment_rating as number,
+            skills_rating: existingRow.skills_rating as number,
+            would_recommend: existingRow.would_recommend as boolean,
+            other_notes: existingRow.other_notes as string | null,
+            created_at: existingRow.created_at as string,
+          },
+        }));
+      }
+
       setError("Training evaluation already submitted for this application.");
       setSubmitting(false);
       setEvaluationModalOpen(false);
@@ -222,11 +291,27 @@ export default function ApplicationsList() {
 
     if (insertError) {
       if (insertError.code === "23505") {
-        setEvaluatedApplicationIds((prev) => {
-          const next = new Set(prev);
-          next.add(selectedEvaluationApp.id);
-          return next;
-        });
+        const { data: dupRow } = await supabase
+          .from("student_training_evaluations")
+          .select(
+            "overall_rating, mentorship_rating, environment_rating, skills_rating, would_recommend, other_notes, created_at"
+          )
+          .eq("application_id", selectedEvaluationApp.id)
+          .maybeSingle();
+        if (dupRow) {
+          setTrainingEvaluationByAppId((prev) => ({
+            ...prev,
+            [selectedEvaluationApp.id]: {
+              overall_rating: dupRow.overall_rating as number,
+              mentorship_rating: dupRow.mentorship_rating as number,
+              environment_rating: dupRow.environment_rating as number,
+              skills_rating: dupRow.skills_rating as number,
+              would_recommend: dupRow.would_recommend as boolean,
+              other_notes: dupRow.other_notes as string | null,
+              created_at: dupRow.created_at as string,
+            },
+          }));
+        }
         setError("Training evaluation already submitted for this application.");
       } else {
         setError(insertError.message);
@@ -240,11 +325,10 @@ export default function ApplicationsList() {
       console.error("[ApplicationsList] Insert succeeded but no feedback id returned.");
     }
 
-    setEvaluatedApplicationIds((prev) => {
-      const next = new Set(prev);
-      next.add(selectedEvaluationApp.id);
-      return next;
-    });
+    setTrainingEvaluationByAppId((prev) => ({
+      ...prev,
+      [selectedEvaluationApp.id]: summaryFromForm(),
+    }));
     setSuccess("Training evaluation submitted successfully.");
     setSubmitting(false);
     setEvaluationModalOpen(false);
@@ -332,29 +416,47 @@ export default function ApplicationsList() {
           </h2>
           <div className="mt-4 space-y-3">
             {completedApplications.map((app) => {
-              const submitted = evaluatedApplicationIds.has(app.id);
+              const existingEvaluation = trainingEvaluationByAppId[app.id];
+              const submitted = Boolean(existingEvaluation);
               return (
                 <div
                   key={app.id}
-                  className="flex items-center justify-between rounded-md border border-gray-200 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900"
+                  className="flex flex-col gap-3 rounded-md border border-gray-200 p-3 transition-colors duration-300 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900"
                 >
                   <div>
                     <p className="text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">
                       {app.internship_title ?? "Internship"}
                     </p>
                     <p className="text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                      {submitted ? "Training evaluation submitted" : "Training evaluation available"}
+                      {submitted ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
+                          Evaluation submitted
+                          <span aria-hidden="true">✅</span>
+                        </span>
+                      ) : (
+                        "Complete your training evaluation while details are fresh."
+                      )}
                     </p>
                   </div>
-                  {!submitted && (
-                    <Button
-                      variant="secondary"
-                      className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-                      onClick={() => openEvaluationModal(app)}
-                    >
-                      Evaluate training
-                    </Button>
-                  )}
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {submitted ? (
+                      <Button
+                        variant="secondary"
+                        className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                        onClick={() => openViewEvaluationModal(app.id)}
+                      >
+                        View Evaluation
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                        onClick={() => openEvaluationModal(app)}
+                      >
+                        Evaluate Training
+                      </Button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -387,6 +489,77 @@ export default function ApplicationsList() {
           </div>
         )}
       </Card>
+
+      <Modal
+        isOpen={evaluationViewModalOpen}
+        onClose={() => {
+          setEvaluationViewModalOpen(false);
+          setViewEvaluationApplicationId(null);
+        }}
+        title="Your training evaluation"
+        footer={
+          <Button
+            variant="secondary"
+            className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+            onClick={() => {
+              setEvaluationViewModalOpen(false);
+              setViewEvaluationApplicationId(null);
+            }}
+          >
+            Close
+          </Button>
+        }
+      >
+        {viewEvaluationApplicationId &&
+          (() => {
+            const ev = trainingEvaluationByAppId[viewEvaluationApplicationId];
+            const app = applications.find((a) => a.id === viewEvaluationApplicationId);
+            if (!ev) return <p className="text-sm text-gray-600 dark:text-slate-400">No evaluation data.</p>;
+            const submittedAt = new Date(ev.created_at);
+            const dateLabel = Number.isNaN(submittedAt.getTime())
+              ? "—"
+              : submittedAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+            return (
+              <div className="space-y-4 text-sm text-gray-800 dark:text-slate-200">
+                {app?.internship_title && (
+                  <p>
+                    <span className="font-medium text-gray-900 dark:text-white">Internship: </span>
+                    {app.internship_title}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 dark:text-slate-400">Submitted {dateLabel}</p>
+                <dl className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Overall</dt>
+                    <dd>{ev.overall_rating} / 5</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Mentorship</dt>
+                    <dd>{ev.mentorship_rating} / 5</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Environment</dt>
+                    <dd>{ev.environment_rating} / 5</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Skills gained</dt>
+                    <dd>{ev.skills_rating} / 5</dd>
+                  </div>
+                </dl>
+                <p>
+                  <span className="font-medium text-gray-900 dark:text-white">Recommend this training: </span>
+                  {ev.would_recommend ? "Yes" : "No"}
+                </p>
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Other notes</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-md bg-gray-50 p-3 text-gray-700 dark:bg-slate-800 dark:text-slate-300">
+                    {ev.other_notes?.trim() ? ev.other_notes : "—"}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+      </Modal>
 
       <Modal
         isOpen={evaluationModalOpen}

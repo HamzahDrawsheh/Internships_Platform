@@ -9,6 +9,11 @@ import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { InternshipCard } from "@/components/internships/InternshipCard";
 
+/** When `"true"`, recommendations load via `/api/recommendations/internships` only (no `supabase.rpc`). Safe for staging before DB RPC exists. */
+function internshipRecommendationsApiOnly(): boolean {
+  return process.env.NEXT_PUBLIC_INTERN_RECOMMENDATIONS_SKIP_RPC === "true";
+}
+
 const locationOptions: SelectOption[] = [
   { value: "", label: "All locations" },
   { value: "remote", label: "Remote" },
@@ -95,37 +100,70 @@ export default function BrowseInternshipsPage() {
             "We are preparing your recommendations. Please complete your profile details and try again soon."
           );
         } else {
-          const { data: recommendationRows, error: recommendationError } = await supabase.rpc(
-            "get_student_recommended_internships",
-            { p_student_id: studentRow.id, p_limit: 6 }
+          const limit = 6;
+          type RecRow = {
+            internship_id: string;
+            title: string;
+            company_name: string;
+            similarity_score: unknown;
+            match_percentage: unknown;
+          };
+
+          let rawRows: RecRow[] = [];
+          let hardFailure = false;
+
+          const fetchRecommendationsFromApi = async (): Promise<boolean> => {
+            const res = await fetch(`/api/recommendations/internships?limit=${limit}`, {
+              credentials: "same-origin",
+            });
+            if (!res.ok) {
+              return false;
+            }
+            const body = (await res.json()) as { ok?: boolean; recommendations?: RecRow[] };
+            if (body.ok && Array.isArray(body.recommendations)) {
+              rawRows = body.recommendations;
+              return true;
+            }
+            return false;
+          };
+
+          if (internshipRecommendationsApiOnly()) {
+            hardFailure = !(await fetchRecommendationsFromApi());
+          } else {
+            const rpcResult = await supabase.rpc("get_student_recommended_internships", {
+              p_student_id: studentRow.id,
+              p_limit: limit,
+            });
+
+            rawRows = Array.isArray(rpcResult.data) ? (rpcResult.data as RecRow[]) : [];
+
+            if (rpcResult.error) {
+              console.warn("[internships] RPC recommendations failed, using API fallback:", rpcResult.error.message);
+              hardFailure = true;
+              if (await fetchRecommendationsFromApi()) {
+                hardFailure = false;
+              }
+            }
+          }
+
+          setRecommended(
+            rawRows.map((row) => ({
+              internship_id: row.internship_id,
+              title: row.title,
+              company_name: row.company_name,
+              similarity_score: Number(row.similarity_score ?? 0),
+              match_percentage: Number(row.match_percentage ?? 0),
+            }))
           );
 
-          if (recommendationError) {
-            setRecommended([]);
-            setRecommendedMessage("Unable to load recommendations right now. Please try again later.");
-          } else {
-            setRecommended(
-              (
-                (recommendationRows ?? []) as {
-                  internship_id: string;
-                  title: string;
-                  company_name: string;
-                  similarity_score: unknown;
-                  match_percentage: unknown;
-                }[]
-              ).map((row) => ({
-                internship_id: row.internship_id,
-                title: row.title,
-                company_name: row.company_name,
-                similarity_score: Number(row.similarity_score ?? 0),
-                match_percentage: Number(row.match_percentage ?? 0),
-              }))
+          if (rawRows.length === 0) {
+            setRecommendedMessage(
+              hardFailure
+                ? "Unable to load recommendations right now. Please try again later."
+                : "No recommendations available yet. New matches will appear as internships are posted."
             );
-            if (!recommendationRows?.length) {
-              setRecommendedMessage(
-                "No recommendations available yet. New matches will appear as internships are posted."
-              );
-            }
+          } else {
+            setRecommendedMessage(null);
           }
           setRecommendedLoading(false);
         }
