@@ -14,6 +14,23 @@ function internshipRecommendationsApiOnly(): boolean {
   return process.env.NEXT_PUBLIC_INTERN_RECOMMENDATIONS_SKIP_RPC === "true";
 }
 
+/** Present on `/api/recommendations/internships` rows; omitted when loading via RPC fallback. */
+type RecommendationMatchInsights = {
+  matched_skills: string[];
+  gaps: string[];
+  summary_lines: string[];
+  tips: string[];
+};
+
+type RecommendedInternship = {
+  internship_id: string;
+  title: string;
+  company_name: string;
+  similarity_score: number;
+  match_percentage: number;
+  match_insights?: RecommendationMatchInsights;
+};
+
 const locationOptions: SelectOption[] = [
   { value: "", label: "All locations" },
   { value: "remote", label: "Remote" },
@@ -47,15 +64,7 @@ export default function BrowseInternshipsPage() {
       company_name?: string;
     }[]
   >([]);
-  const [recommended, setRecommended] = useState<
-    {
-      internship_id: string;
-      title: string;
-      company_name: string;
-      similarity_score: number;
-      match_percentage: number;
-    }[]
-  >([]);
+  const [recommended, setRecommended] = useState<RecommendedInternship[]>([]);
   const [recommendedLoading, setRecommendedLoading] = useState(true);
   const [recommendedMessage, setRecommendedMessage] = useState<string | null>(null);
 
@@ -101,34 +110,40 @@ export default function BrowseInternshipsPage() {
           );
         } else {
           const limit = 6;
+
+          /** Raw row from API (may include match_insights) or RPC (usually omits it). */
           type RecRow = {
             internship_id: string;
             title: string;
             company_name: string;
             similarity_score: unknown;
             match_percentage: unknown;
+            match_insights?: RecommendationMatchInsights;
           };
 
           let rawRows: RecRow[] = [];
           let hardFailure = false;
 
-          const fetchRecommendationsFromApi = async (): Promise<boolean> => {
+          const fetchRecommendationsFromApi = async (): Promise<RecRow[] | null> => {
             const res = await fetch(`/api/recommendations/internships?limit=${limit}`, {
               credentials: "same-origin",
             });
             if (!res.ok) {
-              return false;
+              return null;
             }
             const body = (await res.json()) as { ok?: boolean; recommendations?: RecRow[] };
             if (body.ok && Array.isArray(body.recommendations)) {
-              rawRows = body.recommendations;
-              return true;
+              return body.recommendations;
             }
-            return false;
+            return null;
           };
 
-          if (internshipRecommendationsApiOnly()) {
-            hardFailure = !(await fetchRecommendationsFromApi());
+          // Prefer HTTP API first so match_insights is populated; RPC remains fallback only.
+          const apiRows = await fetchRecommendationsFromApi();
+          if (apiRows !== null) {
+            rawRows = apiRows;
+          } else if (internshipRecommendationsApiOnly()) {
+            hardFailure = true;
           } else {
             const rpcResult = await supabase.rpc("get_student_recommended_internships", {
               p_student_id: studentRow.id,
@@ -138,9 +153,11 @@ export default function BrowseInternshipsPage() {
             rawRows = Array.isArray(rpcResult.data) ? (rpcResult.data as RecRow[]) : [];
 
             if (rpcResult.error) {
-              console.warn("[internships] RPC recommendations failed, using API fallback:", rpcResult.error.message);
+              console.warn("[internships] RPC recommendations failed, retrying API:", rpcResult.error.message);
               hardFailure = true;
-              if (await fetchRecommendationsFromApi()) {
+              const retryApi = await fetchRecommendationsFromApi();
+              if (retryApi !== null) {
+                rawRows = retryApi;
                 hardFailure = false;
               }
             }
@@ -153,6 +170,7 @@ export default function BrowseInternshipsPage() {
               company_name: row.company_name,
               similarity_score: Number(row.similarity_score ?? 0),
               match_percentage: Number(row.match_percentage ?? 0),
+              ...(row.match_insights != null ? { match_insights: row.match_insights } : {}),
             }))
           );
 
@@ -275,6 +293,52 @@ export default function BrowseInternshipsPage() {
                   <p className="mt-3 text-xs text-gray-600 dark:text-gray-300">
                     Recommended based on your profile, skills, and preferences.
                   </p>
+                  {(() => {
+                    const mi = item.match_insights;
+                    const summaryFirst = mi?.summary_lines?.[0]?.trim() ?? "";
+                    const matchedShow = (mi?.matched_skills ?? []).slice(0, 3);
+                    const gapsShow = (mi?.gaps ?? []).slice(0, 2);
+                    const hasInsightsBlock =
+                      mi != null &&
+                      (summaryFirst.length > 0 || matchedShow.length > 0 || gapsShow.length > 0);
+                    if (!hasInsightsBlock) return null;
+                    return (
+                      <div className="mt-3 border-t border-purple-200/70 pt-2.5 dark:border-purple-500/25">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-800 dark:text-purple-200/90">
+                          AI Match Insights
+                        </p>
+                        {summaryFirst.length > 0 && (
+                          <p className="mt-1 text-[11px] leading-snug text-gray-700 dark:text-slate-300">
+                            {summaryFirst}
+                          </p>
+                        )}
+                        {matchedShow.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {matchedShow.map((s) => (
+                              <span
+                                key={`m:${s}`}
+                                className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-900 dark:bg-purple-500/25 dark:text-purple-100"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {gapsShow.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {gapsShow.map((g) => (
+                              <span
+                                key={`g:${g}`}
+                                className="rounded-full border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-[10px] font-normal text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/70 dark:text-slate-400"
+                              >
+                                {g}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <Link
                     href={`/internships/${item.internship_id}`}
                     className="mt-3 inline-flex items-center rounded-lg border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 transition-all duration-300 hover:bg-purple-50 hover:text-purple-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-purple-400/40 dark:text-purple-300 dark:hover:bg-purple-500/15 dark:hover:text-purple-200 dark:focus-visible:ring-offset-gray-900"

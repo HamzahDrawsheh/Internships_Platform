@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import {
+  consumeUserRateLimitSlot,
+  RATE_LIMIT_BUCKET_RESUME_IMPROVE,
+} from "@/lib/server/in-memory-user-rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const MODEL = process.env.OPENAI_RESUME_MODEL ?? "gpt-4o-mini";
@@ -56,6 +60,11 @@ export async function POST(request: Request) {
 
   if (profile?.role !== "student") {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
+
+  // Cap LLM-bound abuse per authenticated student before reading body / calling OpenAI.
+  if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_RESUME_IMPROVE)) {
+    return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
   }
 
   let body: ImproveBody;

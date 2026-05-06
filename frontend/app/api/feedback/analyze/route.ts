@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  consumeUserRateLimitSlot,
+  RATE_LIMIT_BUCKET_FEEDBACK_ANALYZE,
+} from "@/lib/server/in-memory-user-rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const OPENAI_MODEL = process.env.OPENAI_FEEDBACK_MODEL ?? "gpt-4o-mini";
@@ -224,6 +228,11 @@ export async function POST(request: Request) {
       if (!ownedEvaluation) {
         return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
       }
+    }
+
+    // Limit OpenAI-bound analyze calls per user after authorization (admins share same bucket).
+    if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_FEEDBACK_ANALYZE)) {
+      return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
 
     const supabase = createAdminClient();
