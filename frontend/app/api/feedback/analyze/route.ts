@@ -188,18 +188,40 @@ export async function POST(request: Request) {
 
     const isAdmin = profile?.role === "admin";
 
+    // -------------------------------------------------------------------------
+    // Authorization (non-admin): require ownership of this evaluation row.
+    // Do NOT treat "row visible under loose RLS" or "id exists" as sufficient proof.
+    // Required path: student_training_evaluations.student_id -> students.id
+    //                  where students.user_id = auth.uid()
+    // Implemented as two scoped queries (same logical join); service role runs only after this passes.
+    // -------------------------------------------------------------------------
     if (!isAdmin) {
-      const { data: ownRow, error: ownError } = await supabaseAuth
-        .from("student_training_evaluations")
+      const { data: callerStudent, error: callerStudentError } = await supabaseAuth
+        .from("students")
         .select("id")
-        .eq("id", feedbackId)
+        .eq("user_id", user.id)
         .maybeSingle();
 
-      if (ownError) {
+      if (callerStudentError) {
         return NextResponse.json({ ok: false, error: "Unable to verify access" }, { status: 500 });
       }
 
-      if (!ownRow) {
+      if (!callerStudent?.id) {
+        return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+      }
+
+      const { data: ownedEvaluation, error: ownedEvaluationError } = await supabaseAuth
+        .from("student_training_evaluations")
+        .select("id")
+        .eq("id", feedbackId)
+        .eq("student_id", callerStudent.id)
+        .maybeSingle();
+
+      if (ownedEvaluationError) {
+        return NextResponse.json({ ok: false, error: "Unable to verify access" }, { status: 500 });
+      }
+
+      if (!ownedEvaluation) {
         return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
       }
     }
