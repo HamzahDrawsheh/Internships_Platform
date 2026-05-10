@@ -1,22 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button, EmptyState } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-
-type NotificationRow = {
-  id: string;
-  title: string;
-  message: string;
-  type: "accepted" | "rejected" | "application_accepted" | "application_rejected" | "info";
-  is_read: boolean;
-  created_at: string;
-};
+import { notificationConversationHref } from "@/lib/messaging";
+import {
+  formatNotificationDate,
+  getNotificationTypeStyles,
+  type NotificationRow,
+} from "@/lib/notifications-ui";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
@@ -41,13 +40,17 @@ export default function NotificationsPage() {
 
       if (!user) {
         setNotifications([]);
+        setViewerRole(null);
         setLoading(false);
         return;
       }
 
+      const { data: profileRow } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      setViewerRole(profileRow?.role ?? null);
+
       const { data, error: notificationsError } = await supabase
         .from("notifications")
-        .select("id, title, message, type, is_read, created_at")
+        .select("id, title, message, type, is_read, created_at, related_conversation_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -91,35 +94,6 @@ export default function NotificationsPage() {
     setMarkingAll(false);
   };
 
-  const formatDate = (value: string) => {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
-  };
-
-  const getTypeStyles = (type: NotificationRow["type"]) => {
-    if (type === "accepted" || type === "application_accepted") {
-      return {
-        icon: "🎉",
-        itemClass: "border-l-4 border-green-500",
-        titleClass: "text-green-800 dark:text-green-300",
-      };
-    }
-
-    if (type === "rejected" || type === "application_rejected") {
-      return {
-        icon: "❌",
-        itemClass: "border-l-4 border-red-500",
-        titleClass: "text-red-800 dark:text-red-300",
-      };
-    }
-
-    return {
-      icon: "🔔",
-      itemClass: "border-l-4 border-blue-400",
-      titleClass: "text-gray-900 dark:text-white",
-    };
-  };
-
   return (
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-3xl">
@@ -149,35 +123,46 @@ export default function NotificationsPage() {
         ) : (
           <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white transition-colors duration-300 dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
             {notifications.map((notification) => {
-              const typeStyles = getTypeStyles(notification.type);
+              const typeStyles = getNotificationTypeStyles(notification.type);
+              const dmHref = notificationConversationHref(viewerRole, notification.related_conversation_id);
+              const body = (
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg" aria-hidden>
+                      {typeStyles.icon}
+                    </span>
+                    <div>
+                      <p className={`text-sm font-semibold ${typeStyles.titleClass}`}>{notification.title}</p>
+                      <p className="mt-1 text-sm text-gray-700 transition-colors duration-300 dark:text-slate-300">{notification.message}</p>
+                      {dmHref ? (
+                        <p className="mt-2 text-xs font-medium text-purple-700 dark:text-purple-300">Tap row to open chat →</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="whitespace-nowrap text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
+                      {formatNotificationDate(notification.created_at)}
+                    </p>
+                    {!notification.is_read && (
+                      <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 transition-colors duration-300 dark:bg-blue-500/20 dark:text-blue-300">
+                        Unread
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
               return (
                 <li
                   key={notification.id}
-                  className={`px-4 py-4 transition-colors duration-300 ${typeStyles.itemClass} ${notification.is_read ? "bg-white dark:bg-slate-900" : "bg-blue-50/30 dark:bg-slate-800/60"}`}
+                  className={`border-l-4 px-4 py-4 transition-colors duration-300 ${typeStyles.accentClass} ${notification.is_read ? "bg-white dark:bg-slate-900" : "bg-blue-50/30 dark:bg-slate-800/60"}`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg" aria-hidden>
-                        {typeStyles.icon}
-                      </span>
-                      <div>
-                        <p className={`text-sm font-semibold ${typeStyles.titleClass}`}>
-                          {notification.title}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-700 transition-colors duration-300 dark:text-slate-300">{notification.message}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="whitespace-nowrap text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                        {formatDate(notification.created_at)}
-                      </p>
-                      {!notification.is_read && (
-                        <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 transition-colors duration-300 dark:bg-blue-500/20 dark:text-blue-300">
-                          Unread
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {dmHref ? (
+                    <Link href={dmHref} className="-m-2 block rounded-lg p-2 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
+                      {body}
+                    </Link>
+                  ) : (
+                    body
+                  )}
                 </li>
               );
             })}

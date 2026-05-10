@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 
 const studentLinks = [
   { label: "Dashboard", href: "/dashboard/student", icon: "🏠" },
+  { label: "Your supervisor", href: "/dashboard/student/supervisor", icon: "🎓" },
+  { label: "Messages", href: "/dashboard/student/messages", icon: "💬" },
   { label: "Browse Internships", href: "/internships", icon: "💼" },
   { label: "Browse Companies", href: "/companies", icon: "🏢" },
   { label: "My Applications", href: "/applications", icon: "📄" },

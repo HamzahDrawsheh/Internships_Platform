@@ -79,3 +79,73 @@ body {
     animation: none;
   }
 }
+
+@keyframes chat-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-chat-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(229 231 235 / 0.9) 0%,
+    rgb(243 244 246 / 1) 45%,
+    rgb(229 231 235 / 0.9) 90%
+  );
+  background-size: 200% 100%;
+  animation: chat-shimmer 1.35s ease-in-out infinite;
+}
+
+.dark .animate-chat-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(55 65 81 / 0.9) 0%,
+    rgb(75 85 99 / 1) 45%,
+    rgb(55 65 81 / 0.9) 90%
+  );
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-shimmer {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
+/* Chat typing indicator: visible on light backgrounds */
+@keyframes chat-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes chat-dot-opacity {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.chat-loading-dot {
+  animation: chat-dot-bounce 0.85s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-loading-dot {
+    animation: chat-dot-opacity 1s ease-in-out infinite;
+    transform: none;
+  }
+}

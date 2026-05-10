@@ -24,7 +24,7 @@ drop policy if exists "companies_select_supervisor_same_department_applications"
 create or replace function public.supervisor_same_dept_application_for_position(p_position_id uuid)
 returns boolean
 language plpgsql
-stable
+volatile
 security definer
 set search_path = public
 as $$
@@ -44,7 +44,7 @@ $$;
 create or replace function public.supervisor_same_dept_application_for_company(p_company_id uuid)
 returns boolean
 language plpgsql
-stable
+volatile
 security definer
 set search_path = public
 as $$

@@ -25,16 +25,17 @@ export default function PendingApprovalPage() {
       setLoading(true);
       setError(null);
 
+      // Prefer getUser() over getSession(): it validates/refreshes the JWT with the Auth server.
+      // getSession() can briefly return null during client hydration or stale/expired tokens → false login redirect.
       const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-      if (sessionError) {
-        console.error("[pending-approval] getSession error:", sessionError);
+      if (authError) {
+        console.error("[pending-approval] getUser error:", authError.message, authError);
       }
 
-      const user = session?.user ?? null;
       if (!user) {
         router.replace("/auth/login?next=%2Fpending-approval");
         return;
@@ -47,8 +48,14 @@ export default function PendingApprovalPage() {
         .maybeSingle();
 
       if (profileError) {
-        console.error("[pending-approval] profile query error:", profileError);
-        setError("Unable to load your profile.");
+        console.error(
+          "[pending-approval] profile query error:",
+          profileError.message ?? "(no message)",
+          profileError.code ?? "",
+          profileError.details ?? "",
+          profileError.hint ?? "",
+        );
+        setError("Unable to load your profile. Try refreshing the page or signing in again.");
         setLoading(false);
         return;
       }

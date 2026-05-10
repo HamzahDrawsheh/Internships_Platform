@@ -20,6 +20,7 @@ export default function CompanyPublicProfilePage() {
     description: string | null;
     location: string | null;
     industry: string | null;
+    logo_url: string | null;
   } | null>(null);
   const [positions, setPositions] = useState<
     { id: string; title: string; location: string | null; type: string | null; requirements: string | null }[]
@@ -43,7 +44,7 @@ export default function CompanyPublicProfilePage() {
 
       const { data: row } = await supabase
         .from("companies")
-        .select("id, company_name, description, location, industry")
+        .select("id, company_name, description, location, industry, logo_url")
         .eq("id", id)
         .maybeSingle();
 
@@ -103,9 +104,13 @@ export default function CompanyPublicProfilePage() {
         <div className="-mt-16 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-end gap-4">
             <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-[#F3E8FF] shadow-lg transition-colors dark:border-slate-900 dark:bg-slate-800 sm:h-32 sm:w-32">
-              <span className="text-4xl font-bold text-[#7C3AED] dark:text-violet-300">
-                {(company.company_name ?? "C").slice(0, 1)}
-              </span>
+              {company.logo_url ? (
+                <img src={company.logo_url} alt="" className="h-full w-full rounded-2xl object-cover" />
+              ) : (
+                <span className="text-4xl font-bold text-[#7C3AED] dark:text-violet-300">
+                  {(company.company_name ?? "C").slice(0, 1)}
+                </span>
+              )}
             </div>
             <div>
               <h1 className="text-2xl font-bold text-[#0F172A] dark:text-white">{company.company_name ?? "Company"}</h1>
@@ -162,6 +167,7 @@ export default function CompanyPublicProfilePage() {
                     id={i.id}
                     title={i.title}
                     companyName={company.company_name ?? undefined}
+                    companyLogoUrl={company.logo_url ?? undefined}
                     locationType={loc}
                     skills={skills}
                   />

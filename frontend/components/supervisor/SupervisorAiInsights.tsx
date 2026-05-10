@@ -21,6 +21,7 @@ export function SupervisorAiInsights({ eligible, className = "" }: Props) {
 
   useEffect(() => {
     if (!eligible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       setSummary(null);
       setError(null);

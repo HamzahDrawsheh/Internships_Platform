@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { LogoutButton } from "@/components/auth/logout-button";
+import NotificationsDropdown from "@/components/layout/NotificationsDropdown";
 import { createClient } from "@/lib/supabase/client";
 
 export default function Navbar() {
@@ -17,6 +18,7 @@ export default function Navbar() {
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeMounted(true);
   }, []);
 
@@ -121,11 +123,7 @@ export default function Navbar() {
               </div>
             )}
 
-            {!isHomePage && (
-              <Link href="/notifications" className="relative rounded-xl p-2 text-slate-900 transition-colors duration-300 hover:bg-[#F3E8FF] dark:text-yellow-400 dark:hover:bg-slate-800" aria-label="Notifications">
-                <span className="text-lg" aria-hidden>🔔</span>
-              </Link>
-            )}
+            {!isHomePage && <NotificationsDropdown enabled={isAuthenticated} />}
 
             {!isHomePage && (
               <div className="relative">

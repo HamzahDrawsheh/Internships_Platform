@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const supervisorLinks = [
   { label: "Dashboard", href: "/dashboard/supervisor", icon: "🏠" },
+  { label: "Messages", href: "/supervisor/messages", icon: "💬" },
   { label: "Students", href: "/supervisor/students", icon: "👥" },
   { label: "Applications", href: "/supervisor/reports", icon: "📄" },
   { label: "Profile", href: "/supervisor/profile", icon: "👤" },

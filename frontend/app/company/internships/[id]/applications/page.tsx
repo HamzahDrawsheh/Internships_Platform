@@ -5,16 +5,16 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button, Table, Modal, Textarea, EmptyState } from "@/components/ui";
+import { Badge, Button, Input, Modal, Select, Table, EmptyState } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
+import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
 import type { ApplicationStatus } from "@/lib/types";
 
 export default function ApplicantsPage() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
   const [detailOpen, setDetailOpen] = useState(false);
-  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -22,6 +22,10 @@ export default function ApplicantsPage() {
   const [companyName, setCompanyName] = useState("Company");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cvOpeningId, setCvOpeningId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | ApplicationStatus>("");
+  const [hasCvFilter, setHasCvFilter] = useState<"" | "yes" | "no">("");
   const [rows, setRows] = useState<
     {
       id: string;
@@ -49,12 +53,32 @@ export default function ApplicantsPage() {
 
     const load = async () => {
       setLoading(true);
+      setError(null);
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user || !id) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profileError) {
+        console.error("company applicants role error:", profileError);
+        setError("Unable to verify your role.");
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+      if (profile?.role !== "company") {
+        setError("Only company accounts can view applicants.");
         setRows([]);
         setLoading(false);
         return;
@@ -67,6 +91,7 @@ export default function ApplicantsPage() {
         .single();
 
       if (!company) {
+        setError("Company profile not found.");
         setRows([]);
         setLoading(false);
         return;
@@ -93,7 +118,6 @@ export default function ApplicantsPage() {
         .select("id, student_id, status, applied_at, message")
         .eq("position_id", position.id)
         .order("applied_at", { ascending: false });
-      console.log("[company-position-applicants] raw applications response", apps);
 
       const baseApps = apps ?? [];
       const studentIds = [...new Set(baseApps.map((a) => a.student_id))];
@@ -115,7 +139,6 @@ export default function ApplicantsPage() {
             }[],
             error: null,
           };
-      console.log("[company-position-applicants] raw students response", students);
       if (studentsError) {
         console.error("company applicants students query error:", studentsError);
       }
@@ -144,7 +167,6 @@ export default function ApplicantsPage() {
       const { data: profiles, error: profilesError } = userIds.length
         ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
         : { data: [] as { id: string; full_name: string | null; email: string | null }[], error: null };
-      console.log("[company-position-applicants] raw profiles response", profiles);
       if (profilesError) {
         console.error("company applicants profiles query error:", profilesError);
       }
@@ -198,7 +220,6 @@ export default function ApplicantsPage() {
           };
         })
       );
-      console.log("[company-position-applicants] merged applicant rows", baseApps.length);
       setLoading(false);
     };
 
@@ -206,6 +227,32 @@ export default function ApplicantsPage() {
   }, [id]);
 
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+
+  const visibleRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (statusFilter && r.status !== statusFilter) return false;
+      const hasCv = Boolean(r.cv_path && r.cv_path.trim());
+      if (hasCvFilter === "yes" && !hasCv) return false;
+      if (hasCvFilter === "no" && hasCv) return false;
+      if (!q) return true;
+      return (
+        r.student_name.toLowerCase().includes(q) ||
+        r.university.toLowerCase().includes(q) ||
+        r.department.toLowerCase().includes(q) ||
+        r.major.toLowerCase().includes(q) ||
+        r.year.toLowerCase().includes(q) ||
+        r.internship_title.toLowerCase().includes(q)
+      );
+    });
+  }, [rows, search, statusFilter, hasCvFilter]);
+
+  const statusVariant = (status: ApplicationStatus) => {
+    if (status === "accepted") return "success";
+    if (status === "rejected") return "danger";
+    if (status === "completed") return "info";
+    return "warning";
+  };
 
   const handleOpenApplicantCv = async (applicationId: string) => {
     setCvOpeningId(applicationId);
@@ -273,7 +320,7 @@ export default function ApplicantsPage() {
 
     const { data: ownedPosition, error: ownedPositionError } = await supabase
       .from("internship_positions")
-      .select("id")
+      .select("id, duration_weeks, duration")
       .eq("id", appRow.position_id)
       .eq("company_id", company.id)
       .maybeSingle();
@@ -295,7 +342,24 @@ export default function ApplicantsPage() {
       return;
     }
 
-    const { error } = await supabase.from("applications").update({ status }).eq("id", applicationId);
+    const scheduleWeeks = ownedPosition
+      ? resolveDurationWeeks({
+          duration_weeks: ownedPosition.duration_weeks as number | null | undefined,
+          duration: ownedPosition.duration as string | null | undefined,
+        })
+      : null;
+
+    const applicationPatch: Record<string, unknown> = { status };
+    if (status === "accepted") {
+      applicationPatch.accepted_at = new Date().toISOString();
+      applicationPatch.training_end_date =
+        scheduleWeeks != null ? computeTrainingEndDateIso(scheduleWeeks) : null;
+    } else if (status === "rejected") {
+      applicationPatch.accepted_at = null;
+      applicationPatch.training_end_date = null;
+    }
+
+    const { error } = await supabase.from("applications").update(applicationPatch).eq("id", applicationId);
     if (error) {
       console.error("company applicants update status error:", error);
       setActionMessage("Failed to update application status.");
@@ -328,7 +392,14 @@ export default function ApplicantsPage() {
           : status === "rejected"
             ? "Application rejected"
             : "Internship completed";
-      const type = status === "completed" ? "info" : status;
+      const type =
+        status === "completed"
+          ? "training_completed"
+          : status === "accepted"
+            ? "accepted"
+            : status === "rejected"
+              ? "rejected"
+              : "info";
 
       const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: studentRow.user_id,
@@ -362,6 +433,11 @@ export default function ApplicantsPage() {
             </Link>
           }
         />
+        {error ? (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
+            {error}
+          </div>
+        ) : null}
         {loading ? (
           <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading applicants...</p>
         ) : rows.length === 0 ? (
@@ -370,15 +446,66 @@ export default function ApplicantsPage() {
             description="Applicants will appear here when students apply."
           />
         ) : (
-          <Table headers={["Student name", "University / dept / major / year", "Skills", "Status", "CV", "Actions"]}>
-            {rows.map((app) => (
+          <>
+            <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Input label="Search" placeholder="Name, university, major…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Select
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter((e.target.value as "" | ApplicationStatus) || "")}
+                  options={[
+                    { value: "", label: "All statuses" },
+                    { value: "pending", label: "Pending" },
+                    { value: "accepted", label: "Accepted" },
+                    { value: "rejected", label: "Rejected" },
+                    { value: "completed", label: "Completed" },
+                  ]}
+                />
+                <Select
+                  label="CV"
+                  value={hasCvFilter}
+                  onChange={(e) => setHasCvFilter((e.target.value as "" | "yes" | "no") || "")}
+                  options={[
+                    { value: "", label: "All" },
+                    { value: "yes", label: "Has CV" },
+                    { value: "no", label: "No CV" },
+                  ]}
+                />
+                <div className="flex items-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("");
+                      setHasCvFilter("");
+                    }}
+                    className="w-full"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">
+                Showing <span className="font-semibold">{visibleRows.length}</span> of{" "}
+                <span className="font-semibold">{rows.length}</span>
+              </p>
+            </section>
+
+            {visibleRows.length === 0 ? (
+              <EmptyState title="No matching applicants" description="Try clearing filters or changing your search query." />
+            ) : (
+              <Table headers={["Student name", "University / dept / major / year", "Skills", "Status", "CV", "Actions"]}>
+                {visibleRows.map((app) => (
               <tr key={app.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
                 <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{app.student_name}</td>
                 <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{`${app.university} / ${app.department} / ${app.major} / ${app.year}`}</td>
                 <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
                   {app.technical_skills.length ? app.technical_skills.join(", ") : "—"}
                 </td>
-                <td className="px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">{app.status}</td>
+                <td className="px-4 py-3 text-sm capitalize">
+                  <Badge variant={statusVariant(app.status)}>{app.status}</Badge>
+                </td>
                 <td className="px-4 py-3 text-sm">
                   {app.cv_path?.trim() ? (
                     <Button
@@ -430,8 +557,10 @@ export default function ApplicantsPage() {
                   </div>
                 </td>
               </tr>
-            ))}
-          </Table>
+                ))}
+              </Table>
+            )}
+          </>
         )}
 
         <Modal
@@ -542,7 +671,6 @@ export default function ApplicantsPage() {
               </p>
             </div>
           )}
-          <Textarea label="Internal notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-4" />
         </Modal>
       </Container>
     </main>

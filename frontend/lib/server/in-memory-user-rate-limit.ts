@@ -12,6 +12,7 @@ const MAX_REQUESTS = 5;
 /** Separate buckets so limits are independent per AI endpoint. */
 export const RATE_LIMIT_BUCKET_RESUME_IMPROVE = "resume_improve";
 export const RATE_LIMIT_BUCKET_FEEDBACK_ANALYZE = "feedback_analyze";
+export const RATE_LIMIT_BUCKET_STUDENT_ASSISTANT_CHAT = "student_assistant_chat";
 
 const hitsByKey = new Map<string, number[]>();
 

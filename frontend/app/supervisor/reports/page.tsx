@@ -1,30 +1,55 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button, EmptyState, Table } from "@/components/ui";
+import { logPostgrestError } from "@/lib/postgrest-error";
 import { createClient } from "@/lib/supabase/client";
 
-export default function ReportsExportPage() {
+type RowStatus = "pending" | "accepted" | "rejected" | "completed";
+
+type ReportRow = {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  university: string;
+  department: string;
+  major: string;
+  company_name: string;
+  internship_title: string;
+  applied_at: string;
+  status: RowStatus;
+};
+
+const STATUS_FILTERS: { param: string | null; label: string }[] = [
+  { param: null, label: "All" },
+  { param: "pending", label: "Pending" },
+  { param: "accepted", label: "Accepted" },
+  { param: "rejected", label: "Rejected" },
+  { param: "completed", label: "Completed" },
+];
+
+function parseStatusParam(raw: string | null): RowStatus | null {
+  if (!raw) return null;
+  const normalized = raw.toLowerCase().trim();
+  if (normalized === "pending" || normalized === "accepted" || normalized === "rejected" || normalized === "completed") {
+    return normalized;
+  }
+  return null;
+}
+
+function ReportsExportPageContent() {
+  const searchParams = useSearchParams();
+  const statusFilter = parseStatusParam(searchParams.get("status"));
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<
-    {
-      id: string;
-      student_id: string;
-      student_name: string;
-      student_email: string;
-      university: string;
-      department: string;
-      major: string;
-      company_name: string;
-      internship_title: string;
-      applied_at: string;
-      status: "pending" | "accepted" | "rejected";
-    }[]
-  >([]);
+  const [rows, setRows] = useState<ReportRow[]>([]);
+
   const formatDate = (value: string) => {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
@@ -59,7 +84,7 @@ export default function ReportsExportPage() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (supervisorError) {
-        console.error("supervisor reports supervisor query error:", supervisorError);
+        logPostgrestError("supervisor reports supervisor query error:", supervisorError);
         setError("Unable to load supervisor profile.");
         setLoading(false);
         return;
@@ -75,7 +100,7 @@ export default function ReportsExportPage() {
         .select("id, user_id, university, department, major")
         .eq("department", supervisor.department);
       if (studentsError) {
-        console.error("supervisor reports students query error:", studentsError);
+        logPostgrestError("supervisor reports students query error:", studentsError);
         setError("Unable to load students in your department.");
         setLoading(false);
         return;
@@ -97,24 +122,56 @@ export default function ReportsExportPage() {
       const studentIds = [...new Set(safeStudents.map((student) => student.id))];
       const { data: applicationsData, error: applicationsError } = await supabase
         .from("applications")
-        .select("id, student_id, position_id, applied_at, status")
+        .select(
+          `
+          id,
+          student_id,
+          position_id,
+          applied_at,
+          status,
+          internship_positions (
+            id,
+            title,
+            company_id
+          )
+        `
+        )
         .in("student_id", studentIds)
         .order("applied_at", { ascending: false });
       if (applicationsError) {
-        console.error("supervisor reports applications query error:", applicationsError);
+        logPostgrestError("supervisor reports applications query error:", applicationsError);
         setError("Unable to load applications.");
         setLoading(false);
         return;
       }
 
-      const safeApplications = (applicationsData ??
-        []) as {
+      type PositionEmbed = { id: string; title: string; company_id: string };
+
+      const normalizePositionEmbed = (
+        raw: PositionEmbed | PositionEmbed[] | null | undefined
+      ): PositionEmbed | null => {
+        if (raw == null) return null;
+        return Array.isArray(raw) ? raw[0] ?? null : raw;
+      };
+
+      const safeApplications = ((applicationsData ?? []) as unknown as Array<{
         id: string;
         student_id: string;
         position_id: string;
         applied_at: string;
-        status: "pending" | "accepted" | "rejected";
-      }[];
+        status: string;
+        internship_positions: PositionEmbed | PositionEmbed[] | null;
+      }>).map((row) => ({
+        ...row,
+        internship_positions: normalizePositionEmbed(row.internship_positions),
+      }));
+
+      const normalizeStatus = (value: string): RowStatus => {
+        const v = value?.toLowerCase?.() ?? "";
+        if (v === "pending" || v === "accepted" || v === "rejected" || v === "completed") return v;
+        return "pending";
+      };
+
       if (safeApplications.length === 0) {
         setRows([]);
         setLoading(false);
@@ -126,38 +183,30 @@ export default function ReportsExportPage() {
         ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
         : { data: [] as { id: string; full_name: string | null; email: string | null }[], error: null };
       if (profilesError) {
-        console.error("supervisor reports profiles query error:", profilesError);
+        logPostgrestError("supervisor reports profiles query error:", profilesError);
       }
 
-      const positionIds = [...new Set(safeApplications.map((application) => application.position_id))];
-      const { data: positionsData, error: positionsError } = positionIds.length
-        ? await supabase
-            .from("internship_positions")
-            .select("id, title, company_id")
-            .in("id", positionIds)
-        : { data: [] as { id: string; title: string; company_id: string }[], error: null };
-      if (positionsError) {
-        console.error("supervisor reports positions query error:", positionsError);
-      }
+      const positionsForCompanies = safeApplications
+        .map((application) => application.internship_positions)
+        .filter((position): position is { id: string; title: string; company_id: string } => Boolean(position));
 
-      const companyIds = [...new Set((positionsData ?? []).map((position) => position.company_id))];
+      const companyIds = [...new Set(positionsForCompanies.map((position) => position.company_id))];
       const { data: companiesData, error: companiesError } = companyIds.length
         ? await supabase.from("companies").select("id, company_name").in("id", companyIds)
         : { data: [] as { id: string; company_name: string | null }[], error: null };
       if (companiesError) {
-        console.error("supervisor reports companies query error:", companiesError);
+        logPostgrestError("supervisor reports companies query error:", companiesError);
       }
 
       const studentById = new Map(safeStudents.map((student) => [student.id, student]));
       const profileByUserId = new Map((profilesData ?? []).map((profile) => [profile.id, profile]));
-      const positionById = new Map((positionsData ?? []).map((position) => [position.id, position]));
       const companyById = new Map((companiesData ?? []).map((company) => [company.id, company]));
 
       setRows(
         safeApplications.map((application) => {
           const student = studentById.get(application.student_id);
           const profile = student ? profileByUserId.get(student.user_id) : null;
-          const position = positionById.get(application.position_id);
+          const position = application.internship_positions;
           const company = position ? companyById.get(position.company_id) : null;
           return {
             id: application.id,
@@ -170,7 +219,7 @@ export default function ReportsExportPage() {
             company_name: company?.company_name ?? "—",
             internship_title: position?.title ?? "—",
             applied_at: application.applied_at,
-            status: application.status,
+            status: normalizeStatus(application.status),
           };
         })
       );
@@ -181,6 +230,13 @@ export default function ReportsExportPage() {
     loadSupervisorApplications();
   }, []);
 
+  const filteredRows = useMemo(() => {
+    if (!statusFilter) return rows;
+    return rows.filter((row) => row.status === statusFilter);
+  }, [rows, statusFilter]);
+
+  const basePath = "/supervisor/reports";
+
   return (
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container>
@@ -188,14 +244,53 @@ export default function ReportsExportPage() {
           title="Applications Monitoring"
           description="Internship applications from students in your academic department."
         />
+        {!loading && !error && rows.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400">Filter</span>
+            {STATUS_FILTERS.map(({ param, label }) => {
+              const active = param === null ? statusFilter === null : statusFilter === param;
+              const href = param === null ? basePath : `${basePath}?status=${param}`;
+              return (
+                <Link
+                  key={label}
+                  href={href}
+                  scroll={false}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-purple-600 text-white shadow-sm dark:bg-purple-500"
+                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+        {statusFilter && !loading && !error ? (
+          <p className="mt-3 text-sm text-gray-600 dark:text-slate-400">
+            Showing <span className="font-semibold capitalize">{statusFilter}</span> only
+            {filteredRows.length !== rows.length ? ` (${filteredRows.length} of ${rows.length})` : null}.
+          </p>
+        ) : null}
         {loading ? (
           <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading applications...</p>
         ) : error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
-        ) : rows.length === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <EmptyState
-            title="No applications to monitor yet"
-            description="Students in your department do not have any internship applications yet."
+            title={rows.length === 0 ? "No applications to monitor yet" : "No matching applications"}
+            description={
+              rows.length === 0
+                ? "Students in your department do not have any internship applications yet."
+                : `No applications with status “${statusFilter}”. Try another filter or view all.`
+            }
+            {...(rows.length > 0 && statusFilter
+              ? {
+                  actionLabel: "Show all",
+                  actionHref: basePath,
+                }
+              : {})}
           />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
@@ -203,7 +298,7 @@ export default function ReportsExportPage() {
               headers={["Student", "Email", "University", "Department", "Major", "Company", "Internship", "Applied", "Status", "Actions"]}
               className="dark:divide-slate-800 dark:[&_thead]:bg-slate-800 dark:[&_tbody]:bg-slate-900 dark:[&_th]:border-slate-800 dark:[&_th]:text-slate-300 dark:[&_tr]:border-slate-800"
             >
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
                   <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{row.student_name}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.student_email}</td>
@@ -228,5 +323,22 @@ export default function ReportsExportPage() {
         )}
       </Container>
     </main>
+  );
+}
+
+export default function ReportsExportPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
+          <Container>
+            <PageHeader title="Applications Monitoring" description="Loading…" />
+            <p className="text-sm text-gray-500 dark:text-slate-400">Loading applications...</p>
+          </Container>
+        </main>
+      }
+    >
+      <ReportsExportPageContent />
+    </Suspense>
   );
 }

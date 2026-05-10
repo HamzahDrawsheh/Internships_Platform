@@ -13,7 +13,9 @@ export default function BrowseCompaniesPage() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [companies, setCompanies] = useState<{ id: string; name: string; industry?: string; location?: string; description?: string; rating?: number }[]>([]);
+  const [companies, setCompanies] = useState<
+    { id: string; name: string; industry?: string; location?: string; description?: string; rating?: number; logoUrl?: string }[]
+  >([]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -24,7 +26,7 @@ export default function BrowseCompaniesPage() {
 
       const { data: companyRows, error: companyError } = await supabase
         .from("companies")
-        .select("id, company_name, description, location, industry")
+        .select("id, company_name, description, location, industry, logo_url")
         .order("created_at", { ascending: false });
 
       if (companyError) {
@@ -60,6 +62,7 @@ export default function BrowseCompaniesPage() {
           location: row.location ?? undefined,
           description: row.description ?? undefined,
           rating: agg && agg.count > 0 ? Number((agg.total / agg.count).toFixed(1)) : undefined,
+          logoUrl: row.logo_url ?? undefined,
         };
       });
 
@@ -131,7 +134,15 @@ export default function BrowseCompaniesPage() {
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {visibleCompanies.map((c) => (
-                <CompanyCard key={c.id} id={c.id} name={c.name} industry={c.industry} location={c.location} rating={c.rating} />
+                <CompanyCard
+                  key={c.id}
+                  id={c.id}
+                  name={c.name}
+                  industry={c.industry}
+                  location={c.location}
+                  rating={c.rating}
+                  logoUrl={c.logoUrl}
+                />
               ))}
             </div>
           )}

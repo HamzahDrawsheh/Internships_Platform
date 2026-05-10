@@ -120,6 +120,7 @@ export default function StudentProfilePage() {
   const [cvUploading, setCvUploading] = useState(false);
   const [cvMessage, setCvMessage] = useState<string | null>(null);
   const [cvUploadError, setCvUploadError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -476,7 +477,33 @@ export default function StudentProfilePage() {
   return (
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-2xl">
-        <PageHeader title="Student Profile" description="Manage your personal info, skills, and CV." />
+        <PageHeader
+          title="Student Profile"
+          description={
+            editMode
+              ? "Update your information. Changes will improve recommendations."
+              : "Your profile information (read-only)."
+          }
+          action={
+            editMode ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setEditMode(false);
+                  setSaved(false);
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button type="button" variant="primary" onClick={() => setEditMode(true)} disabled={loading}>
+                Update profile
+              </Button>
+            )
+          }
+        />
         {error && (
           <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800 transition-colors duration-300 dark:border dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{error}</div>
         )}
@@ -486,6 +513,113 @@ export default function StudentProfilePage() {
         {loading && (
           <div className="mb-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800 transition-colors duration-300 dark:border dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300" role="status">Loading profile...</div>
         )}
+        {!editMode ? (
+          <div className="space-y-6">
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+                Personal info
+              </h2>
+              <div className="mt-4 space-y-3 text-sm">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Full name</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{name.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">University</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{university.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Department</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{department.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Major</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{major.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Year</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{year.trim() || "—"}</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+                Skills & bio
+              </h2>
+              <div className="mt-4 space-y-3 text-sm">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Skills</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{skills.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Bio</p>
+                  <p className="mt-1 whitespace-pre-wrap text-gray-900 dark:text-white">{bio.trim() || "—"}</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+                Additional information
+              </h2>
+              <div className="mt-4 space-y-3 text-sm">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">GPA</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{gpa.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Technical skills</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{technicalSkills.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Soft skills</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{softSkills.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preferred field</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{preferredField.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preferred work type</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">
+                    {preferredWorkTypeOptions.find((o) => o.value === preferredWorkType)?.label ?? "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preferred location</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{preferredLocation.trim() || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Availability</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">
+                    {availabilityOptions.find((o) => o.value === availability)?.label ?? "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Courses</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">
+                    {takenCourses.length || customCourses.trim()
+                      ? [...takenCourses, ...parseCsv(customCourses)].filter(Boolean).join(", ")
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
+                CV
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">
+                {cvPath ? "A CV is uploaded (cv.pdf)." : "No CV uploaded yet."}
+              </p>
+              <p className="mt-2 text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
+                To upload/replace your CV, click “Update profile”.
+              </p>
+            </Card>
+          </div>
+        ) : (
         <form onSubmit={handleSave} className="space-y-6">
           <Card>
             <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Personal info</h2>
@@ -667,6 +801,7 @@ export default function StudentProfilePage() {
             {saving ? "Saving..." : "Save changes"}
           </Button>
         </form>
+        )}
       </Container>
     </main>
   );

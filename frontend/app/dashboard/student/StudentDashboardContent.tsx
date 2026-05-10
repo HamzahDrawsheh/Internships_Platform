@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
 import type { Application } from "@/lib/types";
+import StudentAssistantChat from "@/components/chat/StudentAssistantChat";
+import { Button, Modal } from "@/components/ui";
 
 export default function StudentDashboardContent() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("Student");
+  const [studentMeta, setStudentMeta] = useState<{
+    department: string | null;
+    cv_path: string | null;
+  } | null>(null);
+
+  const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
+  const [gettingStartedStep, setGettingStartedStep] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -32,15 +42,23 @@ export default function StudentDashboardContent() {
 
       const { data: student } = await supabase
         .from("students")
-        .select("id")
+        .select("id, department, cv_path")
         .eq("user_id", user.id)
         .single();
 
       if (!student) {
         setApplications([]);
+        setStudentMeta(null);
         setLoading(false);
         return;
       }
+
+      setStudentMeta({
+        department: typeof student.department === "string" ? student.department : null,
+        cv_path: typeof student.cv_path === "string" ? student.cv_path : null,
+      });
+
+      await invokeAutoCompleteExpiredTrainings(supabase);
 
       const { data: appRows, error: appError } = await supabase
         .from("applications")
@@ -93,6 +111,48 @@ export default function StudentDashboardContent() {
   const accepted = applications.filter((a) => a.status === "accepted").length;
   const rejected = applications.filter((a) => a.status === "rejected").length;
   const recent = applications.slice(0, 5);
+
+  const hasDepartment = Boolean(studentMeta?.department && studentMeta.department.trim());
+  const hasCv = Boolean(studentMeta?.cv_path && studentMeta.cv_path.trim());
+  const hasApplied = total > 0;
+  const hasCompletedTraining = applications.some((a) => a.status === "completed");
+
+  const gettingStartedSteps: Array<{
+    title: string;
+    description: string;
+    complete: boolean;
+    ctaLabel: string;
+    href?: string;
+  }> = [
+    {
+      title: "Complete your profile",
+      description: "Add your department, skills, and preferences so we can personalize recommendations.",
+      complete: hasDepartment,
+      ctaLabel: hasDepartment ? "View profile" : "Complete profile",
+      href: "/profile/student",
+    },
+    {
+      title: "Upload your CV (optional but recommended)",
+      description: "A CV helps companies review your application faster.",
+      complete: hasCv,
+      ctaLabel: hasCv ? "View profile" : "Upload CV",
+      href: "/profile/student",
+    },
+    {
+      title: "Browse & apply",
+      description: "Explore internships and submit your first application.",
+      complete: hasApplied,
+      ctaLabel: hasApplied ? "Browse more" : "Browse internships",
+      href: "/internships",
+    },
+    {
+      title: "Track applications & feedback",
+      description: "Monitor your application statuses and add training evaluations after completing an internship.",
+      complete: hasCompletedTraining,
+      ctaLabel: "View applications",
+      href: "/applications",
+    },
+  ];
 
   if (loading) {
     return (
@@ -151,6 +211,7 @@ export default function StudentDashboardContent() {
 
   return (
     <div className="space-y-8">
+      <StudentAssistantChat />
       <section className="animate-fade-up rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -162,6 +223,9 @@ export default function StudentDashboardContent() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" onClick={() => { setGettingStartedStep(0); setGettingStartedOpen(true); }}>
+              Getting started
+            </Button>
             <Link
               href="/profile/student"
               className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
@@ -171,6 +235,82 @@ export default function StudentDashboardContent() {
           </div>
         </div>
       </section>
+
+      <Modal
+        isOpen={gettingStartedOpen}
+        onClose={() => setGettingStartedOpen(false)}
+        title={`Getting started (${gettingStartedStep + 1}/${gettingStartedSteps.length})`}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setGettingStartedStep((s) => Math.max(0, s - 1))}
+              disabled={gettingStartedStep === 0}
+            >
+              Back
+            </Button>
+            {gettingStartedSteps[gettingStartedStep]?.href ? (
+              <Link href={gettingStartedSteps[gettingStartedStep]!.href!}>
+                <Button variant="secondary">Open</Button>
+              </Link>
+            ) : null}
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (gettingStartedStep >= gettingStartedSteps.length - 1) {
+                  setGettingStartedOpen(false);
+                } else {
+                  setGettingStartedStep((s) => Math.min(gettingStartedSteps.length - 1, s + 1));
+                }
+              }}
+            >
+              {gettingStartedStep >= gettingStartedSteps.length - 1 ? "Finish" : "Next"}
+            </Button>
+          </>
+        }
+      >
+        {(() => {
+          const step = gettingStartedSteps[gettingStartedStep];
+          if (!step) return null;
+          return (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{step.title}</h3>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{step.description}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      step.complete
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                    }`}
+                  >
+                    {step.complete ? "Done" : "To do"}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
+                <p className="font-semibold">Your checklist</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  {gettingStartedSteps.map((s, idx) => (
+                    <li key={s.title} className={idx === gettingStartedStep ? "font-medium" : ""}>
+                      {s.title}{" "}
+                      <span className="opacity-70">
+                        ({s.complete ? "done" : "to do"})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 text-sm text-gray-700 dark:border-purple-400/20 dark:bg-purple-500/10 dark:text-gray-200">
+                Tip: you can ask the assistant “what are the getting started steps?” and it will explain the sequence.
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((item, idx) => (

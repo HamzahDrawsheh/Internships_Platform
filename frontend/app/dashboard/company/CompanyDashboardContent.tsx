@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import Table from "@/components/common/Table";
+import { Table, Badge } from "@/components/ui";
 import { CompanyAiFeedbackSummary } from "@/components/companies/CompanyAiFeedbackSummary";
 
 type Row = { id: string; status: string; applied_at: string; internship_title?: string; student_name?: string };
@@ -188,13 +188,13 @@ export default function CompanyDashboardContent() {
         ) : (
           <Table
             headers={["Rating", "Feedback", "Date"]}
-            className="mt-5 rounded-2xl border-gray-200 shadow-sm dark:border-gray-700 [&_thead]:bg-gray-50 [&_tbody]:bg-white"
+            className="mt-5"
           >
             {ratings.map((r) => (
-              <tr key={r.id} className="transition-colors duration-300 hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900">{r.rating} / 5</td>
-                <td className="px-4 py-4 text-sm text-gray-600">{r.feedback ?? "—"}</td>
-                <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600">{new Date(r.created_at).toLocaleDateString()}</td>
+              <tr key={r.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
+                <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">{r.rating} / 5</td>
+                <td className="px-4 py-4 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">{r.feedback ?? "—"}</td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">{new Date(r.created_at).toLocaleDateString()}</td>
               </tr>
             ))}
           </Table>
@@ -215,24 +215,24 @@ export default function CompanyDashboardContent() {
             </p>
           </div>
         ) : (
-          <Table headers={["Student", "Internship", "Applied", "Status"]} className="mt-5 rounded-2xl border-gray-200 shadow-sm dark:border-gray-700">
+          <Table headers={["Student", "Internship", "Applied", "Status"]} className="mt-5">
             {recentApplicants.map((a) => (
-              <tr key={a.id} className="transition-colors duration-300 hover:bg-gray-50">
-                <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900">{a.student_name ?? "—"}</td>
-                <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600">{a.internship_title ?? "—"}</td>
-                <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600">{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : "—"}</td>
+              <tr key={a.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
+                <td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">{a.student_name ?? "—"}</td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">{a.internship_title ?? "—"}</td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : "—"}</td>
                 <td className="whitespace-nowrap px-4 py-4 text-sm capitalize">
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                  <Badge
+                    variant={
                       a.status === "accepted"
-                        ? "bg-emerald-100 text-emerald-700"
+                        ? "success"
                         : a.status === "rejected"
-                        ? "bg-rose-100 text-rose-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
+                          ? "danger"
+                          : "warning"
+                    }
                   >
                     {String(a.status).replace("_", " ")}
-                  </span>
+                  </Badge>
                 </td>
               </tr>
             ))}

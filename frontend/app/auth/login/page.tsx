@@ -7,6 +7,15 @@ import { Input, Button } from "@/components/ui";
 import { normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
 
+function logPostgrestError(scope: string, err: unknown) {
+  if (err && typeof err === "object" && "message" in err) {
+    const o = err as { message?: string; code?: string; details?: string; hint?: string };
+    console.error(scope, o.message ?? "(no message)", o.code ?? "", o.details ?? "", o.hint ?? "");
+    return;
+  }
+  console.error(scope, err);
+}
+
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -76,6 +85,15 @@ export default function LoginPage() {
         return;
       }
 
+      // Ensure the REST client has the session tokens immediately (avoids rare races where
+      // the next `.from("profiles")` runs before the browser client attaches the JWT).
+      if (signInData.session?.access_token && signInData.session.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: signInData.session.access_token,
+          refresh_token: signInData.session.refresh_token,
+        });
+      }
+
       const { data: sessionData, error: sessionError } = await withTimeout(
         supabase.auth.getSession(),
         10000,
@@ -107,16 +125,25 @@ export default function LoginPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await withTimeout(
-        (async () => await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle())(),
-        10000,
-        "profiles role query"
-      );
+      const fetchProfileRole = () => supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+
+      let profileResult = await withTimeout(fetchProfileRole(), 10000, "profiles role query");
+      if (profileResult.error) {
+        logPostgrestError("[login] profile query error (first attempt)", profileResult.error);
+        await new Promise((r) => setTimeout(r, 400));
+        profileResult = await withTimeout(fetchProfileRole(), 10000, "profiles role query retry");
+      }
+
+      const { data: profile, error: profileError } = profileResult;
       console.log("[login] profile query result", { profile, error: profileError?.message ?? null });
 
       if (profileError) {
-        console.error("[login] profile query error", profileError);
-        setError("Logged in, but failed to load your profile role.");
+        logPostgrestError("[login] profile query error", profileError);
+        const pe = profileError as { message?: string; code?: string };
+        const ref = [pe.code, pe.message].filter(Boolean).join(" · ") || "unknown";
+        setError(
+          `Signed in with Supabase Auth, but reading your profile row failed (${ref}). Admin approval only updates data in the database — it does not fix wrong API keys or connection issues. Confirm NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY match Dashboard → Settings → API for the same project where your account was approved, then retry.`
+        );
         return;
       }
 

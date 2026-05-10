@@ -141,6 +141,7 @@ export default function AdminOnboardingRequestsPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRequests(statusFilter, roleFilter);
   }, [statusFilter, roleFilter]);
 

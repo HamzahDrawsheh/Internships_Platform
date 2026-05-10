@@ -6,7 +6,9 @@ import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Badge, Button, Modal, Textarea, EmptyState } from "@/components/ui";
 import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
+import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
+import type { ApplicationStatus } from "@/lib/types";
 
 const locationLabel: Record<string, string> = { remote: "Remote", onsite: "On-site", hybrid: "Hybrid" };
 
@@ -32,12 +34,15 @@ export default function InternshipDetailsPage() {
     company_id: string;
   } | null>(null);
   const [companyName, setCompanyName] = useState<string>("Company");
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+  const [existingApplicationStatus, setExistingApplicationStatus] = useState<ApplicationStatus | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
 
     const load = async () => {
       setLoading(true);
+      setExistingApplicationStatus(null);
       const { data: pos } = await supabase
         .from("internship_positions")
         .select("id, title, description, requirements, duration, location, type, is_active, created_at, company_id")
@@ -54,10 +59,31 @@ export default function InternshipDetailsPage() {
 
       const { data: company } = await supabase
         .from("companies")
-        .select("company_name")
+        .select("company_name, logo_url")
         .eq("id", pos.company_id)
         .single();
       setCompanyName(company?.company_name ?? "Company");
+      setCompanyLogoUrl(company?.logo_url ?? null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+        if (profile?.role === "student") {
+          const { data: student } = await supabase.from("students").select("id").eq("user_id", user.id).maybeSingle();
+          if (student?.id) {
+            await invokeAutoCompleteExpiredTrainings(supabase);
+            const { data: appRow } = await supabase
+              .from("applications")
+              .select("status")
+              .eq("student_id", student.id)
+              .eq("position_id", pos.id)
+              .maybeSingle();
+            if (appRow?.status) setExistingApplicationStatus(appRow.status as ApplicationStatus);
+          }
+        }
+      }
 
       setLoading(false);
     };
@@ -101,7 +127,6 @@ export default function InternshipDetailsPage() {
       setSubmitting(false);
       return;
     }
-    console.log("[apply internship] auth user id", user.id);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -134,18 +159,20 @@ export default function InternshipDetailsPage() {
       setSubmitting(false);
       return;
     }
-    console.log("[apply internship] resolved students.id", student.id);
 
     const applicationPayload = {
       student_id: student.id,
       position_id: position.id,
       message: coverLetter.trim() || null,
     };
-    console.log("[apply internship] insert payload", applicationPayload);
 
-    const { error: insertError } = await supabase.from("applications").insert({
-      ...applicationPayload,
-    });
+    const { data: insertedApp, error: insertError } = await supabase
+      .from("applications")
+      .insert({
+        ...applicationPayload,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       if (insertError.code === "23505") {
@@ -157,10 +184,58 @@ export default function InternshipDetailsPage() {
       return;
     }
 
+    if (insertedApp?.id) {
+      const { data: posMeta } = await supabase
+        .from("internship_positions")
+        .select("title, company_id")
+        .eq("id", position.id)
+        .maybeSingle();
+      const { data: companyMeta } = posMeta?.company_id
+        ? await supabase.from("companies").select("user_id, company_name").eq("id", posMeta.company_id).maybeSingle()
+        : { data: null };
+
+      const { data: applicantProfile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+      const applicantName =
+        applicantProfile?.full_name?.trim() ||
+        user.email?.split("@")[0] ||
+        "A student";
+
+      if (companyMeta?.user_id) {
+        const internshipTitle = posMeta?.title?.trim() || position.title;
+        const { error: notifyErr } = await supabase.from("notifications").insert({
+          user_id: companyMeta.user_id,
+          title: "New application",
+          message: `${applicantName} applied to “${internshipTitle}”.`,
+          type: "new_application",
+          is_read: false,
+          related_application_id: insertedApp.id,
+        });
+        if (notifyErr) {
+          console.error("notify company new application error:", notifyErr);
+        }
+      }
+    }
+
     setSuccess("Application submitted successfully.");
+    setExistingApplicationStatus("pending");
     setCoverLetter("");
     setApplyOpen(false);
     setSubmitting(false);
+  };
+
+  const applicationStatusBadgeVariant = (status: ApplicationStatus): "warning" | "success" | "danger" | "info" => {
+    if (status === "accepted") return "success";
+    if (status === "rejected") return "danger";
+    if (status === "completed") return "info";
+    return "warning";
+  };
+
+  const applicationStatusLabel = (status: ApplicationStatus): string => {
+    if (status === "pending") return "Applied · Pending review";
+    if (status === "accepted") return "Applied · Accepted";
+    if (status === "rejected") return "Applied · Not selected";
+    if (status === "completed") return "Applied · Completed";
+    return "Applied";
   };
 
   if (loading) {
@@ -205,15 +280,28 @@ export default function InternshipDetailsPage() {
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{position.title}</h1>
-            <p className="mt-1 text-gray-600 dark:text-gray-300">{companyName}</p>
+            <div className="mt-1 flex items-center gap-2 text-gray-600 dark:text-gray-300">
+              <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-purple-100 text-xs font-bold text-purple-700 dark:bg-slate-800 dark:text-violet-300">
+                {companyLogoUrl ? <img src={companyLogoUrl} alt="" className="h-full w-full object-cover" /> : companyName.slice(0, 1)}
+              </span>
+              <span>{companyName}</span>
+            </div>
             <Badge variant="info" className="mt-2">
               {locationLabel[position.location ?? ""] ?? position.location ?? "On-site"}
             </Badge>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary">Bookmark</Button>
-            <Button variant="primary" onClick={() => setApplyOpen(true)} disabled={!position.is_active}>
-              Apply
+          <div className="flex flex-col items-end gap-2">
+            {existingApplicationStatus ? (
+              <Badge variant={applicationStatusBadgeVariant(existingApplicationStatus)}>
+                {applicationStatusLabel(existingApplicationStatus)}
+              </Badge>
+            ) : null}
+            <Button
+              variant="primary"
+              onClick={() => setApplyOpen(true)}
+              disabled={!position.is_active || Boolean(existingApplicationStatus)}
+            >
+              {existingApplicationStatus ? "Already applied" : "Apply"}
             </Button>
           </div>
         </div>

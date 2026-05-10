@@ -34,7 +34,6 @@ export default function StudentsListPage() {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-      console.log("[supervisor-students] auth user result", { userId: user?.id ?? null, userError });
 
       if (userError) {
         console.error("supervisor students getUser error:", userError);
@@ -53,10 +52,6 @@ export default function StudentsListPage() {
         .select("id, department")
         .eq("user_id", user.id)
         .maybeSingle();
-      console.log("[supervisor-students] supervisor select result", {
-        supervisor,
-        supervisorError,
-      });
 
       if (supervisorError && supervisorError.code !== "PGRST116") {
         console.error("supervisor students supervisor query error:", supervisorError);
@@ -75,7 +70,6 @@ export default function StudentsListPage() {
         .from("students")
         .select("id, user_id, university, department, major, preferences")
         .eq("department", supervisor.department);
-      console.log("[supervisor-students] students query result count", (studentsData ?? []).length);
 
       if (studentsError) {
         console.error("supervisor students list query error:", studentsError);

@@ -79,7 +79,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
   switch (role) {
     case "student":
       return (
-        pathname === "/dashboard/student" ||
+        pathname.startsWith("/dashboard/student") ||
         pathname.startsWith("/internships") ||
         pathname.startsWith("/applications") ||
         pathname.startsWith("/companies") ||
@@ -245,7 +245,7 @@ export async function middleware(request: NextRequest) {
   if (
     onboardingTarget &&
     (isCompanyOrSupervisorProtectedPath(pathname) ||
-      pathname === "/dashboard/student" ||
+      pathname.startsWith("/dashboard/student") ||
       pathname === "/dashboard" ||
       pathname.startsWith("/onboarding") ||
       pathname === "/pending-approval")

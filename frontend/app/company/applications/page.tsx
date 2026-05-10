@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button, EmptyState, Modal, Table } from "@/components/ui";
+import { Badge, Button, EmptyState, Input, Modal, Select, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
+import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
 import type { ApplicationStatus } from "@/lib/types";
 
-type Position = { id: string; title: string };
+type Position = { id: string; title: string; duration_weeks?: number | null };
 type Application = {
   id: string;
   student_id: string;
@@ -43,6 +44,11 @@ export default function CompanyApplicationsPage() {
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [cvOpeningId, setCvOpeningId] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | ApplicationStatus>("");
+  const [positionFilter, setPositionFilter] = useState("");
+  const [hasCvFilter, setHasCvFilter] = useState<"" | "yes" | "no">("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -94,7 +100,7 @@ export default function CompanyApplicationsPage() {
 
       const { data: positionsData, error: positionsError } = await supabase
         .from("internship_positions")
-        .select("id, title")
+        .select("id, title, duration_weeks")
         .eq("company_id", company.id);
 
       if (positionsError) {
@@ -307,7 +313,7 @@ export default function CompanyApplicationsPage() {
 
       const { data: ownedPosition, error: ownedPositionError } = await supabase
         .from("internship_positions")
-        .select("id")
+        .select("id, duration_weeks, duration")
         .eq("id", appRow.position_id)
         .eq("company_id", company.id)
         .maybeSingle();
@@ -336,9 +342,26 @@ export default function CompanyApplicationsPage() {
         return;
       }
 
+      const scheduleWeeks = ownedPosition
+        ? resolveDurationWeeks({
+            duration_weeks: ownedPosition.duration_weeks as number | null | undefined,
+            duration: ownedPosition.duration as string | null | undefined,
+          })
+        : null;
+
+      const applicationPatch: Record<string, unknown> = { status };
+      if (status === "accepted") {
+        applicationPatch.accepted_at = new Date().toISOString();
+        applicationPatch.training_end_date =
+          scheduleWeeks != null ? computeTrainingEndDateIso(scheduleWeeks) : null;
+      } else if (status === "rejected") {
+        applicationPatch.accepted_at = null;
+        applicationPatch.training_end_date = null;
+      }
+
       const { error: updateError } = await supabase
         .from("applications")
-        .update({ status })
+        .update(applicationPatch)
         .eq("id", selectedApplicationId);
       if (updateError) {
         console.error("company applications status update query error:", updateError);
@@ -373,7 +396,14 @@ export default function CompanyApplicationsPage() {
             : status === "rejected"
               ? "Application rejected"
               : "Internship completed";
-        const type = status === "completed" ? "info" : status;
+        const type =
+          status === "completed"
+            ? "training_completed"
+            : status === "accepted"
+              ? "accepted"
+              : status === "rejected"
+                ? "rejected"
+                : "info";
 
         const { error: notificationError } = await supabase.from("notifications").insert({
           user_id: targetUserId,
@@ -412,6 +442,40 @@ export default function CompanyApplicationsPage() {
     }
   };
 
+  const visibleApplications = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return applications.filter((a) => {
+      if (statusFilter && a.status !== statusFilter) return false;
+      if (positionFilter && a.position_id !== positionFilter) return false;
+
+      const student = studentDetailById.get(a.student_id);
+      const hasCv = Boolean(student?.hasCv);
+      if (hasCvFilter === "yes" && !hasCv) return false;
+      if (hasCvFilter === "no" && hasCv) return false;
+
+      if (!q) return true;
+      const title = a.internship_title?.toLowerCase() ?? "";
+      const fullName = student?.fullName?.toLowerCase() ?? "";
+      const email = student?.email?.toLowerCase() ?? "";
+      const university = student?.university?.toLowerCase() ?? "";
+      const department = student?.department?.toLowerCase() ?? "";
+      return (
+        title.includes(q) ||
+        fullName.includes(q) ||
+        email.includes(q) ||
+        university.includes(q) ||
+        department.includes(q)
+      );
+    });
+  }, [applications, studentDetailById, search, statusFilter, positionFilter, hasCvFilter]);
+
+  const statusVariant = (status: ApplicationStatus) => {
+    if (status === "accepted") return "success";
+    if (status === "rejected") return "danger";
+    if (status === "completed") return "info";
+    return "warning";
+  };
+
   return (
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
     <Container>
@@ -430,12 +494,69 @@ export default function CompanyApplicationsPage() {
           description="Applications will appear here once students apply."
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-white">
-          <Table
-            headers={["Student", "University", "Department", "Internship", "Applied", "Status", "CV", "Actions"]}
-            className="dark:divide-slate-800 dark:[&_thead]:bg-slate-800 dark:[&_tbody]:bg-slate-900 dark:[&_th]:border-slate-800 dark:[&_th]:text-slate-300 dark:[&_tr]:border-slate-800"
-          >
-            {applications.map((application) => (
+        <>
+          <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Input label="Search" placeholder="Student, internship, university…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Select
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter((e.target.value as "" | ApplicationStatus) || "")}
+                options={[
+                  { value: "", label: "All statuses" },
+                  { value: "pending", label: "Pending" },
+                  { value: "accepted", label: "Accepted" },
+                  { value: "rejected", label: "Rejected" },
+                  { value: "completed", label: "Completed" },
+                ]}
+              />
+              <Select
+                label="Internship"
+                value={positionFilter}
+                onChange={(e) => setPositionFilter(e.target.value)}
+                options={[
+                  { value: "", label: "All internships" },
+                  ...positions.map((p) => ({ value: p.id, label: p.title })),
+                ]}
+              />
+              <Select
+                label="CV"
+                value={hasCvFilter}
+                onChange={(e) => setHasCvFilter((e.target.value as "" | "yes" | "no") || "")}
+                options={[
+                  { value: "", label: "All" },
+                  { value: "yes", label: "Has CV" },
+                  { value: "no", label: "No CV" },
+                ]}
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">
+              <p>
+                Showing <span className="font-semibold">{visibleApplications.length}</span> of{" "}
+                <span className="font-semibold">{applications.length}</span>
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("");
+                  setPositionFilter("");
+                  setHasCvFilter("");
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          </section>
+
+          {visibleApplications.length === 0 ? (
+            <EmptyState
+              title="No matching applications"
+              description="Try clearing filters or changing your search query."
+            />
+          ) : (
+            <Table headers={["Student", "University", "Department", "Internship", "Applied", "Status", "CV", "Actions"]}>
+              {visibleApplications.map((application) => (
               <tr key={application.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
                 <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">
                   {studentDetailById.get(application.student_id)?.fullName ?? "Student"}
@@ -452,8 +573,8 @@ export default function CompanyApplicationsPage() {
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
                   {new Date(application.applied_at).toLocaleDateString()}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                  {application.status}
+                <td className="whitespace-nowrap px-4 py-3 text-sm capitalize">
+                  <Badge variant={statusVariant(application.status)}>{application.status}</Badge>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm">
                   {studentDetailById.get(application.student_id)?.hasCv ? (
@@ -480,9 +601,10 @@ export default function CompanyApplicationsPage() {
                   </Button>
                 </td>
               </tr>
-            ))}
-          </Table>
-        </div>
+              ))}
+            </Table>
+          )}
+        </>
       )}
 
       <Modal

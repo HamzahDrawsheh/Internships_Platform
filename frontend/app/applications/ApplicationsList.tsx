@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
 import ApplicationTable from "@/components/applications/ApplicationTable";
 import EmptyState from "@/components/common/EmptyState";
 import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
-import type { Application } from "@/lib/types";
+import type { Application, ApplicationStatus } from "@/lib/types";
+
+function normalizeApplicationStatus(raw: unknown): ApplicationStatus {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "pending" || s === "accepted" || s === "rejected" || s === "completed") {
+    return s;
+  }
+  return "pending";
+}
 
 type TrainingEvaluationSummary = {
   overall_rating: number;
@@ -82,15 +91,22 @@ export default function ApplicationsList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
+
     const load = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setApplications([]);
-        setLoading(false);
+        if (!cancelled) {
+          setApplications([]);
+          setTrainingEvaluationByAppId({});
+          setRatingByApplicationId({});
+          setStudentId(null);
+          setLoading(false);
+        }
         return;
       }
 
@@ -101,11 +117,19 @@ export default function ApplicationsList() {
         .single();
 
       if (!student) {
-        setApplications([]);
-        setLoading(false);
+        if (!cancelled) {
+          setApplications([]);
+          setTrainingEvaluationByAppId({});
+          setRatingByApplicationId({});
+          setStudentId(null);
+          setLoading(false);
+        }
         return;
       }
-      setStudentId(student.id);
+      if (!cancelled) setStudentId(student.id);
+
+      await invokeAutoCompleteExpiredTrainings(supabase);
+      if (cancelled) return;
 
       const { data: appRows, error: appError } = await supabase
         .from("applications")
@@ -114,9 +138,12 @@ export default function ApplicationsList() {
         .order("applied_at", { ascending: false });
 
       if (appError || !appRows?.length) {
-        setApplications([]);
-        setRatingByApplicationId({});
-        setLoading(false);
+        if (!cancelled) {
+          setApplications([]);
+          setTrainingEvaluationByAppId({});
+          setRatingByApplicationId({});
+          setLoading(false);
+        }
         return;
       }
 
@@ -127,21 +154,29 @@ export default function ApplicationsList() {
         .in("id", positionIds);
 
       const positionsById = new Map((positions ?? []).map((p) => [p.id, p]));
+      const companyIds = [...new Set((positions ?? []).map((p) => p.company_id).filter(Boolean))];
+      const { data: companies } = companyIds.length
+        ? await supabase.from("companies").select("id, company_name").in("id", companyIds)
+        : { data: [] as { id: string; company_name: string | null }[] };
+      const companiesById = new Map((companies ?? []).map((c) => [c.id, c.company_name ?? null]));
 
       const mapped: Application[] = appRows.map((row) => {
         const pos = positionsById.get(row.position_id);
+        const cid = pos?.company_id;
         return {
           id: row.id,
           student_id: row.student_id,
           position_id: row.position_id,
-          company_id: pos?.company_id,
-          status: row.status,
+          company_id: cid,
+          status: normalizeApplicationStatus(row.status),
           message: row.message,
           applied_at: row.applied_at,
           internship_title: pos?.title ?? null,
-          company_name: undefined,
+          company_name: cid ? (companiesById.get(cid) ?? undefined) : undefined,
         };
       });
+
+      if (cancelled) return;
 
       const applicationIds = mapped.map((app) => app.id);
       if (applicationIds.length > 0) {
@@ -204,13 +239,31 @@ export default function ApplicationsList() {
       setLoading(false);
     };
 
-    load();
+    void load();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
-  const rateableApplications = applications.filter(
-    (a) => (a.status === "accepted" || a.status === "completed") && a.company_id
-  );
+  const trainingEvaluationSubmittedByAppId = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    for (const id of Object.keys(trainingEvaluationByAppId)) {
+      m[id] = true;
+    }
+    return m;
+  }, [trainingEvaluationByAppId]);
+
+  /** Star rating: after internship is completed only (one rating per company+placement via DB uniqueness). */
+  const rateableApplications = applications.filter((a) => a.status === "completed" && a.company_id);
   const completedApplications = applications.filter((a) => a.status === "completed");
+  const pendingTrainingEvaluationCount = completedApplications.filter(
+    (a) => !trainingEvaluationSubmittedByAppId[a.id]
+  ).length;
 
   const openRateModal = (app: Application) => {
     setSelectedApp(app);
@@ -362,9 +415,39 @@ export default function ApplicationsList() {
       return;
     }
 
-    const feedbackId = insertedRow?.id;
-    if (!feedbackId) {
-      console.error("[ApplicationsList] Insert succeeded but no feedback id returned.");
+    const evaluationRowId = insertedRow?.id;
+    if (!evaluationRowId) {
+      console.error("[ApplicationsList] Insert succeeded but no training evaluation id returned.");
+    }
+
+    if (selectedEvaluationApp.company_id) {
+      const { data: companyOwner } = await supabase
+        .from("companies")
+        .select("user_id")
+        .eq("id", selectedEvaluationApp.company_id)
+        .maybeSingle();
+      const {
+        data: { user: evalAuthUser },
+      } = await supabase.auth.getUser();
+      const { data: studentProfile } = evalAuthUser?.id
+        ? await supabase.from("profiles").select("full_name").eq("id", evalAuthUser.id).maybeSingle()
+        : { data: null };
+      const who =
+        studentProfile?.full_name?.trim() || evalAuthUser?.email?.split("@")[0] || "A student";
+      const internshipTitle = selectedEvaluationApp.internship_title?.trim() || "your internship";
+      if (companyOwner?.user_id) {
+        const { error: notifyEvalErr } = await supabase.from("notifications").insert({
+          user_id: companyOwner.user_id,
+          title: "New training evaluation",
+          message: `${who} submitted a training evaluation for “${internshipTitle}”.`,
+          type: "new_training_evaluation",
+          is_read: false,
+          related_application_id: selectedEvaluationApp.id,
+        });
+        if (notifyEvalErr) {
+          console.error("[ApplicationsList] training evaluation notification error:", notifyEvalErr);
+        }
+      }
     }
 
     setTrainingEvaluationByAppId((prev) => ({
@@ -375,8 +458,8 @@ export default function ApplicationsList() {
     setSubmitting(false);
     setEvaluationModalOpen(false);
 
-    if (feedbackId) {
-      void requestFeedbackAnalysis(feedbackId);
+    if (evaluationRowId) {
+      void requestFeedbackAnalysis(evaluationRowId);
     }
   };
 
@@ -387,6 +470,9 @@ export default function ApplicationsList() {
     setError(null);
     setSuccess(null);
     const supabase = createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
 
     // Enforce accepted-or-completed rating gate at app level before insert.
     const { data: rateableApplication } = await supabase
@@ -394,11 +480,11 @@ export default function ApplicationsList() {
       .select("id")
       .eq("id", selectedApp.id)
       .eq("student_id", studentId)
-      .in("status", ["accepted", "completed"])
+      .eq("status", "completed")
       .maybeSingle();
 
     if (!rateableApplication) {
-      setError("You can only rate after your application is accepted or completed.");
+      setError("You can rate the company after your internship is marked completed.");
       setSubmitting(false);
       return;
     }
@@ -412,7 +498,7 @@ export default function ApplicationsList() {
         rating: Number(ratingValue),
         feedback: feedback.trim() || null,
       })
-      .select("rating, feedback, created_at")
+      .select("id, rating, feedback, created_at")
       .single();
 
     if (insertError) {
@@ -426,6 +512,34 @@ export default function ApplicationsList() {
     }
 
     if (insertedRow) {
+      const ratingRowId = insertedRow.id as string | undefined;
+      if (ratingRowId && selectedApp.company_id) {
+        const { data: companyOwner } = await supabase
+          .from("companies")
+          .select("user_id")
+          .eq("id", selectedApp.company_id)
+          .maybeSingle();
+        const internshipTitle = selectedApp.internship_title?.trim() || "Internship";
+        const { data: studentProfile } = authUser?.id
+          ? await supabase.from("profiles").select("full_name").eq("id", authUser.id).maybeSingle()
+          : { data: null };
+        const who =
+          studentProfile?.full_name?.trim() || authUser?.email?.split("@")[0] || "A student";
+        if (companyOwner?.user_id) {
+          const { error: notifyRatingErr } = await supabase.from("notifications").insert({
+            user_id: companyOwner.user_id,
+            title: "New star rating",
+            message: `${who} rated “${internshipTitle}” (${Number(ratingValue)}/5).`,
+            type: "new_feedback",
+            is_read: false,
+            related_rating_id: ratingRowId,
+          });
+          if (notifyRatingErr) {
+            console.error("[ApplicationsList] company rating notification error:", notifyRatingErr);
+          }
+        }
+      }
+
       const summary: CompanyRatingSummary = {
         rating: insertedRow.rating as number,
         feedback: insertedRow.feedback as string | null,
@@ -473,12 +587,25 @@ export default function ApplicationsList() {
           {success}
         </div>
       )}
-      <ApplicationTable applications={applications} showViewAction />
+      {pendingTrainingEvaluationCount > 0 ? (
+        <div
+          className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 transition-colors duration-300 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-100"
+          role="status"
+        >
+          <p className="font-semibold">Training finished — your evaluation is ready</p>
+          <p className="mt-1 text-violet-900/90 dark:text-violet-200">
+            {pendingTrainingEvaluationCount === 1
+              ? "Use the purple Evaluate training action (below or in the table). You submit once per completed internship."
+              : `You have ${pendingTrainingEvaluationCount} completed placements waiting for a training evaluation.`}{" "}
+            Company star ratings are available below once the internship is completed.
+          </p>
+        </div>
+      ) : null}
 
       {completedApplications.length > 0 && (
-        <Card className="mt-6">
+        <Card id="student-training-evaluation" className="mt-0 scroll-mt-24">
           <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-            Training evaluation status
+            Training evaluation (once per completed internship)
           </h2>
           <div className="mt-4 space-y-3">
             {completedApplications.map((app) => {
@@ -500,7 +627,7 @@ export default function ApplicationsList() {
                           <span aria-hidden="true">✅</span>
                         </span>
                       ) : (
-                        "Complete your training evaluation while details are fresh."
+                        "Unlocked — submit when you’re ready (one submission per placement)."
                       )}
                     </p>
                   </div>
@@ -519,7 +646,7 @@ export default function ApplicationsList() {
                         className="transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                         onClick={() => openEvaluationModal(app)}
                       >
-                        Evaluate Training
+                        Evaluate training
                       </Button>
                     )}
                   </div>
@@ -530,14 +657,22 @@ export default function ApplicationsList() {
         </Card>
       )}
 
+      <ApplicationTable
+        applications={applications}
+        showViewAction
+        trainingEvaluationSubmittedByAppId={trainingEvaluationSubmittedByAppId}
+        onEvaluateTraining={openEvaluationModal}
+        onViewTrainingEvaluation={openViewEvaluationModal}
+      />
+
       <Card className="mt-6">
         <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Rate companies</h2>
         <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-          You can submit a rating for accepted or completed applications.
+          After an internship is marked completed, you can leave one star rating and optional feedback per placement.
         </p>
         {rateableApplications.length === 0 ? (
           <p className="mt-3 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
-            No accepted or completed applications available for rating yet.
+            No completed internships available for rating yet.
           </p>
         ) : (
           <div className="mt-4 space-y-3">
@@ -559,10 +694,8 @@ export default function ApplicationsList() {
                           Rating submitted
                           <span aria-hidden="true">✅</span>
                         </span>
-                      ) : app.status === "completed" ? (
-                        "Internship completed — eligible to rate"
                       ) : (
-                        "Application accepted — eligible to rate"
+                        "Internship completed — eligible to rate"
                       )}
                     </p>
                   </div>

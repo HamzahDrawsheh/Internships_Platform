@@ -22,9 +22,6 @@ export default function CreateInternshipPage() {
   const [locationType, setLocationType] = useState("hybrid");
   const [skills, setSkills] = useState("");
   const [durationWeeks, setDurationWeeks] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [openPositions, setOpenPositions] = useState("1");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -91,12 +88,17 @@ export default function CreateInternshipPage() {
         return;
       }
 
+      const weeksNum = durationWeeks.trim() !== "" ? Number.parseInt(durationWeeks, 10) : NaN;
+      const duration_weeks =
+        Number.isFinite(weeksNum) && weeksNum > 0 ? weeksNum : null;
+
       const payload = {
         company_id: company.id,
         title: trimmedTitle,
         description: trimmedDescription,
         requirements: skills.trim() || null,
-        duration: durationWeeks ? `${durationWeeks} weeks` : null,
+        duration: duration_weeks != null ? `${duration_weeks} weeks` : null,
+        duration_weeks,
         location: locationType || null,
         type: "internship",
         is_active: isActive,
@@ -172,13 +174,8 @@ export default function CreateInternshipPage() {
             <Textarea label="Description" required rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className="mt-4" placeholder="Role description and responsibilities..." />
             <Select label="Location type" options={locationOptions} value={locationType} onChange={(e) => setLocationType(e.target.value)} className="mt-4" />
             <Input label="Required skills (comma-separated)" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Python, ML, SQL" className="mt-4" />
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4">
               <Input label="Duration (weeks)" type="number" min={1} value={durationWeeks} onChange={(e) => setDurationWeeks(e.target.value)} />
-              <Input label="Open positions" type="number" min={1} value={openPositions} onChange={(e) => setOpenPositions(e.target.value)} />
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Input label="Start date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              <Input label="Application deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
             </div>
           </Card>
           <div className="flex flex-wrap gap-2">

@@ -80,6 +80,7 @@ export function CompanyAiFeedbackSummary({ companyId, className = "" }: Props) {
 
   useEffect(() => {
     if (!companyId?.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       setSummary(null);
       setError(null);

@@ -10,7 +10,7 @@ export default function MyApplicationsPage() {
       <Container>
         <PageHeader
           title="My Applications"
-          description="Track status of your internship applications."
+          description="When an internship is marked completed, submit your training evaluation here and leave a company rating below."
           action={
             <Link href="/internships">
               <Button variant="primary">Browse internships</Button>
