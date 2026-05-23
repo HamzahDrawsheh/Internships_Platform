@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
+import { DetailPageSkeleton } from "@/components/loading";
 import { Badge, Button, Modal, Textarea, EmptyState } from "@/components/ui";
 import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
+import { formatInternshipDateRange } from "@/lib/internships/dates";
 import type { ApplicationStatus } from "@/lib/types";
 
 const locationLabel: Record<string, string> = { remote: "Remote", onsite: "On-site", hybrid: "Hybrid" };
@@ -27,6 +29,9 @@ export default function InternshipDetailsPage() {
     description: string | null;
     requirements: string | null;
     duration: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    additional_notes: string | null;
     location: string | null;
     type: string | null;
     is_active: boolean;
@@ -45,7 +50,7 @@ export default function InternshipDetailsPage() {
       setExistingApplicationStatus(null);
       const { data: pos } = await supabase
         .from("internship_positions")
-        .select("id, title, description, requirements, duration, location, type, is_active, created_at, company_id")
+        .select("id, title, description, requirements, duration, start_date, end_date, additional_notes, location, type, is_active, created_at, company_id")
         .eq("id", id)
         .single();
 
@@ -100,6 +105,11 @@ export default function InternshipDetailsPage() {
             .filter(Boolean)
         : [],
     [position]
+  );
+
+  const dateRangeLabel = useMemo(
+    () => formatInternshipDateRange(position?.start_date, position?.end_date),
+    [position?.start_date, position?.end_date]
   );
 
   const handleApply = async () => {
@@ -242,7 +252,7 @@ export default function InternshipDetailsPage() {
     return (
       <main className="py-8">
         <Container className="max-w-4xl">
-          <p className="text-sm text-gray-500">Loading internship details...</p>
+          <DetailPageSkeleton />
         </Container>
       </main>
     );
@@ -323,10 +333,18 @@ export default function InternshipDetailsPage() {
               )}
             </div>
           </section>
+          {position.additional_notes?.trim() ? (
+            <section>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Additional information</h2>
+              <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-300">{position.additional_notes}</p>
+            </section>
+          ) : null}
           <section className="grid gap-4 sm:grid-cols-3">
             <div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Duration</span>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{position.duration ?? "Not specified"}</p>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Schedule</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">
+                {dateRangeLabel ?? position.duration ?? "Not specified"}
+              </p>
             </div>
             <div>
               <span className="text-sm text-gray-500 dark:text-gray-400">Type</span>

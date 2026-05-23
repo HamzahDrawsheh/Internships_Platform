@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NotificationListItem } from "@/components/internship-reports/NotificationListItem";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Button, EmptyState } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { type NotificationRow } from "@/lib/notifications-ui";
@@ -107,7 +108,7 @@ export default function NotificationsPage() {
           }
         />
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading notifications...</p>
+          <TableListPageSkeleton showFilters={false} />
         ) : error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
         ) : notifications.length === 0 ? (

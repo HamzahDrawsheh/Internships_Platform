@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ReportsPageSkeleton } from "@/components/loading";
 import { EmptyState, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
@@ -55,7 +56,7 @@ export default function AdminInternshipReportsPage() {
     <main className="py-8">
       <Container>
         <PageHeader title="Internship reports overview" description="Platform-wide monthly report tracking." />
-        {loading && <p className="text-sm text-gray-500">Loading…</p>}
+        {loading ? <ReportsPageSkeleton /> : null}
         {!loading && !rows.length && (
           <EmptyState title="No internship tracking records" description="Records appear when companies accept students." />
         )}

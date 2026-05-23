@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { InternshipProgressCard } from "@/components/internship-reports/InternshipProgressCard";
@@ -14,6 +14,7 @@ import { syncInternshipReportStatuses, ensureStudentInternshipTracking, repairIn
 import { getStudentNextAction } from "@/lib/internship-reports/workflow";
 import type { InternshipRow, MonthlyReportRow } from "@/lib/internship-reports/types";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
 
 type InternshipBundle = InternshipRow & {
   company_name: string;
@@ -22,12 +23,13 @@ type InternshipBundle = InternshipRow & {
 };
 
 export default function StudentInternshipReportsPage() {
+  const { lt } = useI18n();
   const [items, setItems] = useState<InternshipBundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     setSyncError(null);
@@ -97,11 +99,12 @@ export default function StudentInternshipReportsPage() {
     }
     setItems(bundles);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     void load();
-  }, []);
+  }, [load]);
 
   const primary = items[0];
   const nextAction = primary ? getStudentNextAction(primary.reports, primary.id, primary.status) : null;
@@ -115,12 +118,12 @@ export default function StudentInternshipReportsPage() {
         />
 
         {loading && <ReportsPageSkeleton />}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600">{lt(error)}</p>}
         {syncError && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/40 dark:bg-amber-950/20">
-            <span className="text-amber-900 dark:text-amber-200">{syncError}</span>
+            <span className="text-amber-900 dark:text-amber-200">{lt(syncError)}</span>
             <Button variant="secondary" onClick={() => void load()}>
-              Retry sync
+              {lt("Retry sync")}
             </Button>
           </div>
         )}
@@ -138,13 +141,13 @@ export default function StudentInternshipReportsPage() {
                   <p className="text-sm text-gray-500">{primary.company_name}</p>
                 </div>
                 <Link href={`/dashboard/student/internship-reports/${primary.id}`}>
-                  <Button variant="secondary">Final report & details</Button>
+                  <Button variant="secondary">{lt("Final report & details")}</Button>
                 </Link>
               </div>
 
               {primary.status === "pending_supervisor_approval" && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-                  Waiting for your university supervisor to approve internship tracking before monthly reports unlock.
+                  {lt("Waiting for your university supervisor to approve internship tracking before monthly reports unlock.")}
                 </div>
               )}
 
@@ -166,9 +169,9 @@ export default function StudentInternshipReportsPage() {
                 />
               ) : primary.status !== "pending_supervisor_approval" ? (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
-                  Monthly reports are being prepared.{" "}
+                  {lt("Monthly reports are being prepared.")}{" "}
                   <button type="button" className="font-medium underline" onClick={() => void load()}>
-                    Refresh
+                    {lt("Refresh")}
                   </button>
                 </div>
               ) : null}

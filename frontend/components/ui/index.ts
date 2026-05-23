@@ -8,3 +8,15 @@ export { SearchBar } from "./SearchBar";
 export { Select, type SelectOption } from "./Select";
 export { Table } from "./Table";
 export { Textarea } from "./Textarea";
+export {
+  CardGridSkeleton,
+  DashboardPageSkeleton,
+  DetailPageSkeleton,
+  MessagesPageSkeleton,
+  ProfileFormSkeleton,
+  ReportsPageSkeleton,
+  SimplePageSkeleton,
+  StatCardsSkeleton,
+  TableListPageSkeleton,
+  TableSectionSkeleton,
+} from "@/components/loading";

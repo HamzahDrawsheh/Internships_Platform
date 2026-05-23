@@ -14,6 +14,9 @@ export interface Internship {
   description: string | null;
   requirements: string | null;
   duration: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  additional_notes?: string | null;
   location: string | null;
   type: string | null;
   is_active: boolean;

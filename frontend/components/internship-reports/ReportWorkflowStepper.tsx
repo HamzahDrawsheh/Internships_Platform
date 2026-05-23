@@ -2,6 +2,7 @@
 
 import { getWorkflowSteps, type WorkflowSteps } from "@/lib/internship-reports/workflow";
 import type { MonthlyReportRow } from "@/lib/internship-reports/types";
+import { useI18n } from "@/lib/i18n/context";
 
 function StepDot({ state, label }: { state: WorkflowSteps[keyof WorkflowSteps]; label: string }) {
   const styles = {
@@ -27,30 +28,37 @@ type Props = {
 };
 
 export function ReportWorkflowStepper({ report, compact }: Props) {
+  const { lt } = useI18n();
   const steps = getWorkflowSteps(report.status);
+  const studentLabel = lt("Student");
+  const employerLabel = lt("Employer");
+  const supervisorLabel = lt("Supervisor");
+
   if (compact) {
     return (
-      <div className="flex items-center gap-1 text-xs text-gray-500" aria-label={`Month ${report.month_number} workflow`}>
-        <span className={steps.student === "done" ? "text-green-600" : ""}>Student {steps.student === "done" ? "✓" : "○"}</span>
+      <div className="flex items-center gap-1 text-xs text-gray-500" aria-label={lt(`Month ${report.month_number} workflow`)}>
+        <span className={steps.student === "done" ? "text-green-600" : ""}>
+          {studentLabel} {steps.student === "done" ? "✓" : "○"}
+        </span>
         <span aria-hidden>→</span>
         <span className={steps.employer === "done" ? "text-green-600" : steps.employer === "current" ? "text-purple-600 font-medium" : ""}>
-          Employer {steps.employer === "done" ? "✓" : "○"}
+          {employerLabel} {steps.employer === "done" ? "✓" : "○"}
         </span>
         <span aria-hidden>→</span>
         <span className={steps.supervisor === "done" ? "text-green-600" : steps.supervisor === "current" ? "text-purple-600 font-medium" : ""}>
-          Supervisor {steps.supervisor === "done" ? "✓" : "○"}
+          {supervisorLabel} {steps.supervisor === "done" ? "✓" : "○"}
         </span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center gap-2 sm:gap-4" role="list" aria-label={`Month ${report.month_number} approval workflow`}>
-      <StepDot state={steps.student} label="Student" />
+    <div className="flex items-center justify-center gap-2 sm:gap-4" role="list" aria-label={lt(`Month ${report.month_number} approval workflow`)}>
+      <StepDot state={steps.student} label={studentLabel} />
       <div className="h-px w-6 sm:w-10 bg-gray-200 dark:bg-gray-700" aria-hidden />
-      <StepDot state={steps.employer} label="Employer" />
+      <StepDot state={steps.employer} label={employerLabel} />
       <div className="h-px w-6 sm:w-10 bg-gray-200 dark:bg-gray-700" aria-hidden />
-      <StepDot state={steps.supervisor} label="Supervisor" />
+      <StepDot state={steps.supervisor} label={supervisorLabel} />
     </div>
   );
 }

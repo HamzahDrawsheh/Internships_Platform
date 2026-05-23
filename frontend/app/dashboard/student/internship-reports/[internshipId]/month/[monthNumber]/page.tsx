@@ -45,7 +45,10 @@ export default function StudentMonthlyReportFormPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       const [{ data: prof }, { data: st }] = await Promise.all([
         supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),

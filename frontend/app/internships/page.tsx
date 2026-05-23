@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Input, Select, Button, EmptyState } from "@/components/ui";
+import { CardGridSkeleton } from "@/components/loading";
+import { Input, Select, Button, EmptyState, SearchBar } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
@@ -59,7 +60,7 @@ export default function BrowseInternshipsPage() {
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [minMatchPct, setMinMatchPct] = useState(0);
   const [openDrilldown, setOpenDrilldown] = useState<
-    "search" | "location" | "skill" | "posted" | "company" | "companyLevel" | "sort" | "match" | null
+    "location" | "skill" | "posted" | "company" | "companyLevel" | "match" | null
   >(null);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -413,6 +414,16 @@ export default function BrowseInternshipsPage() {
     return recommended.filter((r) => (Number(r.match_percentage) || 0) >= clamped);
   }, [recommended, minMatchPct]);
 
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    Boolean(locationType) ||
+    Boolean(skill) ||
+    Boolean(postedBefore) ||
+    Boolean(companyId) ||
+    Boolean(companyLevel) ||
+    sort !== "newest" ||
+    minMatchPct > 0;
+
   const drilldownButtonClass =
     "inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950";
 
@@ -427,29 +438,31 @@ export default function BrowseInternshipsPage() {
           description="Filter by location, skills, company, and posted date."
         />
 
-        <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors duration-300 dark:border-gray-800 dark:bg-slate-900">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <button
-                type="button"
-                className={drilldownButtonClass}
-                onClick={() => setOpenDrilldown((v) => (v === "search" ? null : "search"))}
-              >
-                Search
-                <span className="text-xs opacity-70">{search.trim() ? "•" : ""}</span>
-              </button>
-              {openDrilldown === "search" ? (
-                <div className={drilldownPanelClass}>
-                  <Input
-                    label="Search"
-                    placeholder="Title..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-              ) : null}
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <SearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by title, company, or skills…"
+              />
             </div>
+            <div className="w-full lg:w-56">
+              <Select
+                label="Sort by"
+                options={[
+                  { value: "newest", label: "Newest first" },
+                  { value: "oldest", label: "Oldest first" },
+                ]}
+                value={sort}
+                onChange={(e) =>
+                  setSort((e.target.value === "oldest" ? "oldest" : "newest") as "newest" | "oldest")
+                }
+              />
+            </div>
+          </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <div className="relative">
               <button
                 type="button"
@@ -572,31 +585,6 @@ export default function BrowseInternshipsPage() {
               <button
                 type="button"
                 className={drilldownButtonClass}
-                onClick={() => setOpenDrilldown((v) => (v === "sort" ? null : "sort"))}
-              >
-                Sort <span className="text-xs opacity-70">•</span>
-              </button>
-              {openDrilldown === "sort" ? (
-                <div className={drilldownPanelClass}>
-                  <Select
-                    label="Sort"
-                    options={[
-                      { value: "newest", label: "Newest first" },
-                      { value: "oldest", label: "Oldest first" },
-                    ]}
-                    value={sort}
-                    onChange={(e) =>
-                      setSort((e.target.value === "oldest" ? "oldest" : "newest") as "newest" | "oldest")
-                    }
-                  />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="relative">
-              <button
-                type="button"
-                className={drilldownButtonClass}
                 onClick={() => setOpenDrilldown((v) => (v === "match" ? null : "match"))}
               >
                 Min match
@@ -628,12 +616,23 @@ export default function BrowseInternshipsPage() {
                 </div>
               ) : null}
             </div>
+          </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="secondary" onClick={clearFilters}>
-                Clear
-              </Button>
-            </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm dark:border-slate-800">
+            <p className="text-slate-600 dark:text-slate-400">
+              {loading && page === 0
+                ? "Loading internships…"
+                : `${cards.length} internship${cards.length === 1 ? "" : "s"} shown${hasMore ? "+" : ""}`}
+            </p>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="font-medium text-violet-700 transition-colors hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
+              >
+                Clear filters
+              </button>
+            ) : null}
           </div>
         </section>
         <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-colors duration-300 dark:border-gray-800 dark:bg-slate-900">
@@ -649,9 +648,7 @@ export default function BrowseInternshipsPage() {
           </div>
 
           {recommendedLoading ? (
-            <p className="mt-4 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
-              Loading recommendations...
-            </p>
+            <CardGridSkeleton count={2} variant="internship" columns="sm:grid-cols-2" className="mt-4" />
           ) : filteredRecommended.length === 0 ? (
             <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-600 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
               {recommendedMessage ??
@@ -752,9 +749,7 @@ export default function BrowseInternshipsPage() {
         </section>
         <div className="min-w-0">
           {loading && page === 0 ? (
-            <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
-              Loading internships...
-            </p>
+            <CardGridSkeleton variant="internship" columns="sm:grid-cols-2" />
           ) : cards.length === 0 ? (
             <EmptyState
               title="No internships found."

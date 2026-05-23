@@ -6,13 +6,11 @@ import { resolveMonthlyReportNotificationHref } from "@/lib/internship-reports/n
 import type { NotificationRow } from "@/lib/notifications-ui";
 
 export function useNotificationHref(n: NotificationRow, viewerRole: string | null) {
+  const canResolve = Boolean(n.related_internship_id || n.related_monthly_report_id);
   const [href, setHref] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!n.related_internship_id && !n.related_monthly_report_id) {
-      setHref(null);
-      return;
-    }
+    if (!canResolve) return;
     const supabase = createClient();
     void resolveMonthlyReportNotificationHref(supabase, {
       type: n.type,
@@ -20,7 +18,7 @@ export function useNotificationHref(n: NotificationRow, viewerRole: string | nul
       related_monthly_report_id: n.related_monthly_report_id,
       viewerRole,
     }).then(setHref);
-  }, [n.type, n.related_internship_id, n.related_monthly_report_id, viewerRole]);
+  }, [canResolve, n.type, n.related_internship_id, n.related_monthly_report_id, viewerRole]);
 
-  return href;
+  return canResolve ? href : null;
 }

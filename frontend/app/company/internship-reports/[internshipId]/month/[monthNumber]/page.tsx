@@ -11,7 +11,7 @@ import {
   type EvalState,
 } from "@/components/internship-reports/EmployerEvaluationForm";
 import { SignaturePad } from "@/components/internship-reports/SignaturePad";
-import { Button } from "@/components/ui";
+import { Button, EmptyState, ReportsPageSkeleton } from "@/components/ui";
 import { computeAttendancePercentage, filterAttendanceForMonth } from "@/lib/internship-reports/helpers";
 import type { AttendanceRow, MonthlyReportRow } from "@/lib/internship-reports/types";
 import { createClient } from "@/lib/supabase/client";
@@ -32,11 +32,13 @@ export default function CompanyMonthlyEvaluationPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!internshipId || !monthNumber) return;
     const supabase = createClient();
     const load = async () => {
+      setLoading(true);
       const { data: r } = await supabase
         .from("internship_monthly_reports")
         .select("*")
@@ -77,6 +79,7 @@ export default function CompanyMonthlyEvaluationPage() {
           }
         }
       }
+      setLoading(false);
     };
     void load();
   }, [internshipId, monthNumber]);
@@ -200,10 +203,25 @@ export default function CompanyMonthlyEvaluationPage() {
     );
   };
 
+  if (loading) {
+    return (
+      <main className="py-8">
+        <Container><ReportsPageSkeleton /></Container>
+      </main>
+    );
+  }
+
   if (!report) {
     return (
       <main className="py-8">
-        <Container><p className="text-sm text-gray-500">Loading…</p></Container>
+        <Container>
+          <EmptyState
+            title="Report not found"
+            description="This monthly report does not exist or you do not have access to it."
+            actionLabel="Back to reports"
+            actionHref="/company/internship-reports"
+          />
+        </Container>
       </main>
     );
   }

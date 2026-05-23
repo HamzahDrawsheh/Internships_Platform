@@ -1,86 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  fetchCompanyEvaluation,
+  formatOverallScore,
+  isCompanyPubliclyEvaluated,
+  type CompanyEvaluationSummary,
+} from "@/lib/companies/evaluation";
 import { createClient } from "@/lib/supabase/client";
 
-export type CompanyEvaluationSummary = {
-  avg_score: number | null;
-  avg_rating: number | null;
-  total_feedbacks: number;
-  company_level: "white" | "gray" | "black" | null;
-};
-
-/** Normalize RPC payload: PostgREST may return `json` as a parsed object or a JSON string. */
-function unwrapRpcJsonPayload(data: unknown): unknown {
-  if (typeof data === "string") {
-    const t = data.trim();
-    if (!t) return null;
-    try {
-      return JSON.parse(t) as unknown;
-    } catch {
-      return null;
-    }
-  }
-  return data;
-}
-
-export function parseCompanyEvaluationRpc(data: unknown): CompanyEvaluationSummary | null {
-  const unwrapped = unwrapRpcJsonPayload(data);
-  if (unwrapped == null || typeof unwrapped !== "object") return null;
-  const o = unwrapped as Record<string, unknown>;
-
-  const tf = o.total_feedbacks;
-  let totalFeedbacks = 0;
-  if (typeof tf === "bigint") totalFeedbacks = Number(tf);
-  else if (typeof tf === "number" && Number.isFinite(tf)) totalFeedbacks = tf;
-  else if (typeof tf === "string") totalFeedbacks = Number(tf);
-  else totalFeedbacks = Number(tf);
-  if (!Number.isFinite(totalFeedbacks) || totalFeedbacks < 0) totalFeedbacks = 0;
-
-  let avgScore: number | null = null;
-  if (o.avg_score !== null && o.avg_score !== undefined) {
-    const n = typeof o.avg_score === "number" ? o.avg_score : Number(o.avg_score);
-    avgScore = Number.isFinite(n) ? n : null;
-  }
-
-  let avgRating: number | null = null;
-  if (o.avg_rating !== null && o.avg_rating !== undefined) {
-    const n = typeof o.avg_rating === "number" ? o.avg_rating : Number(o.avg_rating);
-    avgRating = Number.isFinite(n) ? n : null;
-  }
-
-  const rawLevel = o.company_level;
-  let company_level: CompanyEvaluationSummary["company_level"] = null;
-  if (typeof rawLevel === "string") {
-    const k = rawLevel.trim().toLowerCase();
-    if (k === "white" || k === "gray" || k === "black") company_level = k;
-  }
-
-  return {
-    avg_score: avgScore,
-    avg_rating: avgRating,
-    total_feedbacks: Math.floor(totalFeedbacks),
-    company_level,
-  };
-}
-
-export async function fetchCompanyEvaluation(
-  supabase: SupabaseClient,
-  companyId: string
-): Promise<{ summary: CompanyEvaluationSummary | null; error: string | null }> {
-  const trimmed = companyId.trim();
-  if (!trimmed) {
-    return { summary: null, error: "Missing company id" };
-  }
-
-  const { data, error } = await supabase.rpc("get_company_evaluation", { p_company_id: trimmed });
-
-  if (error) {
-    return { summary: null, error: error.message };
-  }
-  return { summary: parseCompanyEvaluationRpc(data), error: null };
-}
+export type { CompanyEvaluationSummary } from "@/lib/companies/evaluation";
+export { fetchCompanyEvaluation, parseCompanyEvaluationRpc } from "@/lib/companies/evaluation";
 
 function levelBadgeClasses(level: "white" | "gray" | "black"): string {
   switch (level) {
@@ -104,6 +34,16 @@ function levelLabel(level: "white" | "gray" | "black"): string {
     case "black":
       return "Black Level";
   }
+}
+
+function NewCompanyBadge({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border border-sky-300/80 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-900 dark:border-sky-500/50 dark:bg-sky-500/15 dark:text-sky-100 ${className}`}
+    >
+      New Company
+    </span>
+  );
 }
 
 export function CompanyEvaluationDisplay({
@@ -139,38 +79,61 @@ export function CompanyEvaluationDisplay({
     );
   }
 
-  const hasEvaluations = summary != null && summary.total_feedbacks > 0;
+  const showPublicEval = isCompanyPubliclyEvaluated(summary);
+  const isNew = summary?.is_new_company !== false;
 
-  if (!hasEvaluations) {
+  if (!showPublicEval) {
+    if (variant === "compact") {
+      return (
+        <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+          {isNew && <NewCompanyBadge />}
+          <span className="text-xs text-slate-500 dark:text-slate-400">Not enough evaluation data yet</span>
+        </div>
+      );
+    }
+
     return (
-      <p className={`text-sm text-slate-500 dark:text-slate-400 ${className}`}>Not evaluated yet</p>
+      <div
+        className={`rounded-xl border border-sky-200/80 bg-sky-50/60 p-4 dark:border-sky-800/60 dark:bg-sky-950/30 ${className}`}
+      >
+        {isNew && <NewCompanyBadge />}
+        <p className={`text-sm text-slate-600 dark:text-slate-300 ${isNew ? "mt-3" : ""}`}>
+          Not enough evaluation data yet
+        </p>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
+          {isNew
+            ? "Rankings and scores appear after the company posts internships and accepts trainees."
+            : "Public scores appear after enough completed internships or student evaluations are collected."}
+        </p>
+      </div>
     );
   }
 
-  const ratingDisplay =
-    summary.avg_rating != null
-      ? `${Math.round(Math.min(5, Math.max(1, summary.avg_rating)) * 10) / 10} / 5`
-      : summary.avg_score != null
-        ? `${Math.round(Math.min(1, Math.max(0, summary.avg_score)) * 1000) / 10}%`
-        : null;
-
-  const levelRaw = summary.company_level;
+  const overallScore = summary ? formatOverallScore(summary) : null;
+  const levelRaw = summary?.company_level;
   const level: "white" | "gray" | "black" =
     levelRaw === "white" || levelRaw === "gray" || levelRaw === "black" ? levelRaw : "gray";
 
   if (variant === "compact") {
     return (
       <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-        <span
-          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${levelBadgeClasses(level)}`}
-        >
-          {levelLabel(level)}
-        </span>
-        {ratingDisplay != null && (
-          <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">{ratingDisplay}</span>
+        {overallScore != null && (
+          <span className="text-xs font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+            ⭐ {overallScore}
+          </span>
+        )}
+        {summary?.acceptance_ratio_pct != null && (
+          <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">
+            Acceptance {summary.acceptance_ratio_pct}%
+          </span>
+        )}
+        {summary?.completion_rate_pct != null && (
+          <span className="text-xs tabular-nums text-slate-600 dark:text-slate-400">
+            Completion {summary.completion_rate_pct}%
+          </span>
         )}
         <span className="text-xs text-slate-500 dark:text-slate-500">
-          {summary.total_feedbacks} evaluation{summary.total_feedbacks === 1 ? "" : "s"}
+          {summary?.total_feedbacks ?? 0} evaluation{(summary?.total_feedbacks ?? 0) === 1 ? "" : "s"}
         </span>
       </div>
     );
@@ -181,29 +144,46 @@ export function CompanyEvaluationDisplay({
       className={`rounded-xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/60 ${className}`}
     >
       <div className="flex flex-wrap items-center gap-3">
+        {overallScore != null && (
+          <p className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">⭐ {overallScore}</p>
+        )}
         <span
           className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${levelBadgeClasses(level)}`}
         >
           {levelLabel(level)}
         </span>
       </div>
-      <p className="mt-3 text-sm font-medium text-slate-800 dark:text-slate-100">Company Evaluation</p>
-      <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-slate-500 dark:text-slate-400">Average Rating</dt>
+          <dt className="text-slate-500 dark:text-slate-400">Acceptance Rate</dt>
           <dd className="font-medium tabular-nums text-slate-900 dark:text-white">
-            {summary.avg_rating != null
+            {summary?.acceptance_ratio_pct != null ? `${summary.acceptance_ratio_pct}%` : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500 dark:text-slate-400">Internship Completion</dt>
+          <dd className="font-medium tabular-nums text-slate-900 dark:text-white">
+            {summary?.completion_rate_pct != null ? `${summary.completion_rate_pct}%` : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500 dark:text-slate-400">Student Feedback</dt>
+          <dd className="font-medium text-slate-900 dark:text-white">
+            {summary?.avg_rating != null
               ? `${Math.round(Math.min(5, Math.max(1, summary.avg_rating)) * 10) / 10} / 5`
               : "—"}
           </dd>
         </div>
         <div>
           <dt className="text-slate-500 dark:text-slate-400">Evaluations</dt>
-          <dd className="font-medium text-slate-900 dark:text-white">{summary.total_feedbacks}</dd>
+          <dd className="font-medium text-slate-900 dark:text-white">{summary?.total_feedbacks ?? 0}</dd>
         </div>
       </dl>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
-        Based on completed internship evaluations.
+
+      <p className="mt-3 text-xs text-slate-500 dark:text-slate-500">
+        Based on {summary?.total_feedbacks ?? 0} student evaluation
+        {(summary?.total_feedbacks ?? 0) === 1 ? "" : "s"}, acceptance ratio, and completion rate.
       </p>
     </div>
   );

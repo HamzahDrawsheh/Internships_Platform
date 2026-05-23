@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildMatchInsights, type MatchInsights } from "@/lib/ai/match-insights";
+import { blendRecommendationScore } from "@/lib/companies/evaluation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cosineSimilarity, parsePgVector } from "@/lib/ai/vector-utils";
@@ -9,8 +10,11 @@ type ScoredRecommendationRow = {
   internship_id: string;
   title: string;
   company_name: string;
+  company_id: string;
   similarity_score: number;
   match_percentage: number;
+  recommendation_score: number;
+  company_confidence: "high" | "medium" | "low";
 };
 
 type RecommendationRow = ScoredRecommendationRow & {
@@ -99,31 +103,40 @@ export async function GET(request: Request) {
   const companyIds = [...new Set(rows.map((p) => p.company_id as string))];
   const { data: companies } =
     companyIds.length > 0
-      ? await admin.from("companies").select("id, company_name").in("id", companyIds)
-      : { data: [] as { id: string; company_name: string }[] };
+      ? await admin
+          .from("companies")
+          .select("id, company_name, is_new_company, evaluation_enabled, company_score")
+          .in("id", companyIds)
+      : { data: [] as { id: string; company_name: string; is_new_company: boolean | null; evaluation_enabled: boolean | null; company_score: number | null }[] };
 
+  const companyById = new Map((companies ?? []).map((c) => [c.id, c]));
   const companyNameById = new Map((companies ?? []).map((c) => [c.id, c.company_name]));
 
   const scored: ScoredRecommendationRow[] = [];
 
   for (const p of rows) {
     const pid = p.id as string;
+    const companyId = p.company_id as string;
     const emb = parsePgVector(p.embedding ?? null);
     if (!emb) {
       continue;
     }
     const sim = cosineSimilarity(studentVec, emb);
     const similarityScore = Math.max(0, Math.min(1, sim));
+    const blended = blendRecommendationScore(similarityScore, companyById.get(companyId));
     scored.push({
       internship_id: pid,
+      company_id: companyId,
       title: String(p.title ?? ""),
-      company_name: String(companyNameById.get(p.company_id as string) ?? ""),
+      company_name: String(companyNameById.get(companyId) ?? ""),
       similarity_score: similarityScore,
       match_percentage: Math.round(similarityScore * 10000) / 100,
+      recommendation_score: Math.round(blended.rankScore * 10000) / 100,
+      company_confidence: blended.confidence,
     });
   }
 
-  scored.sort((a, b) => b.similarity_score - a.similarity_score);
+  scored.sort((a, b) => b.recommendation_score - a.recommendation_score);
 
   const top = scored.slice(0, limit);
   const topIds = top.map((r) => r.internship_id);

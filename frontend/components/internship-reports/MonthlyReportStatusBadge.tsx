@@ -2,6 +2,7 @@
 
 import { MONTHLY_REPORT_STATUS_LABELS } from "@/lib/internship-reports/constants";
 import type { MonthlyReportStatus } from "@/lib/internship-reports/types";
+import { useI18n } from "@/lib/i18n/context";
 
 const STATUS_ICONS: Record<string, string> = {
   locked: "🔒",
@@ -15,6 +16,7 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 export function MonthlyReportStatusBadge({ status }: { status: MonthlyReportStatus | string }) {
+  const { lt } = useI18n();
   const label = MONTHLY_REPORT_STATUS_LABELS[status] ?? status;
   const icon = STATUS_ICONS[status] ?? "•";
   const color =
@@ -31,7 +33,7 @@ export function MonthlyReportStatusBadge({ status }: { status: MonthlyReportStat
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${color}`} role="status">
       <span aria-hidden>{icon}</span>
-      {label}
+      {lt(label)}
     </span>
   );
 }

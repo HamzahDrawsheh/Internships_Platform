@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Button, EmptyState, Table } from "@/components/ui";
 import { logPostgrestError } from "@/lib/postgrest-error";
 import { createClient } from "@/lib/supabase/client";
@@ -274,7 +275,7 @@ function ReportsExportPageContent() {
           </p>
         ) : null}
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading applications...</p>
+          <TableListPageSkeleton showWelcome={false} />
         ) : error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
         ) : filteredRows.length === 0 ? (
@@ -332,8 +333,8 @@ export default function ReportsExportPage() {
       fallback={
         <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
           <Container>
-            <PageHeader title="Applications Monitoring" description="Loading…" />
-            <p className="text-sm text-gray-500 dark:text-slate-400">Loading applications...</p>
+            <PageHeader title="Applications Monitoring" description="Department internship applications." />
+            <TableListPageSkeleton showWelcome={false} />
           </Container>
         </main>
       }

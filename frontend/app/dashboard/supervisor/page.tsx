@@ -6,6 +6,9 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { Container } from "@/components/layout/Container";
 import { SupervisorAiInsights } from "@/components/supervisor/SupervisorAiInsights";
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
+import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
+import { RoleOverviewTrackCard } from "@/components/dashboard/RoleOverviewTrackCard";
+import { DashboardPageSkeleton } from "@/components/loading";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
 import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
 import { createClient } from "@/lib/supabase/client";
@@ -280,6 +283,31 @@ export default function SupervisorDashboardPage() {
 
   const pendingReportsHref = "/supervisor/reports?status=pending";
 
+  const welcomeSubtitle = useMemo(() => {
+    if (pendingApprovalCount > 0) {
+      return `${pendingApprovalCount} monthly report${pendingApprovalCount === 1 ? "" : "s"} awaiting your approval.`;
+    }
+    if (pendingApplications > 0) {
+      return `${pendingApplications} application${pendingApplications === 1 ? "" : "s"} pending in your department.`;
+    }
+    if (completedInternships > 0 && totalApplications > 0) {
+      return `${completedInternships} of ${totalApplications} department internships completed.`;
+    }
+    return "Monitor students in your department and their internship activity";
+  }, [pendingApprovalCount, pendingApplications, completedInternships, totalApplications]);
+
+  const departmentProgress = useMemo(() => {
+    if (totalApplications === 0) return null;
+    const pct = Math.round((completedInternships / totalApplications) * 100);
+    const active = acceptedApplications;
+    const remaining = Math.max(0, totalApplications - completedInternships);
+    let hint = `${completedInternships} completed · ${active} currently active · ${pendingApplications} pending review.`;
+    if (pendingApprovalCount > 0) {
+      hint = `${pendingApprovalCount} monthly report${pendingApprovalCount === 1 ? "" : "s"} need your sign-off.`;
+    }
+    return { pct, remaining, hint };
+  }, [totalApplications, completedInternships, acceptedApplications, pendingApplications, pendingApprovalCount]);
+
   const openStudentRow = (studentId: string) => {
     router.push(`/supervisor/students/${studentId}`);
   };
@@ -300,9 +328,7 @@ export default function SupervisorDashboardPage() {
               <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
                 Welcome back, {supervisorName} 👋
               </h1>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Monitor students in your department and their internship activity
-              </p>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{welcomeSubtitle}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -424,30 +450,7 @@ export default function SupervisorDashboardPage() {
         </Modal>
 
         {loading ? (
-          <div className="mt-8 space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {[0, 1, 2, 3, 4].map((item) => (
-                <div
-                  key={item}
-                  className="animate-pulse rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-                >
-                  <div className="h-4 w-28 rounded bg-gray-200 dark:bg-gray-700" />
-                  <div className="mt-4 h-9 w-14 rounded bg-gray-200 dark:bg-gray-700" />
-                </div>
-              ))}
-            </div>
-            <div className="animate-pulse rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              <div className="h-6 w-48 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[0, 1, 2, 3].map((item) => (
-                  <div key={item} className="rounded-2xl border border-gray-100 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-800/50">
-                    <div className="h-4 w-24 rounded bg-gray-200 dark:bg-gray-700" />
-                    <div className="mt-3 h-8 w-16 rounded bg-gray-200 dark:bg-gray-700" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <DashboardPageSkeleton showWelcome={false} showTrack showTable statCount={4} className="mt-8" />
         ) : error ? (
           <p className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             {error}
@@ -469,72 +472,47 @@ export default function SupervisorDashboardPage() {
               </div>
             ) : null}
 
-            <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <article className="animate-fade-up rounded-2xl bg-purple-100 p-6 text-purple-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-purple-500/10 dark:text-purple-300">
-                <p className="text-sm font-medium">Students (your department)</p>
-                <p className="mt-4 text-3xl font-bold">{assignedStudents}</p>
-              </article>
-              <article className="animate-fade-up rounded-2xl bg-indigo-100 p-6 text-indigo-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-indigo-500/10 dark:text-indigo-300">
-                <p className="text-sm font-medium">Total applications</p>
-                <p className="mt-4 text-3xl font-bold">{totalApplications}</p>
-              </article>
-              <article className="animate-fade-up rounded-2xl bg-green-100 p-6 text-green-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-green-500/10 dark:text-green-300">
-                <p className="text-sm font-medium">Accepted</p>
-                <p className="mt-4 text-3xl font-bold">{acceptedApplications}</p>
-              </article>
-              {pendingApplications > 0 ? (
-                <Link
-                  href={pendingReportsHref}
-                  className="animate-fade-up block rounded-2xl bg-yellow-100 p-6 text-yellow-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-600 focus-visible:ring-offset-2 dark:bg-yellow-500/10 dark:text-yellow-300 dark:focus-visible:ring-offset-gray-950"
-                >
-                  <p className="text-sm font-medium">Pending</p>
-                  <p className="mt-4 text-3xl font-bold">{pendingApplications}</p>
-                  <p className="mt-2 text-xs font-semibold text-yellow-900/80 underline underline-offset-2 dark:text-yellow-200/90">
-                    View in reports →
-                  </p>
-                </Link>
-              ) : (
-                <article className="animate-fade-up rounded-2xl bg-yellow-100 p-6 text-yellow-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-yellow-500/10 dark:text-yellow-300">
-                  <p className="text-sm font-medium">Pending</p>
-                  <p className="mt-4 text-3xl font-bold">{pendingApplications}</p>
-                </article>
-              )}
-              <article className="animate-fade-up rounded-2xl bg-red-100 p-6 text-red-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-red-500/10 dark:text-red-300">
-                <p className="text-sm font-medium">Rejected</p>
-                <p className="mt-4 text-3xl font-bold">{rejectedApplications}</p>
-              </article>
+            <section className="mt-8">
+              <DashboardStatGrid>
+                <DashboardStatCard
+                  label="Students (department)"
+                  value={assignedStudents}
+                  cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
+                />
+                <DashboardStatCard
+                  label="Pending"
+                  value={pendingApplications}
+                  cardClass="bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300"
+                  href={pendingApplications > 0 ? pendingReportsHref : undefined}
+                />
+                <DashboardStatCard
+                  label="Active"
+                  value={acceptedApplications}
+                  cardClass="bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300"
+                />
+                <DashboardStatCard
+                  label="Completed"
+                  value={completedInternships}
+                  cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
+                />
+              </DashboardStatGrid>
             </section>
-            <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Department Performance</h2>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Aggregates for students in your department only (read-only).
-              </p>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-sky-50 p-5 text-sky-950 shadow-sm transition-all duration-300 dark:border-sky-900/40 dark:bg-sky-500/10 dark:text-sky-100">
-                  <p className="text-sm font-medium text-sky-900 dark:text-sky-200">Total students</p>
-                  <p className="mt-3 text-2xl font-bold tabular-nums">{assignedStudents}</p>
-                </article>
-                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-slate-50 p-5 text-slate-900 shadow-sm transition-all duration-300 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100">
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Total applications</p>
-                  <p className="mt-3 text-2xl font-bold tabular-nums">{totalApplications}</p>
-                </article>
-                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-teal-50 p-5 text-teal-950 shadow-sm transition-all duration-300 dark:border-teal-900/40 dark:bg-teal-500/10 dark:text-teal-100">
-                  <p className="text-sm font-medium text-teal-900 dark:text-teal-200">Completed internships</p>
-                  <p className="mt-3 text-2xl font-bold tabular-nums">{completedInternships}</p>
-                </article>
-                <article className="animate-fade-up rounded-2xl border border-gray-100 bg-violet-50 p-5 text-violet-950 shadow-sm transition-all duration-300 dark:border-violet-900/40 dark:bg-violet-500/10 dark:text-violet-100">
-                  <p className="text-sm font-medium text-violet-900 dark:text-violet-200">Completion rate</p>
-                  <p className="mt-3 text-2xl font-bold tabular-nums">{completionRateLabel}</p>
-                  {totalApplications === 0 ? (
-                    <p className="mt-1 text-xs text-violet-700/80 dark:text-violet-300/80">No applications yet</p>
-                  ) : (
-                    <p className="mt-1 text-xs text-violet-700/80 dark:text-violet-300/80">
-                      Completed ÷ all department applications
-                    </p>
-                  )}
-                </article>
-              </div>
-            </section>
+
+            {departmentProgress ? (
+              <section className="mt-8">
+                <RoleOverviewTrackCard
+                  title="Department progress"
+                  subtitle={`${assignedStudents} student${assignedStudents === 1 ? "" : "s"} · ${totalApplications} total application${totalApplications === 1 ? "" : "s"}`}
+                  overallPercent={departmentProgress.pct}
+                  completedLabel={completionRateLabel}
+                  remainingLabel={`${departmentProgress.remaining} remaining`}
+                  hint={departmentProgress.hint}
+                  href="/supervisor/reports"
+                  linkLabel="Open department reports →"
+                />
+              </section>
+            ) : null}
+
             <div id="supervisor-ai-insights">
               <SupervisorAiInsights eligible={departmentInsightsEligible} className="mt-8" />
             </div>

@@ -85,6 +85,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname.startsWith("/companies") ||
         pathname.startsWith("/profile/student") ||
         pathname.startsWith("/notifications") ||
+        pathname.startsWith("/resume-builder") ||
         pathname.startsWith("/onboarding") ||
         pathname === "/pending-approval"
       );
@@ -128,7 +129,8 @@ function isProtected(pathname: string): boolean {
     pathname.startsWith("/supervisor") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/profile") ||
-    pathname.startsWith("/notifications")
+    pathname.startsWith("/notifications") ||
+    pathname.startsWith("/resume-builder")
   );
 }
 

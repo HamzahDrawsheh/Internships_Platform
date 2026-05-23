@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import EmptyState from "@/components/common/EmptyState";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Modal, Button, Table, Badge } from "@/components/ui";
 
 const statusVariant: Record<string, "default" | "success" | "warning" | "danger"> = {
@@ -167,7 +168,7 @@ export default function CompanyInternshipsList() {
     }
   };
 
-  if (loading) return <p className="text-gray-600 transition-colors duration-300 dark:text-slate-400">Loading…</p>;
+  if (loading) return <TableListPageSkeleton showWelcome={false} showFilters={false} />;
   if (listings.length === 0) {
     return (
       <EmptyState

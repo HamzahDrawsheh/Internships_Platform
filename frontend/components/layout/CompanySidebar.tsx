@@ -1,41 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { SidebarNav, type SidebarLink } from "@/components/layout/SidebarNav";
 
-const companyLinks = [
-  { label: "Dashboard", href: "/dashboard/company" },
-  { label: "Messages", href: "/company/messages" },
-  { label: "My Internship Posts", href: "/company/internships" },
-  { label: "Create Internship", href: "/company/internships/new" },
-  { label: "Applications", href: "/company/applications" },
-  { label: "Trainee Reports", href: "/company/internship-reports" },
-  { label: "Company Profile", href: "/profile/company" },
+const companyLinks: SidebarLink[] = [
+  { labelKey: "nav.dashboard", href: "/dashboard/company", icon: "🏠" },
+  { labelKey: "nav.myInternshipPosts", href: "/company/internships", icon: "💼" },
+  { labelKey: "nav.createInternship", href: "/company/internships/new", icon: "➕" },
+  { labelKey: "nav.applications", href: "/company/applications", icon: "📄" },
+  { labelKey: "nav.traineeReports", href: "/company/internship-reports", icon: "📅" },
+  { labelKey: "nav.companyProfile", href: "/profile/company", icon: "👤" },
 ];
 
-export function CompanySidebar() {
-  const pathname = usePathname();
+type Props = {
+  onNavigate?: () => void;
+};
 
-  return (
-    <aside className="w-64 shrink-0 border-r border-gray-200 bg-white/90 py-6 backdrop-blur transition-colors duration-300 dark:border-gray-800 dark:bg-gray-900/90">
-      <nav className="space-y-1.5 px-4">
-        {companyLinks.map((link) => {
-          const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex items-center rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 ${
-                isActive
-                  ? "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300"
-                  : "text-gray-800 hover:bg-gray-100 hover:text-purple-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-purple-300"
-              }`}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
-  );
+export function CompanySidebar({ onNavigate }: Props) {
+  return <SidebarNav links={companyLinks} rootHref="/dashboard/company" onNavigate={onNavigate} />;
 }

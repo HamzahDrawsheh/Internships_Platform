@@ -112,10 +112,23 @@ export default function StudentInternshipDetailPage() {
     setUploading(false);
   };
 
-  if (loading || !internship) {
+  if (loading) {
     return (
       <main className="py-8">
         <Container><ReportsPageSkeleton /></Container>
+      </main>
+    );
+  }
+
+  if (!internship) {
+    return (
+      <main className="py-8">
+        <Container>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Internship not found.</p>
+          <Link href="/dashboard/student/internship-reports" className="mt-2 inline-block text-sm text-purple-600 hover:underline">
+            ← Back to reports
+          </Link>
+        </Container>
       </main>
     );
   }

@@ -7,7 +7,7 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AttendancePreview } from "@/components/internship-reports/AttendancePreview";
 import { MonthlyReportStatusBadge } from "@/components/internship-reports/MonthlyReportStatusBadge";
-import { Button, Textarea } from "@/components/ui";
+import { Button, EmptyState, Textarea, ReportsPageSkeleton } from "@/components/ui";
 import { computeAttendancePercentage, filterAttendanceForMonth, formatIsoDate } from "@/lib/internship-reports/helpers";
 import type { AttendanceRow, MonthlyReportRow, WeeklyReportRow } from "@/lib/internship-reports/types";
 import { createClient } from "@/lib/supabase/client";
@@ -40,11 +40,13 @@ export default function SupervisorMonthlyReviewPage() {
   const [studentName, setStudentName] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!internshipId || !monthNumber) return;
     const supabase = createClient();
     const load = async () => {
+      setLoading(true);
       const { data: r } = await supabase
         .from("internship_monthly_reports")
         .select("*")
@@ -73,6 +75,7 @@ export default function SupervisorMonthlyReviewPage() {
           setStudentName(p?.full_name ?? "Student");
         }
       }
+      setLoading(false);
     };
     void load();
   }, [internshipId, monthNumber]);
@@ -158,10 +161,25 @@ export default function SupervisorMonthlyReviewPage() {
     router.push("/supervisor/internship-reports");
   };
 
+  if (loading) {
+    return (
+      <main className="py-8">
+        <Container><ReportsPageSkeleton /></Container>
+      </main>
+    );
+  }
+
   if (!report) {
     return (
       <main className="py-8">
-        <Container><p className="text-sm text-gray-500">Loading…</p></Container>
+        <Container>
+          <EmptyState
+            title="Report not found"
+            description="This monthly report does not exist or you do not have access to it."
+            actionLabel="Back to reports"
+            actionHref="/supervisor/internship-reports"
+          />
+        </Container>
       </main>
     );
   }

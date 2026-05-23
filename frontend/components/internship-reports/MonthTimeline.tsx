@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { canStudentSubmitReport, formatIsoDate } from "@/lib/internship-reports/helpers";
 import { dueDateLabel, getLockedMonthHint, isCurrentMonth } from "@/lib/internship-reports/workflow";
 import type { MonthlyReportRow } from "@/lib/internship-reports/types";
+import { useI18n } from "@/lib/i18n/context";
 
 type Props = {
   reports: MonthlyReportRow[];
@@ -16,6 +17,8 @@ type Props = {
 };
 
 export function MonthTimeline({ reports, internshipId, role, basePath }: Props) {
+  const { lt } = useI18n();
+
   return (
     <div className="space-y-4">
       {reports.map((r) => {
@@ -47,10 +50,10 @@ export function MonthTimeline({ reports, internshipId, role, basePath }: Props) 
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">Month {r.month_number}</h4>
+                  <h4 className="font-semibold text-gray-900 dark:text-white">{lt(`Month ${r.month_number}`)}</h4>
                   {current && (
                     <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                      Current
+                      {lt("Current")}
                     </span>
                   )}
                 </div>
@@ -59,10 +62,10 @@ export function MonthTimeline({ reports, internshipId, role, basePath }: Props) 
                 </p>
                 {r.status !== "locked" && r.status !== "approved" && (
                   <p className={`mt-1 text-xs font-medium ${r.status === "overdue" ? "text-red-600" : "text-amber-700 dark:text-amber-400"}`}>
-                    {dueDateLabel(r.due_date)}
+                    {lt(dueDateLabel(r.due_date))}
                   </p>
                 )}
-                {lockedHint && <p className="mt-1 text-xs text-gray-400">{lockedHint}</p>}
+                {lockedHint && <p className="mt-1 text-xs text-gray-400">{lt(lockedHint)}</p>}
               </div>
               <MonthlyReportStatusBadge status={r.status} />
             </div>
@@ -75,7 +78,13 @@ export function MonthTimeline({ reports, internshipId, role, basePath }: Props) 
               {canOpen && r.status !== "locked" && (
                 <Link href={href}>
                   <Button variant={canStudentSubmitReport(r, reports) && role === "student" ? "primary" : "secondary"}>
-                    {role === "student" && canStudentSubmitReport(r, reports) ? "Open form" : role === "company" ? "Evaluate" : role === "supervisor" ? "Review" : "View"}
+                    {role === "student" && canStudentSubmitReport(r, reports)
+                      ? lt("Open form")
+                      : role === "company"
+                        ? lt("Evaluate")
+                        : role === "supervisor"
+                          ? lt("Review")
+                          : lt("View")}
                   </Button>
                 </Link>
               )}

@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { DetailPageSkeleton } from "@/components/loading";
 import { Button, EmptyState } from "@/components/ui";
+import { useMessagingActions } from "@/hooks/useMessagingActions";
 import { createClient } from "@/lib/supabase/client";
-import { conversationUrl } from "@/lib/messaging";
 
 type SupervisorCard = {
   id: string;
@@ -19,7 +18,7 @@ type SupervisorCard = {
 };
 
 export default function StudentSupervisorPage() {
-  const router = useRouter();
+  const { messageSupervisor, openInbox } = useMessagingActions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsDepartment, setNeedsDepartment] = useState(false);
@@ -93,50 +92,9 @@ export default function StudentSupervisorPage() {
     void run();
   }, []);
 
-  const openConversation = async (supervisorUserId: string) => {
-    const supabase = createClient();
+  const openConversation = (supervisorUserId: string, supervisorName: string) => {
     setOpeningId(supervisorUserId);
-    setError(null);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setOpeningId(null);
-      return;
-    }
-
-    const student_user_id = user.id;
-    const peer_user_id = supervisorUserId;
-
-    const { data: inserted, error: insErr } = await supabase
-      .from("dm_conversations")
-      .insert({ kind: "student_supervisor", student_user_id, peer_user_id })
-      .select("id")
-      .single();
-
-    if (insErr && (insErr as { code?: string }).code === "23505") {
-      const { data: existing } = await supabase
-        .from("dm_conversations")
-        .select("id")
-        .eq("kind", "student_supervisor")
-        .eq("student_user_id", student_user_id)
-        .eq("peer_user_id", peer_user_id)
-        .maybeSingle();
-      if (existing?.id) {
-        router.push(conversationUrl("/dashboard/student/messages", existing.id));
-        setOpeningId(null);
-        return;
-      }
-    }
-
-    if (insErr || !inserted?.id) {
-      console.error("open supervisor conversation:", insErr);
-      setError(insErr?.message ?? "Could not open conversation.");
-      setOpeningId(null);
-      return;
-    }
-
-    router.push(conversationUrl("/dashboard/student/messages", inserted.id));
+    messageSupervisor(supervisorUserId, supervisorName);
     setOpeningId(null);
   };
 
@@ -149,7 +107,7 @@ export default function StudentSupervisorPage() {
         />
 
         {loading ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+          <DetailPageSkeleton />
         ) : error ? (
           <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
         ) : needsDepartment ? (
@@ -163,8 +121,8 @@ export default function StudentSupervisorPage() {
           <EmptyState
             title="No supervisors in your department yet"
             description="When supervisors join your department on the platform, they will appear here. You can still message companies from your applications under Messages."
-            actionLabel="Messages"
-            actionHref="/dashboard/student/messages"
+            actionLabel="Open messages"
+            onAction={openInbox}
           />
         ) : (
           <ul className="space-y-4">
@@ -189,15 +147,16 @@ export default function StudentSupervisorPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-                    <Button variant="primary" disabled={openingId === s.user_id} onClick={() => void openConversation(s.user_id)}>
+                    <Button variant="primary" disabled={openingId === s.user_id} onClick={() => openConversation(s.user_id, s.full_name)}>
                       {openingId === s.user_id ? "Opening…" : "Message supervisor"}
                     </Button>
-                    <Link
-                      href="/dashboard/student/messages"
+                    <button
+                      type="button"
+                      onClick={openInbox}
                       className="text-center text-xs font-medium text-purple-700 underline-offset-2 hover:underline dark:text-purple-300"
                     >
                       Open inbox
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </li>

@@ -5,9 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ProfileFormSkeleton } from "@/components/loading";
 import { Input, Select, Textarea, Button, Card } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { buildInternshipScheduleFields, validateInternshipDates } from "@/lib/internships/dates";
 
 const locationOptions: SelectOption[] = [
   { value: "remote", label: "Remote" },
@@ -23,7 +25,9 @@ export default function EditInternshipPage() {
   const [description, setDescription] = useState("");
   const [locationType, setLocationType] = useState("hybrid");
   const [skills, setSkills] = useState("");
-  const [durationWeeks, setDurationWeeks] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +101,7 @@ export default function EditInternshipPage() {
 
       const { data: position, error: positionError } = await supabase
         .from("internship_positions")
-        .select("id, title, description, requirements, duration, duration_weeks, location, is_active")
+        .select("id, title, description, requirements, duration, duration_weeks, location, is_active, start_date, end_date, additional_notes")
         .eq("id", id)
         .eq("company_id", company.id)
         .maybeSingle();
@@ -119,16 +123,9 @@ export default function EditInternshipPage() {
       setSkills(position.requirements ?? "");
       const loc = typeof position.location === "string" && position.location.trim() ? position.location.trim() : "hybrid";
       setLocationType(loc);
-      const weeksFromCol =
-        typeof position.duration_weeks === "number" && position.duration_weeks > 0
-          ? String(position.duration_weeks)
-          : "";
-      const durationValue =
-        weeksFromCol ||
-        (typeof position.duration === "string" && position.duration.toLowerCase().includes("week")
-          ? position.duration.toLowerCase().replace("weeks", "").replace("week", "").trim()
-          : "");
-      setDurationWeeks(durationValue);
+      setStartDate(typeof position.start_date === "string" ? position.start_date : "");
+      setEndDate(typeof position.end_date === "string" ? position.end_date : "");
+      setAdditionalNotes(typeof position.additional_notes === "string" ? position.additional_notes : "");
       setCurrentIsActive(Boolean(position.is_active));
 
       setLoading(false);
@@ -145,6 +142,12 @@ export default function EditInternshipPage() {
     const trimmedDescription = description.trim();
     if (!trimmedTitle || !trimmedDescription) {
       setError("Title and description are required.");
+      return;
+    }
+
+    const dateError = validateInternshipDates(startDate, endDate);
+    if (dateError) {
+      setError(dateError);
       return;
     }
 
@@ -174,16 +177,14 @@ export default function EditInternshipPage() {
         return;
       }
 
-      const weeksNum = durationWeeks.trim() !== "" ? Number.parseInt(durationWeeks, 10) : NaN;
-      const duration_weeks =
-        Number.isFinite(weeksNum) && weeksNum > 0 ? weeksNum : null;
+      const schedule = buildInternshipScheduleFields(startDate, endDate);
 
       const payload = {
         title: trimmedTitle,
         description: trimmedDescription,
         requirements: skills.trim() || null,
-        duration: duration_weeks != null ? `${duration_weeks} weeks` : null,
-        duration_weeks,
+        ...schedule,
+        additional_notes: additionalNotes.trim() || null,
         location: locationType || null,
         is_active: nextIsActive,
       };
@@ -252,6 +253,9 @@ export default function EditInternshipPage() {
             {success}
           </div>
         )}
+        {loading ? (
+          <ProfileFormSkeleton />
+        ) : (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -264,9 +268,31 @@ export default function EditInternshipPage() {
             <Textarea label="Description" required rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className="mt-4" placeholder="Role description and responsibilities..." />
             <Select label="Location type" options={locationOptions} value={locationType} onChange={(e) => setLocationType(e.target.value)} className="mt-4" />
             <Input label="Required skills (comma-separated)" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Python, ML, SQL" className="mt-4" />
-            <div className="mt-4">
-              <Input label="Duration (weeks)" type="number" min={1} value={durationWeeks} onChange={(e) => setDurationWeeks(e.target.value)} />
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Start date"
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <Input
+                label="End date"
+                type="date"
+                required
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
+            <Textarea
+              label="Additional notes (optional)"
+              rows={3}
+              value={additionalNotes}
+              onChange={(e) => setAdditionalNotes(e.target.value)}
+              className="mt-4"
+              placeholder="Schedule details, office location, benefits, or anything else applicants should know."
+            />
           </Card>
           <div className="flex flex-wrap gap-2">
             <Button type="submit" variant="primary" disabled={saving || loading}>
@@ -277,6 +303,7 @@ export default function EditInternshipPage() {
             </Button>
           </div>
         </form>
+        )}
       </Container>
     </main>
   );

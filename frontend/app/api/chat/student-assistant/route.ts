@@ -13,6 +13,7 @@ import {
   isReportRelatedQuestion,
   rankReportLinesForQuestion,
 } from "@/lib/ai/student-assistant-internship-context";
+import { parseCompanyEvaluationRpc, type CompanyEvaluationSummary } from "@/lib/companies/evaluation";
 
 type ChatBody = {
   message?: string;
@@ -41,41 +42,33 @@ function normalizeText(input: unknown, maxLen = 1500): string {
   return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
 }
 
-type CompanyEvalAgg = {
-  company_level: string | null;
-  avg_score: number | null;
-  total_feedbacks: number;
-  avg_rating?: number | null;
-};
+type CompanyEvalAgg = Pick<
+  CompanyEvaluationSummary,
+  | "company_level"
+  | "avg_score"
+  | "total_feedbacks"
+  | "avg_rating"
+  | "is_new_company"
+  | "evaluation_enabled"
+  | "acceptance_ratio_pct"
+  | "completion_rate_pct"
+  | "company_score"
+>;
 
 function parseCompanyEvalPayload(data: unknown): CompanyEvalAgg | null {
-  if (!data || typeof data !== "object") return null;
-  const d = data as Record<string, unknown>;
-  const levelRaw = d.company_level;
-  const company_level =
-    typeof levelRaw === "string" && ["white", "gray", "black"].includes(levelRaw) ? levelRaw : null;
-  let avg_score: number | null = null;
-  if (typeof d.avg_score === "number" && Number.isFinite(d.avg_score)) avg_score = d.avg_score;
-  else if (d.avg_score != null && String(d.avg_score).length > 0) {
-    const n = Number(d.avg_score);
-    if (Number.isFinite(n)) avg_score = n;
-  }
-  let total_feedbacks = 0;
-  if (typeof d.total_feedbacks === "number" && Number.isFinite(d.total_feedbacks)) {
-    total_feedbacks = d.total_feedbacks;
-  } else if (d.total_feedbacks != null) {
-    const n = Number(d.total_feedbacks);
-    if (Number.isFinite(n)) total_feedbacks = n;
-  }
-  let avg_rating: number | null | undefined;
-  if (d.avg_rating !== undefined) {
-    if (typeof d.avg_rating === "number" && Number.isFinite(d.avg_rating)) avg_rating = d.avg_rating;
-    else {
-      const n = Number(d.avg_rating);
-      avg_rating = Number.isFinite(n) ? n : null;
-    }
-  }
-  return { company_level, avg_score, total_feedbacks, avg_rating };
+  const parsed = parseCompanyEvaluationRpc(data);
+  if (!parsed) return null;
+  return {
+    company_level: parsed.company_level,
+    avg_score: parsed.avg_score,
+    total_feedbacks: parsed.total_feedbacks,
+    avg_rating: parsed.avg_rating,
+    is_new_company: parsed.is_new_company,
+    evaluation_enabled: parsed.evaluation_enabled,
+    acceptance_ratio_pct: parsed.acceptance_ratio_pct,
+    completion_rate_pct: parsed.completion_rate_pct,
+    company_score: parsed.company_score,
+  };
 }
 
 async function loadCompanyEvaluations(
@@ -358,7 +351,12 @@ export async function POST(request: Request) {
           `TITLE: ${normalizeText(p.title, 300)}`,
           `COMPANY_ID: ${cid}`,
           `COMPANY_NAME: ${sp.company_name}`,
-          `COMPANY_LEVEL (W/G/B): ${evalAgg?.company_level ?? "unknown"} (white=stronger aggregate training feedback, gray=mid, black=lower; null=no data)`,
+          `COMPANY_LEVEL (W/G/B): ${evalAgg?.company_level ?? "unknown"} (white=stronger weighted score, gray=mid, black=lower; null=new or insufficient data)`,
+          `COMPANY_NEW: ${evalAgg?.is_new_company ? "yes" : "no"}`,
+          `COMPANY_EVAL_PUBLIC: ${evalAgg?.evaluation_enabled ? "yes" : "no"}`,
+          `COMPANY_WEIGHTED_SCORE_0_TO_1: ${evalAgg?.company_score ?? "null"}`,
+          `COMPANY_ACCEPTANCE_RATE_PCT: ${evalAgg?.acceptance_ratio_pct ?? "null"}`,
+          `COMPANY_COMPLETION_RATE_PCT: ${evalAgg?.completion_rate_pct ?? "null"}`,
           `COMPANY_TRAINING_AVG_SCORE_0_TO_1: ${evalAgg?.avg_score ?? "null"}`,
           `N_TRAINING_EVALUATIONS: ${evalAgg?.total_feedbacks ?? 0}`,
           `MATCH_PERCENT_SEMANTIC: ${sp.match_percentage != null ? `${sp.match_percentage}% (cosine similarity of profile vs listing embeddings when both exist)` : "not_computed"}`,
@@ -385,6 +383,11 @@ export async function POST(request: Request) {
         loc,
         site,
         `level=${ev?.company_level ?? "n/a"}`,
+        `new=${ev?.is_new_company ? "yes" : "no"}`,
+        `eval_public=${ev?.evaluation_enabled ? "yes" : "no"}`,
+        `score=${ev?.company_score ?? "n/a"}`,
+        `accept_pct=${ev?.acceptance_ratio_pct ?? "n/a"}`,
+        `completion_pct=${ev?.completion_rate_pct ?? "n/a"}`,
         `avg=${ev?.avg_score ?? "n/a"}`,
         `n=${ev?.total_feedbacks ?? 0}`,
         desc ? `desc=${desc}` : "",
@@ -484,7 +487,9 @@ export async function POST(request: Request) {
       `your_training_evaluations=${(evaluations ?? []).length}`,
       `your_company_ratings=${(ratings ?? []).length}`,
       `has_internship_tracking=${internshipReportsCtx.hasInternshipTracking ? "yes" : "no"}`,
-      "company_level: white = stronger aggregate training feedback for that company, gray = mid, black = lower (from get_company_evaluation RPC; null = insufficient data).",
+      "company_level: white/gray/black from weighted company_score (acceptance ratio, completion, student feedback); null = new company or not enough data for public evaluation.",
+      "is_new_company: yes until the company has posted internships AND accepted at least one trainee.",
+      "evaluation_enabled: public scores/rankings only when the company has enough track record (3+ completed internships or 5+ student evaluations).",
       "match_percentage: semantic similarity 0–100 from student vs internship embeddings (same idea as /api/recommendations/internships) when both embeddings exist.",
     ].join("\n");
 

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Button, Card, EmptyState, Table } from "@/components/ui";
+import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
+import { DashboardPageSkeleton } from "@/components/loading";
+import { Badge, Button, EmptyState, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
 type RecentApplicationRow = {
@@ -13,7 +14,7 @@ type RecentApplicationRow = {
   companyName: string;
   internshipTitle: string;
   appliedAt: string;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "accepted" | "rejected" | "completed";
 };
 
 type DashboardCounts = {
@@ -36,11 +37,50 @@ const initialCounts: DashboardCounts = {
   pendingSupervisorRequests: 0,
 };
 
+function applicationStatusBadge(status: RecentApplicationRow["status"]) {
+  switch (status) {
+    case "pending":
+      return <Badge variant="warning">Pending</Badge>;
+    case "accepted":
+      return <Badge variant="success">Active</Badge>;
+    case "completed":
+      return <Badge variant="info">Completed</Badge>;
+    case "rejected":
+      return <Badge variant="danger">Rejected</Badge>;
+    default:
+      return <Badge>{status}</Badge>;
+  }
+}
+
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminName, setAdminName] = useState("Admin");
   const [counts, setCounts] = useState<DashboardCounts>(initialCounts);
   const [recentApplications, setRecentApplications] = useState<RecentApplicationRow[]>([]);
+
+  const totalPendingOnboarding = counts.pendingCompanyRequests + counts.pendingSupervisorRequests;
+
+  const welcomeSubtitle = useMemo(() => {
+    if (totalPendingOnboarding > 0) {
+      const parts: string[] = [];
+      if (counts.pendingCompanyRequests > 0) {
+        parts.push(
+          `${counts.pendingCompanyRequests} company request${counts.pendingCompanyRequests === 1 ? "" : "s"}`,
+        );
+      }
+      if (counts.pendingSupervisorRequests > 0) {
+        parts.push(
+          `${counts.pendingSupervisorRequests} supervisor request${counts.pendingSupervisorRequests === 1 ? "" : "s"}`,
+        );
+      }
+      return `${parts.join(" and ")} awaiting onboarding approval.`;
+    }
+    if (counts.applications > 0) {
+      return `${counts.applications} total application${counts.applications === 1 ? "" : "s"} across the platform.`;
+    }
+    return "Platform overview and key metrics.";
+  }, [totalPendingOnboarding, counts.pendingCompanyRequests, counts.pendingSupervisorRequests, counts.applications]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -69,6 +109,13 @@ export default function AdminDashboardPage() {
         setLoading(false);
         return;
       }
+
+      const emailPrefix = user.email?.split("@")[0]?.trim() || "Admin";
+      const resolvedName =
+        (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
+        (typeof user.user_metadata?.name === "string" && user.user_metadata.name.trim()) ||
+        emailPrefix;
+      setAdminName(resolvedName);
 
       const [
         studentsCountResult,
@@ -149,7 +196,7 @@ export default function AdminDashboardPage() {
           student_id: string;
           position_id: string;
           applied_at: string;
-          status: "pending" | "accepted" | "rejected";
+          status: "pending" | "accepted" | "rejected" | "completed";
         }[];
 
       if (safeApplications.length === 0) {
@@ -223,86 +270,98 @@ export default function AdminDashboardPage() {
   }, []);
 
   return (
-    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
+    <main className="bg-gray-50 py-6 transition-colors duration-300 sm:py-8 dark:bg-gray-950">
       <Container>
-        <PageHeader
-          title="Admin Dashboard"
-          description="Platform overview and key metrics."
-        />
+        <section className="animate-fade-up rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
+                Welcome back, {adminName} 👋
+              </h1>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{welcomeSubtitle}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {totalPendingOnboarding > 0 ? (
+                <Link href="/admin/onboarding-requests">
+                  <Button variant="primary">Review pending requests ({totalPendingOnboarding})</Button>
+                </Link>
+              ) : null}
+              <Link
+                href="/admin/users"
+                className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
+              >
+                Manage users
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading dashboard...</p>
+          <DashboardPageSkeleton showWelcome={false} showTable className="mt-8" />
         ) : error ? (
-          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
+          <p className="mt-8 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            {error}
+          </p>
         ) : (
           <>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-              <Card>
-                <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Total students</p>
-                <p className="text-2xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">{counts.students}</p>
-              </Card>
-              <Card>
-                <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Total supervisors</p>
-                <p className="text-2xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">{counts.supervisors}</p>
-              </Card>
-              <Card>
-                <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Total companies</p>
-                <p className="text-2xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">{counts.companies}</p>
-              </Card>
-              <Card>
-                <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Internship positions</p>
-                <p className="text-2xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">{counts.internshipPositions}</p>
-              </Card>
-              <Card>
-                <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Total applications</p>
-                <p className="text-2xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">{counts.applications}</p>
-              </Card>
-            </div>
             <section className="mt-8">
-              <Card>
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-                      Onboarding approvals
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                      Review pending company and supervisor onboarding requests.
-                    </p>
-                  </div>
-                  <Link href="/admin/onboarding-requests">
-                    <Button variant="primary">Review Pending Requests</Button>
-                  </Link>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-800/60">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                      Pending Company
-                    </p>
-                    <p className="mt-1 text-xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">
-                      {counts.pendingCompanyRequests}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-800/60">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                      Pending Supervisor
-                    </p>
-                    <p className="mt-1 text-xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">
-                      {counts.pendingSupervisorRequests}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-800/60">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                      Total Pending
-                    </p>
-                    <p className="mt-1 text-xl font-bold text-gray-900 transition-colors duration-300 dark:text-white">
-                      {counts.pendingCompanyRequests + counts.pendingSupervisorRequests}
-                    </p>
-                  </div>
-                </div>
-              </Card>
+              <DashboardStatGrid>
+                <DashboardStatCard
+                  label="Total students"
+                  value={counts.students}
+                  cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
+                />
+                <DashboardStatCard
+                  label="Total supervisors"
+                  value={counts.supervisors}
+                  cardClass="bg-indigo-100 text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-300"
+                />
+                <DashboardStatCard
+                  label="Total companies"
+                  value={counts.companies}
+                  cardClass="bg-teal-100 text-teal-900 dark:bg-teal-500/10 dark:text-teal-300"
+                />
+                <DashboardStatCard
+                  label="Total applications"
+                  value={counts.applications}
+                  cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
+                />
+              </DashboardStatGrid>
             </section>
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Recent applications</h2>
-              <p className="mt-1 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">Latest platform-wide internship applications.</p>
+
+            <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Onboarding approvals</h2>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    Review pending company and supervisor onboarding requests.
+                  </p>
+                </div>
+                <Link href="/admin/onboarding-requests">
+                  <Button variant="primary">Review pending requests</Button>
+                </Link>
+              </div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <article className="animate-fade-up rounded-2xl bg-amber-100 p-5 text-amber-900 shadow-sm dark:bg-amber-500/10 dark:text-amber-300">
+                  <p className="text-sm font-medium">Pending company</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{counts.pendingCompanyRequests}</p>
+                </article>
+                <article className="animate-fade-up rounded-2xl bg-orange-100 p-5 text-orange-900 shadow-sm dark:bg-orange-500/10 dark:text-orange-300">
+                  <p className="text-sm font-medium">Pending supervisor</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{counts.pendingSupervisorRequests}</p>
+                </article>
+                <article className="animate-fade-up rounded-2xl bg-violet-100 p-5 text-violet-900 shadow-sm dark:bg-violet-500/10 dark:text-violet-300">
+                  <p className="text-sm font-medium">Internship positions</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums">{counts.internshipPositions}</p>
+                </article>
+              </div>
+            </section>
+
+            <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recent applications</h2>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Latest platform-wide internship applications.
+              </p>
               {recentApplications.length === 0 ? (
                 <EmptyState
                   className="mt-4"
@@ -310,18 +369,20 @@ export default function AdminDashboardPage() {
                   description="Recent applications will appear here once students start applying."
                 />
               ) : (
-                <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
+                <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                   <Table
                     headers={["Student", "Company", "Internship", "Applied", "Status"]}
                     className="dark:divide-slate-800 dark:[&_thead]:bg-slate-800 dark:[&_tbody]:bg-slate-900 dark:[&_th]:border-slate-800 dark:[&_th]:text-slate-300 dark:[&_tr]:border-slate-800"
                   >
                     {recentApplications.map((row) => (
                       <tr key={row.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
-                        <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{row.studentName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.companyName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">{row.internshipTitle}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.appliedAt}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm capitalize text-gray-600 transition-colors duration-300 dark:text-slate-400">{row.status}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.studentName}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{row.companyName}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.internshipTitle}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
+                          {row.appliedAt}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm">{applicationStatusBadge(row.status)}</td>
                       </tr>
                     ))}
                   </Table>
