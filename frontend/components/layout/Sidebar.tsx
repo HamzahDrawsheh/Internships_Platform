@@ -10,6 +10,7 @@ const studentLinks = [
   { label: "Browse Internships", href: "/internships", icon: "💼" },
   { label: "Browse Companies", href: "/companies", icon: "🏢" },
   { label: "My Applications", href: "/applications", icon: "📄" },
+  { label: "Monthly Reports", href: "/dashboard/student/internship-reports", icon: "📅" },
   { label: "CV Builder", href: "/resume-builder", icon: "📋" },
   { label: "Profile", href: "/profile/student", icon: "👤" },
 ];

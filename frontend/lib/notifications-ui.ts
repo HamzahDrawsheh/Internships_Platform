@@ -11,7 +11,17 @@ export type NotificationRowType =
   | "new_application"
   | "new_feedback"
   | "new_training_evaluation"
-  | "new_direct_message";
+  | "new_direct_message"
+  | "monthly_report_unlocked"
+  | "monthly_report_overdue"
+  | "monthly_report_pending_employer"
+  | "monthly_report_pending_supervisor"
+  | "monthly_report_approved"
+  | "monthly_report_rejected"
+  | "internship_pending_supervisor"
+  | "internship_supervisor_approved"
+  | "final_report_required"
+  | "final_report_submitted";
 
 export type NotificationRow = {
   id: string;
@@ -21,6 +31,8 @@ export type NotificationRow = {
   is_read: boolean;
   created_at: string;
   related_conversation_id?: string | null;
+  related_internship_id?: string | null;
+  related_monthly_report_id?: string | null;
 };
 
 export function getNotificationTypeStyles(type: NotificationRowType) {
@@ -77,6 +89,50 @@ export function getNotificationTypeStyles(type: NotificationRowType) {
       icon: "💬",
       accentClass: "border-l-fuchsia-500",
       titleClass: "text-fuchsia-800 dark:text-fuchsia-300",
+    };
+  }
+
+  if (
+    type === "monthly_report_unlocked" ||
+    type === "monthly_report_overdue" ||
+    type === "final_report_required"
+  ) {
+    return {
+      icon: "📅",
+      accentClass: "border-l-orange-500",
+      titleClass: "text-orange-800 dark:text-orange-300",
+    };
+  }
+
+  if (type === "monthly_report_pending_employer" || type === "monthly_report_pending_supervisor") {
+    return {
+      icon: "📝",
+      accentClass: "border-l-amber-500",
+      titleClass: "text-amber-800 dark:text-amber-300",
+    };
+  }
+
+  if (type === "monthly_report_approved" || type === "internship_supervisor_approved" || type === "final_report_submitted") {
+    return {
+      icon: "✅",
+      accentClass: "border-l-green-500",
+      titleClass: "text-green-800 dark:text-green-300",
+    };
+  }
+
+  if (type === "monthly_report_rejected") {
+    return {
+      icon: "↩️",
+      accentClass: "border-l-red-500",
+      titleClass: "text-red-800 dark:text-red-300",
+    };
+  }
+
+  if (type === "internship_pending_supervisor") {
+    return {
+      icon: "🎓",
+      accentClass: "border-l-indigo-500",
+      titleClass: "text-indigo-800 dark:text-indigo-300",
     };
   }
 

@@ -9,6 +9,7 @@ const companyLinks = [
   { label: "My Internship Posts", href: "/company/internships" },
   { label: "Create Internship", href: "/company/internships/new" },
   { label: "Applications", href: "/company/applications" },
+  { label: "Trainee Reports", href: "/company/internship-reports" },
   { label: "Company Profile", href: "/profile/company" },
 ];
 

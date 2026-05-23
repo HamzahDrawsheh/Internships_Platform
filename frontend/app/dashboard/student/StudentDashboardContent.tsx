@@ -6,7 +6,10 @@ import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-
 import { createClient } from "@/lib/supabase/client";
 import type { Application } from "@/lib/types";
 import StudentAssistantChat from "@/components/chat/StudentAssistantChat";
+import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
 import { Button, Modal } from "@/components/ui";
+import { canStudentSubmitReport } from "@/lib/internship-reports/helpers";
+import { ensureStudentInternshipTracking } from "@/lib/internship-reports/sync-status";
 
 export default function StudentDashboardContent() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -19,6 +22,7 @@ export default function StudentDashboardContent() {
 
   const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
   const [gettingStartedStep, setGettingStartedStep] = useState(0);
+  const [reportsDueCount, setReportsDueCount] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -100,6 +104,31 @@ export default function StudentDashboardContent() {
       });
 
       setApplications(mapped);
+
+      try {
+        await ensureStudentInternshipTracking(supabase);
+        const { data: internships } = await supabase
+          .from("internships")
+          .select("id, status")
+          .eq("student_id", student.id)
+          .in("status", ["active", "pending_supervisor_approval"]);
+        let due = 0;
+        for (const i of internships ?? []) {
+          if (i.status === "pending_supervisor_approval") {
+            due += 1;
+            continue;
+          }
+          const { data: reps } = await supabase
+            .from("internship_monthly_reports")
+            .select("*")
+            .eq("internship_id", i.id);
+          due += (reps ?? []).filter((r) => canStudentSubmitReport(r, reps ?? [])).length;
+        }
+        setReportsDueCount(due);
+      } catch {
+        setReportsDueCount(0);
+      }
+
       setLoading(false);
     };
 
@@ -235,6 +264,24 @@ export default function StudentDashboardContent() {
           </div>
         </div>
       </section>
+
+      <DashboardReportWidget
+        count={reportsDueCount}
+        href="/dashboard/student/internship-reports"
+        label={reportsDueCount === 1 ? "report due — open monthly reports" : "reports due — open monthly reports"}
+      />
+
+      {accepted > 0 && (
+        <Link
+          href="/dashboard/student/internship-reports"
+          className="block rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-5 transition hover:border-purple-300 dark:border-purple-900/50 dark:from-purple-950/30 dark:to-indigo-950/20"
+        >
+          <p className="font-semibold text-purple-900 dark:text-purple-200">Monthly internship reports</p>
+          <p className="mt-1 text-sm text-purple-800/80 dark:text-purple-300/80">
+            Submit JUST monthly evaluation forms, track attendance, and upload your final report.
+          </p>
+        </Link>
+      )}
 
       <Modal
         isOpen={gettingStartedOpen}

@@ -8,6 +8,11 @@ import {
 } from "@/lib/server/in-memory-user-rate-limit";
 import { cosineSimilarity, parsePgVector } from "@/lib/ai/vector-utils";
 import { buildMatchInsights } from "@/lib/ai/match-insights";
+import {
+  buildStudentInternshipReportsContext,
+  isReportRelatedQuestion,
+  rankReportLinesForQuestion,
+} from "@/lib/ai/student-assistant-internship-context";
 
 type ChatBody = {
   message?: string;
@@ -227,6 +232,8 @@ export async function POST(request: Request) {
     const studentVec = parsePgVector(
       (student as { embedding?: unknown }).embedding ?? null
     );
+
+    const internshipReportsCtx = await buildStudentInternshipReportsContext(admin, studentId);
 
     const [{ data: applications }, { data: allCompanies }, { data: allActivePositions }] =
       await Promise.all([
@@ -476,6 +483,7 @@ export async function POST(request: Request) {
       `your_applications=${(applications ?? []).length}`,
       `your_training_evaluations=${(evaluations ?? []).length}`,
       `your_company_ratings=${(ratings ?? []).length}`,
+      `has_internship_tracking=${internshipReportsCtx.hasInternshipTracking ? "yes" : "no"}`,
       "company_level: white = stronger aggregate training feedback for that company, gray = mid, black = lower (from get_company_evaluation RPC; null = insufficient data).",
       "match_percentage: semantic similarity 0–100 from student vs internship embeddings (same idea as /api/recommendations/internships) when both embeddings exist.",
     ].join("\n");
@@ -484,6 +492,7 @@ export async function POST(request: Request) {
       platformSummary,
       studentProfileBlock,
       additionalBlock,
+      internshipReportsCtx.contextBlock,
       "=== COMPANY_DIRECTORY (all loaded companies + aggregates) ===\n" + companyDirectoryLines.join("\n"),
       "=== INTERNSHIP_MATCH_INDEX (compact, best match first) ===\n" + matchIndexLines.join("\n"),
       "=== INTERNSHIP_DETAILS (applied + top semantic matches; includes match insights) ===\n" +
@@ -495,6 +504,18 @@ export async function POST(request: Request) {
 
     let contextText = contextParts.join("\n\n");
     contextText = truncateContext(contextText, MAX_CONTEXT_CHARS);
+
+    const reportRanked = rankReportLinesForQuestion(internshipReportsCtx.reportSummaryLines, message);
+    if (reportRanked.length > 0 || isReportRelatedQuestion(message)) {
+      const lines =
+        reportRanked.length > 0
+          ? reportRanked
+          : internshipReportsCtx.reportSummaryLines.slice(0, 8);
+      contextText = truncateContext(
+        `${contextText}\n\n=== TOP_MONTHLY_REPORTS_FOR_THIS_QUESTION (retrieved from your data) ===\n${lines.join("\n")}`,
+        MAX_CONTEXT_CHARS
+      );
+    }
 
     const queryEmbedding = await embedQuery(message);
     if (queryEmbedding && positionsList.length > 0) {
@@ -538,7 +559,9 @@ DATA YOU HAVE:
   - company_level "white" | "gray" | "black" = W / G / B style band from pooled student training evaluations (white = stronger average, black = lower); null / n/a = not enough data.
 - Active internships (loaded cap), each with semantic match_percentage vs this student's profile when embeddings exist (same family as the recommendations API).
 - This student's applications, training evaluations, and star ratings.
-- Optional "TOP_POSITIONS_FOR_THIS_QUESTION" lines when the student's question is embedded against listings.
+- **Monthly JUST internship reports**: live tracking per internship (status per month, due dates, what Part I sections are filled, attendance summary, next action, form URLs). Section MONTHLY_INTERNSHIP_REPORTS_GUIDE + YOUR_INTERNSHIP_TRACKING & MONTHLY REPORTS.
+- Optional "TOP_POSITIONS_FOR_THIS_QUESTION" when the question is embedded against listings.
+- Optional "TOP_MONTHLY_REPORTS_FOR_THIS_QUESTION" when the question matches report keywords or report lines.
 
 TONE:
 - Be kind, encouraging, and conversational.
@@ -549,8 +572,18 @@ TONE:
   2) Upload CV (optional)
   3) Browse internships + apply
   4) Track applications
-  5) After completion: submit training evaluation + company rating
-  Mention they can open the "Getting started" wizard on the Student Dashboard for the same guided steps.
+  5) After acceptance: complete **monthly JUST internship reports** each month (Student Part I → employer → university supervisor) via Monthly internship reports in the dashboard
+  6) After all months approved + internship end date: upload **final report** PDF
+  7) After completion: submit training evaluation + company rating
+  Mention they can open the "Getting started" wizard on the Student Dashboard for application steps, and **Monthly internship reports** for the JUST workflow.
+
+MONTHLY REPORT QUESTIONS:
+- Use ONLY YOUR_INTERNSHIP_TRACKING & MONTHLY REPORTS data for statuses, due dates, and next actions.
+- Give concrete steps: which month to open, which wizard step (Basic info / Assignments / Weekly / Review), and the exact path from NEXT_ACTION or open_form in context.
+- If student_can_submit=no, explain who must act next (employer or supervisor) or why the month is locked.
+- If revision_requested is set, tell them what to fix and that they can edit only when status allows (rejected / overdue / unlocked).
+- Attendance is entered by the employer; student sees a read-only summary on the Review step.
+- Never invent report statuses or due dates not in context.
 
 CRITICAL RULES (anti-hallucination):
 - For facts (names, levels, match %, statuses): use ONLY the CONTEXT below.

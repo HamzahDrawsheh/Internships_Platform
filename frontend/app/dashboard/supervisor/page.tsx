@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { Container } from "@/components/layout/Container";
 import { SupervisorAiInsights } from "@/components/supervisor/SupervisorAiInsights";
+import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
+import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
 import { createClient } from "@/lib/supabase/client";
 
 type PreviewStudent = {
@@ -36,6 +38,7 @@ export default function SupervisorDashboardPage() {
 
   const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
   const [gettingStartedStep, setGettingStartedStep] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -175,6 +178,23 @@ export default function SupervisorDashboardPage() {
       });
       setPreviewStudents(mappedPreview);
 
+      const { data: activeInternships } = await supabase
+        .from("internships")
+        .select("id")
+        .in("student_id", studentIds)
+        .eq("status", "active");
+      let pendingApprovals = 0;
+      for (const i of activeInternships ?? []) {
+        await syncInternshipReportStatuses(supabase, i.id);
+        const { count } = await supabase
+          .from("internship_monthly_reports")
+          .select("*", { count: "exact", head: true })
+          .eq("internship_id", i.id)
+          .eq("status", "pending_supervisor");
+        pendingApprovals += count ?? 0;
+      }
+      setPendingApprovalCount(pendingApprovals);
+
       setLoading(false);
     };
 
@@ -310,6 +330,14 @@ export default function SupervisorDashboardPage() {
             </div>
           </div>
         </section>
+
+        <div className="mt-6">
+          <DashboardReportWidget
+            count={pendingApprovalCount}
+            href="/supervisor/internship-reports"
+            label={pendingApprovalCount === 1 ? "approval pending" : "approvals pending"}
+          />
+        </div>
 
         <Modal
           isOpen={gettingStartedOpen}

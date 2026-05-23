@@ -8,6 +8,7 @@ const adminLinks = [
   { label: "Onboarding Requests", href: "/admin/onboarding-requests" },
   { label: "Users", href: "/admin/users" },
   { label: "Internships", href: "/admin/internships" },
+  { label: "Internship Reports", href: "/admin/internship-reports" },
   { label: "Analytics", href: "/admin/analytics" },
 ];
 

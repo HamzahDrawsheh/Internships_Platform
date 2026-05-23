@@ -8,6 +8,7 @@ const supervisorLinks = [
   { label: "Messages", href: "/supervisor/messages", icon: "💬" },
   { label: "Students", href: "/supervisor/students", icon: "👥" },
   { label: "Applications", href: "/supervisor/reports", icon: "📄" },
+  { label: "Monthly Reports", href: "/supervisor/internship-reports", icon: "📅" },
   { label: "Profile", href: "/supervisor/profile", icon: "👤" },
 ];
 

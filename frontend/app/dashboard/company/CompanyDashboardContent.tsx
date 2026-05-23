@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Table, Badge } from "@/components/ui";
 import { CompanyAiFeedbackSummary } from "@/components/companies/CompanyAiFeedbackSummary";
+import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
+import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
 
 type Row = { id: string; status: string; applied_at: string; internship_title?: string; student_name?: string };
 type RatingRow = { id: string; rating: number; feedback: string | null; created_at: string };
@@ -15,6 +17,7 @@ export default function CompanyDashboardContent() {
   const [ratings, setRatings] = useState<RatingRow[]>([]);
   const [averageRating, setAverageRating] = useState<number | null>(null);
   const [companyRecordId, setCompanyRecordId] = useState<string | null>(null);
+  const [pendingEvalCount, setPendingEvalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -118,6 +121,22 @@ export default function CompanyDashboardContent() {
         setAverageRating(null);
       }
 
+      const { data: internships } = await supabase
+        .from("internships")
+        .select("id")
+        .eq("company_id", company.id)
+        .eq("status", "active");
+      let evalPending = 0;
+      for (const i of internships ?? []) {
+        await syncInternshipReportStatuses(supabase, i.id);
+        const { data: reps } = await supabase
+          .from("internship_monthly_reports")
+          .select("status")
+          .eq("internship_id", i.id);
+        evalPending += (reps ?? []).filter((r) => r.status === "pending_employer" || r.status === "overdue").length;
+      }
+      setPendingEvalCount(evalPending);
+
       setLoading(false);
     });
   }, []);
@@ -146,6 +165,11 @@ export default function CompanyDashboardContent() {
 
   return (
     <div className="mt-8 space-y-8">
+      <DashboardReportWidget
+        count={pendingEvalCount}
+        href="/company/internship-reports"
+        label={pendingEvalCount === 1 ? "evaluation pending" : "evaluations pending"}
+      />
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <article className="animate-fade-up rounded-2xl bg-purple-100 p-6 text-purple-900 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md dark:bg-purple-500/10 dark:text-purple-300">
           <p className="text-sm font-medium">Active internships</p>

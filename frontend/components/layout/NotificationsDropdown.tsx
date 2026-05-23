@@ -3,12 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { notificationConversationHref } from "@/lib/messaging";
-import {
-  formatNotificationDate,
-  getNotificationTypeStyles,
-  type NotificationRow,
-} from "@/lib/notifications-ui";
+import { type NotificationRow } from "@/lib/notifications-ui";
+import { NotificationListItem } from "@/components/internship-reports/NotificationListItem";
 
 const PANEL_LIMIT = 12;
 
@@ -70,7 +66,7 @@ export default function NotificationsDropdown({ enabled }: Props) {
 
     const { data, error: qErr } = await supabase
       .from("notifications")
-      .select("id, title, message, type, is_read, created_at, related_conversation_id")
+      .select("id, title, message, type, is_read, created_at, related_conversation_id, related_internship_id, related_monthly_report_id")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(PANEL_LIMIT);
@@ -194,48 +190,14 @@ export default function NotificationsDropdown({ enabled }: Props) {
                 </p>
               ) : (
                 <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {items.map((n) => {
-                    const st = getNotificationTypeStyles(n.type);
-                    const dmHref = notificationConversationHref(viewerRole, n.related_conversation_id);
-                    const inner = (
-                      <div className="flex gap-2">
-                        <span className="shrink-0 text-base leading-snug" aria-hidden>
-                          {st.icon}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-xs font-semibold leading-snug ${st.titleClass}`}>{n.title}</p>
-                          <p className="mt-0.5 text-xs leading-snug text-slate-600 dark:text-slate-300">{n.message}</p>
-                          <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                            {formatNotificationDate(n.created_at)}
-                            {!n.is_read ? (
-                              <span className="ml-2 inline-block rounded-full bg-blue-100 px-1.5 py-0 text-[9px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
-                                New
-                              </span>
-                            ) : null}
-                            {dmHref ? (
-                              <span className="ml-2 font-medium text-[#7C3AED] dark:text-purple-300">Open chat →</span>
-                            ) : null}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                    return (
-                      <li
-                        key={n.id}
-                        className={`border-l-4 ${st.accentClass} px-3 py-2.5 transition-colors ${
-                          n.is_read ? "bg-white dark:bg-slate-900" : "bg-blue-50/40 dark:bg-slate-800/50"
-                        }`}
-                      >
-                        {dmHref ? (
-                          <Link href={dmHref} className="-m-1 block rounded-lg p-1 hover:bg-slate-50/80 dark:hover:bg-slate-800/80" onClick={() => setOpen(false)}>
-                            {inner}
-                          </Link>
-                        ) : (
-                          inner
-                        )}
-                      </li>
-                    );
-                  })}
+                  {items.map((n) => (
+                    <NotificationListItem
+                      key={n.id}
+                      n={n}
+                      viewerRole={viewerRole}
+                      onNavigate={() => setOpen(false)}
+                    />
+                  ))}
                 </ul>
               )}
             </div>
