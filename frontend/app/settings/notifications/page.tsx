@@ -10,12 +10,14 @@ import {
   NOTIFICATION_SETTING_FIELDS,
   type ProfileNotificationSettings,
 } from "@/lib/notification-preferences";
+import { useI18n } from "@/lib/i18n/context";
 import {
   loadNotificationSettings,
   saveNotificationSettings,
 } from "@/lib/notification-settings";
 
 export default function NotificationSettingsPage() {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<ProfileNotificationSettings>(
     DEFAULT_NOTIFICATION_SETTINGS
   );
@@ -112,8 +114,8 @@ export default function NotificationSettingsPage() {
     <main className="min-h-screen bg-gray-50 py-8 transition-colors duration-300 dark:bg-gray-950">
       <Container>
         <PageHeader
-          title="Notification preferences"
-          description="Choose how you want to receive updates from the platform."
+          title={t("settings.notifications.title")}
+          description={t("settings.notifications.description")}
         />
 
         {error && (
@@ -127,7 +129,7 @@ export default function NotificationSettingsPage() {
                 disabled={loading}
                 onClick={() => void runLoad()}
               >
-                {loading ? "Retrying…" : "Try again"}
+                {loading ? t("settings.notifications.retrying") : t("settings.notifications.tryAgain")}
               </Button>
             )}
           </div>
@@ -138,18 +140,18 @@ export default function NotificationSettingsPage() {
             className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
             role="status"
           >
-            Preferences saved.
+            {t("settings.notifications.saved")}
           </div>
         )}
 
         <Card className="p-6">
           {loading ? (
             <p className="text-sm text-gray-600 dark:text-slate-400" role="status">
-              Loading preferences…
+              {t("settings.notifications.loading")}
             </p>
           ) : (
             <fieldset className="space-y-3" disabled={saving || Boolean(error)}>
-              <legend className="sr-only">Notification channels</legend>
+              <legend className="sr-only">{t("settings.notifications.channelsLegend")}</legend>
               {NOTIFICATION_SETTING_FIELDS.map((field) => (
                 <label
                   key={field.key}
@@ -164,10 +166,10 @@ export default function NotificationSettingsPage() {
                   />
                   <span>
                     <span className="block text-sm font-semibold text-gray-900 dark:text-white">
-                      {field.label}
+                      {t(field.labelKey)}
                     </span>
                     <span className="mt-1 block text-sm text-gray-600 dark:text-slate-400">
-                      {field.description}
+                      {t(field.descriptionKey)}
                     </span>
                   </span>
                 </label>
@@ -181,12 +183,12 @@ export default function NotificationSettingsPage() {
               onClick={() => void handleSave()}
               disabled={loading || saving || Boolean(error)}
             >
-              {saving ? "Saving…" : "Save preferences"}
+              {saving ? t("settings.notifications.saving") : t("settings.notifications.save")}
             </Button>
             <p className="text-xs text-gray-500 dark:text-slate-500">
-              Defaults: website and email on, marketing off. Run{" "}
+              {t("settings.notifications.defaultsHintPrefix")}{" "}
               <code className="rounded bg-gray-100 px-1 dark:bg-slate-800">npm run supabase:push</code>{" "}
-              after pulling schema updates.
+              {t("settings.notifications.defaultsHintSuffix")}
             </p>
           </div>
         </Card>

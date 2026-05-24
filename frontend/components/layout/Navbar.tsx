@@ -12,7 +12,9 @@ import { AppBrand } from "@/components/layout/AppBrand";
 import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell";
 import { useI18n } from "@/lib/i18n/context";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { getRoleDashboardPath } from "@/lib/role-home";
 import { createClient } from "@/lib/supabase/client";
+import type { ProfileRole } from "@/lib/types";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -65,18 +67,7 @@ export default function Navbar() {
         .eq("id", session.user.id)
         .maybeSingle();
 
-      const role = profile?.role;
-      if (role === "student") {
-        setHomeHref("/dashboard/student");
-      } else if (role === "supervisor") {
-        setHomeHref("/dashboard/supervisor");
-      } else if (role === "company") {
-        setHomeHref("/dashboard/company");
-      } else if (role === "admin") {
-        setHomeHref("/admin/dashboard");
-      } else {
-        setHomeHref("/onboarding");
-      }
+      setHomeHref(getRoleDashboardPath(profile?.role as ProfileRole | undefined));
     };
 
     resolveHomeHref();
@@ -109,6 +100,20 @@ export default function Navbar() {
               <span className="hidden md:inline">{themeMounted && theme === "dark" ? t("common.light") : t("common.dark")}</span>
             </button>
 
+            {!isHomePage && isAuthenticated && (
+              <Link
+                href={homeHref}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                title={t("nav.home")}
+                aria-label={t("nav.home")}
+              >
+                <span className="text-base" aria-hidden>
+                  🏠
+                </span>
+                <span className="hidden md:inline">{t("nav.home")}</span>
+              </Link>
+            )}
+
             {isHomePage && (
               <div className="flex items-center gap-2 sm:gap-3">
                 <Link
@@ -138,7 +143,7 @@ export default function Navbar() {
                   className="rounded-xl p-2 text-slate-900 transition-colors duration-300 hover:bg-[#F3E8FF] dark:text-white dark:hover:bg-slate-800"
                   aria-expanded={accountOpen}
                   aria-haspopup="true"
-                  aria-label="Account menu"
+                  aria-label={t("common.accountMenu")}
                 >
                   <span className="text-lg" aria-hidden>👤</span>
                 </button>
@@ -161,7 +166,7 @@ export default function Navbar() {
                             className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                             role="menuitem"
                           >
-                            Notification settings
+                            {t("nav.notificationSettings")}
                           </Link>
                         </div>
                       )}

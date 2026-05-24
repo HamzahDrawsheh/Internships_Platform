@@ -27,23 +27,23 @@ export const DEFAULT_NOTIFICATION_SETTINGS: ProfileNotificationSettings = {
 
 export const NOTIFICATION_SETTING_FIELDS: {
   key: keyof ProfileNotificationSettings;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
 }[] = [
   {
     key: "push_notifications",
-    label: "Website notifications",
-    description: "Show alerts in the app (bell icon and notifications page).",
+    labelKey: "settings.notifications.websiteLabel",
+    descriptionKey: "settings.notifications.websiteDescription",
   },
   {
     key: "email_notifications",
-    label: "Email notifications",
-    description: "Receive platform updates by email when supported.",
+    labelKey: "settings.notifications.emailLabel",
+    descriptionKey: "settings.notifications.emailDescription",
   },
   {
     key: "marketing_notifications",
-    label: "Marketing emails",
-    description: "News, tips, and promotional messages (optional).",
+    labelKey: "settings.notifications.marketingLabel",
+    descriptionKey: "settings.notifications.marketingDescription",
   },
 ];
 
