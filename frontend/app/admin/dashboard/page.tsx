@@ -292,6 +292,12 @@ export default function AdminDashboardPage() {
               >
                 Manage users
               </Link>
+              <Link
+                href="/admin/feedbacks"
+                className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
+              >
+                Moderate feedback
+              </Link>
             </div>
           </div>
         </section>

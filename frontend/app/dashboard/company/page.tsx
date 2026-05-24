@@ -134,14 +134,21 @@ export default function CompanyDashboardPage() {
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{welcomeHint}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={() => { setGettingStartedStep(0); setGettingStartedOpen(true); }}>
+            <div className="flex flex-wrap items-stretch gap-3">
+              <Button
+                variant="primary"
+                className="min-w-[13rem] justify-center px-5 py-2.5"
+                onClick={() => {
+                  setGettingStartedStep(0);
+                  setGettingStartedOpen(true);
+                }}
+              >
                 Getting started
               </Button>
-              <Link href="/company/internships/new">
+              <Link href="/company/internships/new" className="inline-flex min-w-[13rem]">
                 <Button
                   variant="primary"
-                  className="inline-flex items-center rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2.5 font-medium text-white shadow-sm shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+                  className="w-full min-w-[13rem] justify-center rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2.5 font-medium text-white shadow-sm shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
                 >
                   <span aria-hidden>＋</span>
                   Create internship

@@ -1,0 +1,39 @@
+export type StudentPlacementStatus = "Completed" | "Active" | "Pending" | "Available";
+
+export function deriveStudentPlacementStatus(applications: { status: string }[]): StudentPlacementStatus {
+  if (applications.length === 0) return "Available";
+
+  const hasCompleted = applications.some((a) => a.status === "completed");
+  const hasAccepted = applications.some((a) => a.status === "accepted");
+  const hasPending = applications.some((a) => a.status === "pending");
+
+  if (hasCompleted) return "Completed";
+  if (hasAccepted) return "Active";
+  if (hasPending) return "Pending";
+  return "Available";
+}
+
+export function placementStatusBadgeVariant(
+  status: StudentPlacementStatus,
+): "default" | "success" | "warning" | "danger" | "info" {
+  if (status === "Completed" || status === "Active") return "success";
+  if (status === "Pending") return "warning";
+  if (status === "Available") return "info";
+  return "default";
+}
+
+export function applicationStatusBadgeVariant(
+  status: string,
+): "default" | "success" | "warning" | "danger" | "info" {
+  const k = status.trim().toLowerCase();
+  if (k === "accepted" || k === "completed") return "success";
+  if (k === "pending") return "warning";
+  if (k === "rejected") return "danger";
+  return "default";
+}
+
+export function formatApplicationStatusLabel(status: string): string {
+  const k = status.trim().toLowerCase();
+  if (!k || k === "unknown") return "Unknown";
+  return k.charAt(0).toUpperCase() + k.slice(1);
+}

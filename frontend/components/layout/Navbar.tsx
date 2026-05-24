@@ -9,9 +9,9 @@ import { MessagesNavbarButton } from "@/components/messaging/MessagesNavbarButto
 import NotificationsDropdown from "@/components/layout/NotificationsDropdown";
 import { LandingHomeNav } from "@/components/landing/LandingHomeNav";
 import { AppBrand } from "@/components/layout/AppBrand";
+import { SidebarIcon } from "@/components/layout/SidebarIcon";
 import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell";
 import { useI18n } from "@/lib/i18n/context";
-import { LogoutButton } from "@/components/auth/logout-button";
 import { getRoleDashboardPath } from "@/lib/role-home";
 import { createClient } from "@/lib/supabase/client";
 import type { ProfileRole } from "@/lib/types";
@@ -21,7 +21,6 @@ export default function Navbar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [homeHref, setHomeHref] = useState("/onboarding");
   const [themeMounted, setThemeMounted] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const roleResolvedRef = useRef(false);
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
@@ -81,13 +80,16 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className={NAVBAR_CLASS}>
+      <nav id="site-navbar" data-i18n-skip dir="ltr" className={`${NAVBAR_CLASS} ${NAVBAR_HEIGHT_CLASS}`}>
         <div className={`flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`}>
-        <AppBrand href={brandHref} className="shrink-0 pl-2 sm:pl-3" />
+        <div className="flex shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3">
+          <div id="navbar-sidebar-toggle-slot" className="flex items-center" />
+          <AppBrand href={brandHref} className="shrink-0" />
+        </div>
 
         {isHomePage ? <LandingHomeNav /> : <div className="hidden flex-1 lg:block" aria-hidden />}
 
-        <div className="flex shrink-0 items-center gap-2 pr-2 sm:gap-3 sm:pr-3 lg:pr-4">
+        <div className="ms-auto flex shrink-0 items-center gap-2 pe-2 sm:gap-3 sm:pe-3 lg:pe-4">
             <LanguageToggle />
 
             <button
@@ -96,7 +98,7 @@ export default function Navbar() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
               aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
             >
-              <span aria-hidden>{themeMounted && theme === "dark" ? "☀️" : "🌙"}</span>
+              <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
               <span className="hidden md:inline">{themeMounted && theme === "dark" ? t("common.light") : t("common.dark")}</span>
             </button>
 
@@ -107,9 +109,7 @@ export default function Navbar() {
                 title={t("nav.home")}
                 aria-label={t("nav.home")}
               >
-                <span className="text-base" aria-hidden>
-                  🏠
-                </span>
+                <SidebarIcon name="dashboard" />
                 <span className="hidden md:inline">{t("nav.home")}</span>
               </Link>
             )}
@@ -134,60 +134,6 @@ export default function Navbar() {
             {!isHomePage && <MessagesNavbarButton enabled={isAuthenticated} />}
 
             {!isHomePage && <NotificationsDropdown enabled={isAuthenticated} />}
-
-            {!isHomePage && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setAccountOpen(!accountOpen)}
-                  className="rounded-xl p-2 text-slate-900 transition-colors duration-300 hover:bg-[#F3E8FF] dark:text-white dark:hover:bg-slate-800"
-                  aria-expanded={accountOpen}
-                  aria-haspopup="true"
-                  aria-label={t("common.accountMenu")}
-                >
-                  <span className="text-lg" aria-hidden>👤</span>
-                </button>
-                {accountOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      aria-hidden
-                      onClick={() => setAccountOpen(false)}
-                    />
-                    <div
-                      className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-lg transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900"
-                      role="menu"
-                    >
-                      {isAuthenticated && (
-                        <div className="px-2 py-1">
-                          <Link
-                            href="/settings/notifications"
-                            onClick={() => setAccountOpen(false)}
-                            className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                            role="menuitem"
-                          >
-                            {t("nav.notificationSettings")}
-                          </Link>
-                        </div>
-                      )}
-                      <div className="px-4 py-2">
-                        {isAuthenticated ? (
-                          <LogoutButton />
-                        ) : (
-                          <Link
-                            href="/auth/login"
-                            onClick={() => setAccountOpen(false)}
-                            className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-                          >
-                            {t("nav.login")}
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </nav>

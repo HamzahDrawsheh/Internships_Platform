@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { TableListPageSkeleton } from "@/components/loading";
-import { Badge, Button, EmptyState, Input, Modal, Select, Table } from "@/components/ui";
+import { CardGridSkeleton } from "@/components/loading";
+import { Badge, Button, EmptyState, Input, Modal, Select } from "@/components/ui";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
@@ -35,6 +34,16 @@ type StudentDetail = {
   technicalSkills: string[];
   takenCourses: string[];
 };
+
+function formatAppliedDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function statusLabel(status: ApplicationStatus): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 export default function CompanyApplicationsPage() {
   const [loading, setLoading] = useState(true);
@@ -474,6 +483,25 @@ export default function CompanyApplicationsPage() {
     });
   }, [applications, studentDetailById, search, statusFilter, positionFilter, hasCvFilter]);
 
+  const stats = useMemo(() => {
+    const pending = applications.filter((a) => a.status === "pending").length;
+    const accepted = applications.filter((a) => a.status === "accepted").length;
+    const completed = applications.filter((a) => a.status === "completed").length;
+    const withCv = applications.filter((a) => studentDetailById.get(a.student_id)?.hasCv).length;
+    return { total: applications.length, pending, accepted, completed, withCv };
+  }, [applications, studentDetailById]);
+
+  const statusFilterOptions: { value: "" | ApplicationStatus; label: string; count: number }[] = [
+    { value: "", label: "All", count: stats.total },
+    { value: "pending", label: "Pending", count: stats.pending },
+    { value: "accepted", label: "Accepted", count: stats.accepted },
+    { value: "rejected", label: "Rejected", count: applications.filter((a) => a.status === "rejected").length },
+    { value: "completed", label: "Completed", count: stats.completed },
+  ];
+
+  const hasActiveFilters =
+    search.trim().length > 0 || Boolean(statusFilter) || Boolean(positionFilter) || Boolean(hasCvFilter);
+
   const statusVariant = (status: ApplicationStatus) => {
     if (status === "accepted") return "success";
     if (status === "rejected") return "danger";
@@ -482,135 +510,208 @@ export default function CompanyApplicationsPage() {
   };
 
   return (
-    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
-    <Container>
-      <PageHeader
-        title="Applications"
-        description="All applications received for your internship posts."
-      />
+    <main className="pb-10 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
+      <Container>
+        <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-lg dark:border-indigo-500/20">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
+          <div className="relative p-6 sm:p-8">
+            <h1 className="text-2xl font-bold text-white sm:text-3xl">Applications</h1>
+            <p className="mt-2 max-w-xl text-sm text-indigo-100/90">
+              Review student applications, open CVs, and accept or reject candidates.
+            </p>
+            {!loading && applications.length > 0 ? (
+              <div className="mt-5 flex flex-wrap gap-3">
+                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                  <p className="text-xl font-bold tabular-nums text-white">{stats.total}</p>
+                  <p className="text-xs font-medium text-indigo-100/80">Total</p>
+                </div>
+                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                  <p className="text-xl font-bold tabular-nums text-white">{stats.pending}</p>
+                  <p className="text-xs font-medium text-indigo-100/80">Pending</p>
+                </div>
+                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                  <p className="text-xl font-bold tabular-nums text-white">{stats.accepted}</p>
+                  <p className="text-xs font-medium text-indigo-100/80">Accepted</p>
+                </div>
+                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                  <p className="text-xl font-bold tabular-nums text-white">{stats.withCv}</p>
+                  <p className="text-xs font-medium text-indigo-100/80">With CV</p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
 
-      {loading ? (
-        <TableListPageSkeleton showWelcome={false} />
-      ) : error ? (
-        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
-      ) : applications.length === 0 ? (
-        <EmptyState
-          title="No applications yet"
-          description="Applications will appear here once students apply."
-        />
-      ) : (
-        <>
-          <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Input label="Search" placeholder="Student, internship, university…" value={search} onChange={(e) => setSearch(e.target.value)} />
-              <Select
-                label="Status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter((e.target.value as "" | ApplicationStatus) || "")}
-                options={[
-                  { value: "", label: "All statuses" },
-                  { value: "pending", label: "Pending" },
-                  { value: "accepted", label: "Accepted" },
-                  { value: "rejected", label: "Rejected" },
-                  { value: "completed", label: "Completed" },
-                ]}
-              />
-              <Select
-                label="Internship"
-                value={positionFilter}
-                onChange={(e) => setPositionFilter(e.target.value)}
-                options={[
-                  { value: "", label: "All internships" },
-                  ...positions.map((p) => ({ value: p.id, label: p.title })),
-                ]}
-              />
-              <Select
-                label="CV"
-                value={hasCvFilter}
-                onChange={(e) => setHasCvFilter((e.target.value as "" | "yes" | "no") || "")}
-                options={[
-                  { value: "", label: "All" },
-                  { value: "yes", label: "Has CV" },
-                  { value: "no", label: "No CV" },
-                ]}
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">
-              <p>
-                Showing <span className="font-semibold">{visibleApplications.length}</span> of{" "}
-                <span className="font-semibold">{applications.length}</span>
-              </p>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("");
-                  setPositionFilter("");
-                  setHasCvFilter("");
-                }}
-              >
-                Clear
-              </Button>
-            </div>
-          </section>
-
-          {visibleApplications.length === 0 ? (
+        {loading ? (
+          <CardGridSkeleton count={4} variant="internship" columns="sm:grid-cols-2" className="mt-6" />
+        ) : error && applications.length === 0 ? (
+          <p className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            {error}
+          </p>
+        ) : applications.length === 0 ? (
+          <div className="mt-6">
             <EmptyState
-              title="No matching applications"
-              description="Try clearing filters or changing your search query."
+              title="No applications yet"
+              description="Applications will appear here once students apply to your internship posts."
             />
-          ) : (
-            <Table headers={["Student", "University", "Department", "Internship", "Applied", "Status", "CV", "Actions"]}>
-              {visibleApplications.map((application) => (
-              <tr key={application.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
-                <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">
-                  {studentDetailById.get(application.student_id)?.fullName ?? "Student"}
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                  {studentDetailById.get(application.student_id)?.university ?? "—"}
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                  {studentDetailById.get(application.student_id)?.department ?? "—"}
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-900 transition-colors duration-300 dark:text-white">
-                  {application.internship_title}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                  {new Date(application.applied_at).toLocaleDateString()}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm capitalize">
-                  <Badge variant={statusVariant(application.status)}>{application.status}</Badge>
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm">
-                  {studentDetailById.get(application.student_id)?.hasCv ? (
-                    <Button
-                      variant="secondary"
-                      disabled={cvOpeningId === application.id}
-                      onClick={() => void handleOpenApplicantCv(application.id)}
+          </div>
+        ) : (
+          <>
+            {error ? (
+              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <section className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+              <Input
+                label="Search"
+                placeholder="Student, internship, university…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <div className="mt-4 flex flex-wrap gap-2">
+                {statusFilterOptions.map((opt) => {
+                  const isActive = statusFilter === opt.value;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setStatusFilter(opt.value)}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      }`}
                     >
-                      {cvOpeningId === application.id ? "Opening..." : "Open CV"}
-                    </Button>
-                  ) : (
-                    <span className="text-gray-500 transition-colors duration-300 dark:text-slate-400">No CV uploaded</span>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm">
-                  <Button
-                    variant="secondary"
+                      {opt.label}
+                      <span className="ms-1.5 tabular-nums opacity-80">({opt.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <Select
+                  label="Internship"
+                  value={positionFilter}
+                  onChange={(e) => setPositionFilter(e.target.value)}
+                  options={[
+                    { value: "", label: "All internships" },
+                    ...positions.map((p) => ({ value: p.id, label: p.title })),
+                  ]}
+                />
+                <Select
+                  label="CV"
+                  value={hasCvFilter}
+                  onChange={(e) => setHasCvFilter((e.target.value as "" | "yes" | "no") || "")}
+                  options={[
+                    { value: "", label: "All applicants" },
+                    { value: "yes", label: "Has CV" },
+                    { value: "no", label: "No CV" },
+                  ]}
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-sm dark:border-slate-800">
+                <p className="text-slate-600 dark:text-slate-400">
+                  Showing <span className="font-semibold text-slate-900 dark:text-white">{visibleApplications.length}</span> of{" "}
+                  <span className="font-semibold text-slate-900 dark:text-white">{applications.length}</span>
+                </p>
+                {hasActiveFilters ? (
+                  <button
+                    type="button"
                     onClick={() => {
-                      setSelectedApplicationId(application.id);
-                      setDetailOpen(true);
+                      setSearch("");
+                      setStatusFilter("");
+                      setPositionFilter("");
+                      setHasCvFilter("");
                     }}
+                    className="font-medium text-indigo-700 hover:text-indigo-800 dark:text-indigo-300 dark:hover:text-indigo-200"
                   >
-                    View details
-                  </Button>
-                </td>
-              </tr>
-              ))}
-            </Table>
-          )}
-        </>
-      )}
+                    Clear filters
+                  </button>
+                ) : null}
+              </div>
+            </section>
+
+            {visibleApplications.length === 0 ? (
+              <div className="mt-6">
+                <EmptyState
+                  title="No matching applications"
+                  description="Try clearing filters or changing your search query."
+                />
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                {visibleApplications.map((application) => {
+                  const student = studentDetailById.get(application.student_id);
+                  return (
+                    <article
+                      key={application.id}
+                      className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/30"
+                    >
+                      <div className="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500" />
+                      <div className="flex flex-1 flex-col p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h2 className="truncate text-base font-semibold text-slate-900 dark:text-white">
+                              {student?.fullName ?? "Student"}
+                            </h2>
+                            <p className="mt-1 truncate text-sm text-indigo-700/90 dark:text-indigo-300/90">
+                              {application.internship_title}
+                            </p>
+                          </div>
+                          <Badge variant={statusVariant(application.status)}>{statusLabel(application.status)}</Badge>
+                        </div>
+
+                        <dl className="mt-4 space-y-2 text-sm">
+                          <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                            <dt className="text-slate-500 dark:text-slate-400">University</dt>
+                            <dd className="truncate font-medium text-slate-900 dark:text-white">{student?.university ?? "—"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                            <dt className="text-slate-500 dark:text-slate-400">Department</dt>
+                            <dd className="truncate font-medium text-slate-900 dark:text-white">{student?.department ?? "—"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                            <dt className="text-slate-500 dark:text-slate-400">Applied</dt>
+                            <dd className="font-medium text-slate-900 dark:text-white">{formatAppliedDate(application.applied_at)}</dd>
+                          </div>
+                        </dl>
+
+                        <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          <Button
+                            variant="primary"
+                            className="flex-1 sm:flex-none"
+                            onClick={() => {
+                              setSelectedApplicationId(application.id);
+                              setDetailOpen(true);
+                            }}
+                          >
+                            View details
+                          </Button>
+                          {student?.hasCv ? (
+                            <Button
+                              variant="secondary"
+                              className="rounded-xl"
+                              disabled={cvOpeningId === application.id}
+                              onClick={() => void handleOpenApplicantCv(application.id)}
+                            >
+                              {cvOpeningId === application.id ? "Opening…" : "Open CV"}
+                            </Button>
+                          ) : (
+                            <span className="inline-flex items-center rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                              No CV
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
       <Modal
         isOpen={detailOpen}

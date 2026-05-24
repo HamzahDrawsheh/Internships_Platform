@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n/context";
+import { fmt } from "@/lib/i18n/format";
 
 type Props = {
   title: string;
@@ -23,6 +25,9 @@ export function RoleOverviewTrackCard({
   href,
   linkLabel = "Open details →",
 }: Props) {
+  const { t } = useI18n();
+  const progressLabel = fmt(t("dashboard.student.percentComplete"), { pct: overallPercent });
+
   return (
     <Link
       href={href}
@@ -38,7 +43,7 @@ export function RoleOverviewTrackCard({
 
       <div className="mt-4">
         <div className="flex items-center justify-between gap-2 text-sm">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{overallPercent}% complete</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{progressLabel}</span>
           <span className="text-gray-500 dark:text-gray-400">{remainingLabel}</span>
         </div>
         <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-violet-100 dark:bg-violet-900/40">

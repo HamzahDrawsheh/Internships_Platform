@@ -33,7 +33,13 @@ export function SkillGapLearningPlanCard({ analysis, loading }: Props) {
           {t("skillMatch.title")}
         </h2>
         {hasDetectableInternshipSkills && (
-          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              noMissing
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100"
+                : "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100"
+            }`}
+          >
             {formatMissingSkillsCount(missingSkillsCount, t)}
           </span>
         )}

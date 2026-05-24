@@ -41,7 +41,7 @@ function NewCompanyBadge({ className = "" }: { className?: string }) {
     <span
       className={`inline-flex items-center rounded-full border border-sky-300/80 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-900 dark:border-sky-500/50 dark:bg-sky-500/15 dark:text-sky-100 ${className}`}
     >
-      New Company
+      New
     </span>
   );
 }

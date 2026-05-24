@@ -7,7 +7,6 @@ const LS_OPEN = "internconnect-student-chat-open";
 const LS_WIDE = "internconnect-student-chat-wide";
 const MAX_INPUT_CHARS = 2000;
 const SOFT_LIMIT_HINT = 1800;
-
 const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "assistant",
@@ -309,20 +308,15 @@ export default function StudentAssistantChat() {
     }
   }
 
-  const shellOuter =
-    open && wide
-      ? "fixed top-[4.75rem] left-4 bottom-4 z-50 flex flex-col"
-      : "fixed left-5 bottom-5 z-50 flex flex-col";
-
   const shellInner = classNames(
     "flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900",
     wide
-      ? "h-full w-[min(480px,calc(100vw-2rem))] shadow-md"
+      ? "h-[min(640px,calc(100vh-5rem))] w-[min(480px,calc(100vw-2rem))] shadow-md"
       : "max-h-[min(640px,calc(100vh-5rem))] w-[360px] max-w-[calc(100vw-2rem)]"
   );
 
   return (
-    <div className={shellOuter}>
+    <div className="fixed start-4 bottom-4 z-50 flex flex-col-reverse items-start gap-2 sm:start-5 sm:bottom-5">
       <div
         key={liveRegion.key}
         className="sr-only"
@@ -332,9 +326,20 @@ export default function StudentAssistantChat() {
         {liveRegion.text}
       </div>
 
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="rounded-full border border-teal-200 bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-teal-500/25 transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:border-teal-500/40 dark:focus-visible:ring-offset-gray-900"
+        title="AI Assistant — help with internships and applications"
+        aria-expanded={open}
+        aria-controls="student-ai-assistant-panel"
+      >
+        ✨ AI Assistant
+      </button>
+
       {open ? (
-        <div className={shellInner}>
-          <div className="flex flex-shrink-0 flex-col border-b border-gray-200 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between sm:gap-2 px-3 py-3 sm:px-4">
+        <div id="student-ai-assistant-panel" className={shellInner}>
+          <div className="flex flex-shrink-0 flex-col border-b border-gray-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4 dark:border-gray-800">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                 ✨ AI Assistant
@@ -453,16 +458,7 @@ export default function StudentAssistantChat() {
             </div>
           </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="rounded-full border border-teal-200 bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-teal-500/25 transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:border-teal-500/40 dark:focus-visible:ring-offset-gray-900"
-          title="AI Assistant — help with internships and applications"
-        >
-          ✨ AI Assistant
-        </button>
-      )}
+      ) : null}
     </div>
   );
 }

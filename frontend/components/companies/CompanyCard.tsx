@@ -18,6 +18,8 @@ interface CompanyCardProps {
   evaluationEnabled?: boolean;
   openPositions?: number;
   ownerUserId?: string;
+  /** Base path for company detail links. Defaults to `/companies`. */
+  companiesBasePath?: string;
 }
 
 export function CompanyCard({
@@ -32,14 +34,17 @@ export function CompanyCard({
   evaluationEnabled,
   openPositions,
   ownerUserId,
+  companiesBasePath = "/companies",
 }: CompanyCardProps) {
-  const showRating = !isNewCompany && evaluationEnabled && rating != null;
+  const detailHref = `${companiesBasePath}/${id}`;
+  const isNew = isNewCompany !== false;
+  const showRating = !isNew && evaluationEnabled && rating != null;
   const trimmedDescription = description?.trim();
   const industryLabel = industry ? formatIndustryLabel(industry) : "";
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300/60 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-violet-500/40">
-      <Link href={`/companies/${id}`} className="block flex-1">
+      <Link href={detailHref} className="block flex-1">
         <div className="relative h-20 bg-gradient-to-r from-violet-600/90 via-purple-600/80 to-indigo-600/90 px-5 dark:from-violet-700/80 dark:via-purple-700/70 dark:to-indigo-700/80">
           <div className="absolute -bottom-8 left-5">
             <CompanyLogo name={name} logoUrl={logoUrl} size="lg" className="ring-4 ring-white dark:ring-slate-900" />
@@ -58,8 +63,8 @@ export function CompanyCard({
                   {industryLabel}
                 </Badge>
               ) : null}
-              {isNewCompany ? (
-                <Badge variant="warning">New company</Badge>
+              {isNew ? (
+                <Badge variant="warning">New</Badge>
               ) : showRating ? (
                 <Badge variant="success">★ {rating?.toFixed(1)}</Badge>
               ) : !evaluationEnabled ? (
@@ -107,7 +112,7 @@ export function CompanyCard({
 
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
         <Link
-          href={`/companies/${id}`}
+          href={detailHref}
           className="text-sm font-medium text-violet-700 transition-colors duration-300 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
         >
           View company →

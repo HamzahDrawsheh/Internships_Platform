@@ -11,6 +11,8 @@ import { RoleOverviewTrackCard } from "@/components/dashboard/RoleOverviewTrackC
 import { DashboardPageSkeleton } from "@/components/loading";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
 import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
+import { useI18n } from "@/lib/i18n/context";
+import { fmt } from "@/lib/i18n/format";
 import { createClient } from "@/lib/supabase/client";
 
 type PreviewStudent = {
@@ -25,8 +27,9 @@ type PreviewStudent = {
 
 export default function SupervisorDashboardPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [supervisorName, setSupervisorName] = useState("User");
   /** `undefined` = not loaded yet; empty string = loaded but no department */
   const [supervisorDepartment, setSupervisorDepartment] = useState<string | undefined>(undefined);
@@ -48,7 +51,7 @@ export default function SupervisorDashboardPage() {
 
     const loadDashboard = async () => {
       setLoading(true);
-      setError(null);
+      setErrorKey(null);
 
       const {
         data: { user },
@@ -56,13 +59,13 @@ export default function SupervisorDashboardPage() {
       } = await supabase.auth.getUser();
       if (userError) {
         console.error("supervisor dashboard getUser error:", userError);
-        setError("Unable to load your account.");
+        setErrorKey("loadAccountError");
         setSupervisorDepartment(undefined);
         setLoading(false);
         return;
       }
       if (!user) {
-        setError("Please login to access supervisor dashboard.");
+        setErrorKey("loginRequired");
         setSupervisorDepartment(undefined);
         setLoading(false);
         return;
@@ -82,7 +85,7 @@ export default function SupervisorDashboardPage() {
       if (supervisorError) {
         console.error("supervisor dashboard supervisor query error:", supervisorError);
         setDepartmentInsightsEligible(false);
-        setError("Unable to load supervisor profile.");
+        setErrorKey("loadProfileError");
         setSupervisorDepartment(undefined);
         setLoading(false);
         return;
@@ -114,7 +117,7 @@ export default function SupervisorDashboardPage() {
 
       if (studentsError) {
         console.error("supervisor dashboard students query error:", studentsError);
-        setError("Unable to load assigned students.");
+        setErrorKey("loadStudentsError");
         setLoading(false);
         return;
       }
@@ -214,47 +217,52 @@ export default function SupervisorDashboardPage() {
 
     return [
       {
-        title: "Set your department & profile",
-        description:
-          "Your dashboard only includes students who share your academic department. Confirm department and title under Profile.",
+        title: t("supervisor.dashboard.stepDeptTitle"),
+        description: t("supervisor.dashboard.stepDeptDesc"),
         complete: deptDone,
-        ctaLabel: deptDone ? "View profile" : "Complete profile",
+        ctaLabel: deptDone ? t("supervisor.dashboard.stepDeptCtaDone") : t("supervisor.dashboard.stepDeptCtaTodo"),
         href: "/supervisor/profile",
       },
       {
-        title: "Review your student roster",
-        description: "See everyone in your department and open a student for more detail.",
+        title: t("supervisor.dashboard.stepRosterTitle"),
+        description: t("supervisor.dashboard.stepRosterDesc"),
         complete: rosterDone,
-        ctaLabel: rosterDone ? "Open students" : "View students",
+        ctaLabel: rosterDone ? t("supervisor.dashboard.stepRosterCtaOpen") : t("supervisor.dashboard.stepRosterCta"),
         href: "/supervisor/students",
       },
       {
-        title: "Monitor department applications",
-        description: "Read-only list of applications from your department students.",
+        title: t("supervisor.dashboard.stepMonitorTitle"),
+        description: t("supervisor.dashboard.stepMonitorDesc"),
         complete: appsDone,
-        ctaLabel: appsDone ? "Open reports" : "Open reports",
+        ctaLabel: t("supervisor.dashboard.stepMonitorCta"),
         href: "/supervisor/reports",
       },
       {
-        title: "Clear pending applications",
+        title: t("supervisor.dashboard.stepPendingTitle"),
         description:
           pendingApplications > 0
-            ? `You have ${pendingApplications} pending application${pendingApplications === 1 ? "" : "s"} in your department. Open the filtered report to review them (read-only).`
+            ? fmt(
+                pendingApplications === 1
+                  ? t("supervisor.dashboard.stepPendingDescOne")
+                  : t("supervisor.dashboard.stepPendingDescMany"),
+                { count: pendingApplications },
+              )
             : totalApplications === 0
-              ? "Once students apply, pending counts appear here and in reports."
-              : "No pending applications right now.",
+              ? t("supervisor.dashboard.stepPendingDescEmpty")
+              : t("supervisor.dashboard.stepPendingDescNone"),
         complete: noPendingHighlight || totalApplications === 0,
-        ctaLabel: pendingApplications > 0 ? "View pending" : "Open reports",
+        ctaLabel:
+          pendingApplications > 0 ? t("supervisor.dashboard.stepPendingCta") : t("supervisor.dashboard.stepMonitorCta"),
         href: pendingApplications > 0 ? "/supervisor/reports?status=pending" : "/supervisor/reports",
       },
       {
-        title: "Optional: AI department insights",
+        title: t("supervisor.dashboard.stepInsightsTitle"),
         description:
           departmentInsightsEligible && hasDepartment
-            ? "Summaries appear below when enough evaluation data exists for your department."
-            : "Insights unlock after your supervisor profile has a valid department.",
+            ? t("supervisor.dashboard.stepInsightsDescReady")
+            : t("supervisor.dashboard.stepInsightsDescLocked"),
         complete: false,
-        ctaLabel: "Scroll to insights",
+        ctaLabel: t("supervisor.dashboard.stepInsightsCta"),
         scrollToInsights: true as const,
       },
     ] as Array<{
@@ -266,6 +274,7 @@ export default function SupervisorDashboardPage() {
       scrollToInsights?: true;
     }>;
   }, [
+    t,
     hasDepartment,
     assignedStudents,
     totalApplications,
@@ -273,7 +282,10 @@ export default function SupervisorDashboardPage() {
     departmentInsightsEligible,
   ]);
 
-  const showEmptyStudents = useMemo(() => !loading && !error && assignedStudents === 0, [loading, error, assignedStudents]);
+  const showEmptyStudents = useMemo(
+    () => !loading && !errorKey && assignedStudents === 0,
+    [loading, errorKey, assignedStudents],
+  );
 
   const completionRateLabel = useMemo(() => {
     if (totalApplications === 0) return "—";
@@ -285,28 +297,74 @@ export default function SupervisorDashboardPage() {
 
   const welcomeSubtitle = useMemo(() => {
     if (pendingApprovalCount > 0) {
-      return `${pendingApprovalCount} monthly report${pendingApprovalCount === 1 ? "" : "s"} awaiting your approval.`;
+      return fmt(
+        pendingApprovalCount === 1
+          ? t("supervisor.dashboard.pendingReportsOne")
+          : t("supervisor.dashboard.pendingReportsMany"),
+        { count: pendingApprovalCount },
+      );
     }
     if (pendingApplications > 0) {
-      return `${pendingApplications} application${pendingApplications === 1 ? "" : "s"} pending in your department.`;
+      return fmt(
+        pendingApplications === 1
+          ? t("supervisor.dashboard.pendingAppsOne")
+          : t("supervisor.dashboard.pendingAppsMany"),
+        { count: pendingApplications },
+      );
     }
     if (completedInternships > 0 && totalApplications > 0) {
-      return `${completedInternships} of ${totalApplications} department internships completed.`;
+      return fmt(t("supervisor.dashboard.completedRatio"), {
+        completed: completedInternships,
+        total: totalApplications,
+      });
     }
-    return "Monitor students in your department and their internship activity";
-  }, [pendingApprovalCount, pendingApplications, completedInternships, totalApplications]);
+    return t("supervisor.dashboard.monitorActivity");
+  }, [t, pendingApprovalCount, pendingApplications, completedInternships, totalApplications]);
 
   const departmentProgress = useMemo(() => {
     if (totalApplications === 0) return null;
     const pct = Math.round((completedInternships / totalApplications) * 100);
     const active = acceptedApplications;
     const remaining = Math.max(0, totalApplications - completedInternships);
-    let hint = `${completedInternships} completed · ${active} currently active · ${pendingApplications} pending review.`;
+    let hint = fmt(t("supervisor.dashboard.progressHint"), {
+      completed: completedInternships,
+      active,
+      pending: pendingApplications,
+    });
     if (pendingApprovalCount > 0) {
-      hint = `${pendingApprovalCount} monthly report${pendingApprovalCount === 1 ? "" : "s"} need your sign-off.`;
+      hint = fmt(
+        pendingApprovalCount === 1
+          ? t("supervisor.dashboard.reportsSignoffOne")
+          : t("supervisor.dashboard.reportsSignoffMany"),
+        { count: pendingApprovalCount },
+      );
     }
     return { pct, remaining, hint };
-  }, [totalApplications, completedInternships, acceptedApplications, pendingApplications, pendingApprovalCount]);
+  }, [
+    t,
+    totalApplications,
+    completedInternships,
+    acceptedApplications,
+    pendingApplications,
+    pendingApprovalCount,
+  ]);
+
+  const progressSubtitle = useMemo(
+    () =>
+      fmt(t("supervisor.dashboard.progressSubtitle"), {
+        students: assignedStudents,
+        studentsLabel:
+          assignedStudents === 1
+            ? t("supervisor.dashboard.studentSingular")
+            : t("supervisor.dashboard.studentPlural"),
+        applications: totalApplications,
+        applicationsLabel:
+          totalApplications === 1
+            ? t("supervisor.dashboard.applicationSingular")
+            : t("supervisor.dashboard.applicationPlural"),
+      }),
+    [t, assignedStudents, totalApplications],
+  );
 
   const openStudentRow = (studentId: string) => {
     router.push(`/supervisor/students/${studentId}`);
@@ -326,7 +384,7 @@ export default function SupervisorDashboardPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
-                Welcome back, {supervisorName} 👋
+                {fmt(t("supervisor.dashboard.welcomeBack"), { name: supervisorName })}
               </h1>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{welcomeSubtitle}</p>
             </div>
@@ -339,19 +397,19 @@ export default function SupervisorDashboardPage() {
                   setGettingStartedOpen(true);
                 }}
               >
-                Getting started
+                {t("supervisor.dashboard.gettingStarted")}
               </Button>
               <Link
                 href="/supervisor/students"
                 className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
               >
-                Students
+                {t("supervisor.dashboard.studentsBtn")}
               </Link>
               <Link
                 href="/supervisor/reports"
                 className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
               >
-                Reports
+                {t("supervisor.dashboard.reportsBtn")}
               </Link>
             </div>
           </div>
@@ -361,14 +419,21 @@ export default function SupervisorDashboardPage() {
           <DashboardReportWidget
             count={pendingApprovalCount}
             href="/supervisor/internship-reports"
-            label={pendingApprovalCount === 1 ? "approval pending" : "approvals pending"}
+            label={
+              pendingApprovalCount === 1
+                ? t("supervisor.dashboard.approvalPending")
+                : t("supervisor.dashboard.approvalsPending")
+            }
           />
         </div>
 
         <Modal
           isOpen={gettingStartedOpen}
           onClose={() => setGettingStartedOpen(false)}
-          title={`Getting started (${gettingStartedStep + 1}/${gettingStartedSteps.length})`}
+          title={fmt(t("supervisor.dashboard.gettingStartedProgress"), {
+            step: gettingStartedStep + 1,
+            total: gettingStartedSteps.length,
+          })}
           footer={
             <>
               <Button
@@ -376,11 +441,11 @@ export default function SupervisorDashboardPage() {
                 onClick={() => setGettingStartedStep((s) => Math.max(0, s - 1))}
                 disabled={gettingStartedStep === 0}
               >
-                Back
+                {t("common.back")}
               </Button>
               {gettingStartedSteps[gettingStartedStep]?.href ? (
                 <Link href={gettingStartedSteps[gettingStartedStep]!.href!}>
-                  <Button variant="secondary">Open</Button>
+                  <Button variant="secondary">{t("common.open")}</Button>
                 </Link>
               ) : gettingStartedSteps[gettingStartedStep]?.scrollToInsights ? (
                 <Button
@@ -390,7 +455,7 @@ export default function SupervisorDashboardPage() {
                     document.getElementById("supervisor-ai-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
                 >
-                  Go to insights
+                  {t("supervisor.dashboard.goToInsights")}
                 </Button>
               ) : null}
               <Button
@@ -403,7 +468,7 @@ export default function SupervisorDashboardPage() {
                   }
                 }}
               >
-                {gettingStartedStep >= gettingStartedSteps.length - 1 ? "Finish" : "Next"}
+                {gettingStartedStep >= gettingStartedSteps.length - 1 ? t("common.finish") : t("common.next")}
               </Button>
             </>
           }
@@ -426,23 +491,25 @@ export default function SupervisorDashboardPage() {
                           : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
                       }`}
                     >
-                      {step.complete ? "Done" : "To do"}
+                      {step.complete ? t("supervisor.dashboard.done") : t("supervisor.dashboard.todo")}
                     </span>
                   </div>
                 </div>
                 <div className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
-                  <p className="font-semibold">Your checklist</p>
+                  <p className="font-semibold">{t("supervisor.dashboard.yourChecklist")}</p>
                   <ul className="list-disc space-y-1 pl-5">
                     {gettingStartedSteps.map((s, idx) => (
                       <li key={s.title} className={idx === gettingStartedStep ? "font-medium" : ""}>
                         {s.title}{" "}
-                        <span className="opacity-70">({s.complete ? "done" : "to do"})</span>
+                        <span className="opacity-70">
+                          ({s.complete ? t("supervisor.dashboard.doneStatus") : t("supervisor.dashboard.todoStatus")})
+                        </span>
                       </li>
                     ))}
                   </ul>
                 </div>
                 <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 text-sm text-gray-700 dark:border-purple-400/20 dark:bg-purple-500/10 dark:text-gray-200">
-                  Tip: pending applications are highlighted on the dashboard; open the card or reports filter to review them.
+                  {t("supervisor.dashboard.gettingStartedTip")}
                 </div>
               </div>
             );
@@ -451,23 +518,23 @@ export default function SupervisorDashboardPage() {
 
         {loading ? (
           <DashboardPageSkeleton showWelcome={false} showTrack showTable statCount={4} className="mt-8" />
-        ) : error ? (
+        ) : errorKey ? (
           <p className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
-            {error}
+            {t(`supervisor.dashboard.${errorKey}`)}
           </p>
         ) : (
           <>
             {!hasDepartment && supervisorDepartment !== undefined ? (
               <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                <p className="font-medium">Finish supervisor setup</p>
+                <p className="font-medium">{t("supervisor.dashboard.finishSetupTitle")}</p>
                 <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
-                  Set your academic department on your profile to see students and applications for your scope.
+                  {t("supervisor.dashboard.finishSetupDesc")}
                 </p>
                 <Link
                   href="/supervisor/profile"
                   className="mt-3 inline-flex text-sm font-semibold text-amber-950 underline underline-offset-2 hover:no-underline dark:text-amber-200"
                 >
-                  Open supervisor profile
+                  {t("supervisor.dashboard.openSupervisorProfile")}
                 </Link>
               </div>
             ) : null}
@@ -475,23 +542,23 @@ export default function SupervisorDashboardPage() {
             <section className="mt-8">
               <DashboardStatGrid>
                 <DashboardStatCard
-                  label="Students (department)"
+                  label={t("supervisor.dashboard.studentsDepartment")}
                   value={assignedStudents}
                   cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
                 />
                 <DashboardStatCard
-                  label="Pending"
+                  label={t("supervisor.dashboard.pending")}
                   value={pendingApplications}
                   cardClass="bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300"
                   href={pendingApplications > 0 ? pendingReportsHref : undefined}
                 />
                 <DashboardStatCard
-                  label="Active"
+                  label={t("supervisor.dashboard.active")}
                   value={acceptedApplications}
                   cardClass="bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300"
                 />
                 <DashboardStatCard
-                  label="Completed"
+                  label={t("supervisor.dashboard.completed")}
                   value={completedInternships}
                   cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
                 />
@@ -501,14 +568,14 @@ export default function SupervisorDashboardPage() {
             {departmentProgress ? (
               <section className="mt-8">
                 <RoleOverviewTrackCard
-                  title="Department progress"
-                  subtitle={`${assignedStudents} student${assignedStudents === 1 ? "" : "s"} · ${totalApplications} total application${totalApplications === 1 ? "" : "s"}`}
+                  title={t("supervisor.dashboard.departmentProgress")}
+                  subtitle={progressSubtitle}
                   overallPercent={departmentProgress.pct}
                   completedLabel={completionRateLabel}
-                  remainingLabel={`${departmentProgress.remaining} remaining`}
+                  remainingLabel={fmt(t("supervisor.dashboard.remaining"), { count: departmentProgress.remaining })}
                   hint={departmentProgress.hint}
                   href="/supervisor/reports"
-                  linkLabel="Open department reports →"
+                  linkLabel={t("supervisor.dashboard.openDepartmentReports")}
                 />
               </section>
             ) : null}
@@ -517,23 +584,31 @@ export default function SupervisorDashboardPage() {
               <SupervisorAiInsights eligible={departmentInsightsEligible} className="mt-8" />
             </div>
             <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Students Overview</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {t("supervisor.dashboard.studentsOverview")}
+              </h2>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Latest students in your department — select a row to open detail
+                {t("supervisor.dashboard.studentsOverviewDesc")}
               </p>
               {showEmptyStudents ? (
                 <EmptyState
                   className="mt-4"
-                  title="No data yet"
-                  description="No students in your department yet."
-                  actionLabel="View students"
+                  title={t("supervisor.dashboard.noDataYet")}
+                  description={t("supervisor.dashboard.noStudentsDept")}
+                  actionLabel={t("supervisor.dashboard.viewStudents")}
                   actionHref="/supervisor/students"
                 />
               ) : previewStudents.length === 0 ? (
-                <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">No data yet.</p>
+                <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">{t("supervisor.dashboard.noDataYet")}</p>
               ) : (
                 <Table
-                  headers={["Student", "Email", "University", "Department", "Major"]}
+                  headers={[
+                    t("supervisor.dashboard.colStudent"),
+                    t("supervisor.dashboard.colEmail"),
+                    t("supervisor.dashboard.colUniversity"),
+                    t("supervisor.dashboard.colDepartment"),
+                    t("supervisor.dashboard.colMajor"),
+                  ]}
                   className="mt-4 rounded-2xl border-gray-200 shadow-sm dark:border-gray-700 [&_thead]:bg-gray-50 dark:[&_thead]:bg-gray-800/80 [&_th]:font-semibold [&_th]:tracking-wide [&_th]:text-gray-500 dark:[&_th]:text-gray-300 [&_tbody]:bg-white dark:[&_tbody]:bg-gray-900"
                 >
                   {previewStudents.map((student) => (
@@ -541,7 +616,7 @@ export default function SupervisorDashboardPage() {
                       key={student.id}
                       tabIndex={0}
                       role="link"
-                      aria-label={`Open student ${student.full_name}`}
+                      aria-label={fmt(t("supervisor.dashboard.openStudent"), { name: student.full_name })}
                       className="cursor-pointer transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-gray-800/60"
                       onClick={() => openStudentRow(student.id)}
                       onKeyDown={(e) => handleStudentRowKeyDown(e, student.id)}

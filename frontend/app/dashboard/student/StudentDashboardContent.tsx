@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
 import type { Application } from "@/lib/types";
-import StudentAssistantChat from "@/components/chat/StudentAssistantChat";
 import { StudentInternshipTrackCard } from "@/components/dashboard/StudentInternshipTrackCard";
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
 import { DashboardPageSkeleton } from "@/components/loading";
@@ -302,7 +301,6 @@ export default function StudentDashboardContent() {
 
   return (
     <div className="space-y-8">
-      <StudentAssistantChat />
       <section className="animate-fade-up rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>

@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import EmptyState from "@/components/common/EmptyState";
-import { TableListPageSkeleton } from "@/components/loading";
-import { Modal, Button, Table, Badge } from "@/components/ui";
+import { CardGridSkeleton } from "@/components/loading";
+import { Modal, Button, Badge } from "@/components/ui";
 
-const statusVariant: Record<string, "default" | "success" | "warning" | "danger"> = {
-  active: "success",
-  inactive: "default",
-};
+type FilterKey = "all" | "active" | "paused";
 
 type ListingRow = {
   id: string;
@@ -22,10 +19,18 @@ type ListingRow = {
   applicants_count?: number;
 };
 
+function formatPostedDate(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
 export default function CompanyInternshipsList() {
   const [listings, setListings] = useState<ListingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("all");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -92,6 +97,18 @@ export default function CompanyInternshipsList() {
       setLoading(false);
     });
   }, []);
+
+  const stats = useMemo(() => {
+    const active = listings.filter((l) => l.status === "active").length;
+    const applicants = listings.reduce((sum, l) => sum + (l.applicants_count ?? 0), 0);
+    return { total: listings.length, active, paused: listings.length - active, applicants };
+  }, [listings]);
+
+  const visibleListings = useMemo(() => {
+    if (filter === "active") return listings.filter((l) => l.status === "active");
+    if (filter === "paused") return listings.filter((l) => l.status !== "active");
+    return listings;
+  }, [listings, filter]);
 
   const setListingActive = async (listingId: string, nextIsActive: boolean) => {
     if (!companyId) return;
@@ -163,92 +180,205 @@ export default function CompanyInternshipsList() {
     }
   };
 
-  if (loading) return <TableListPageSkeleton showWelcome={false} showFilters={false} />;
+  const filterOptions: { key: FilterKey; label: string; count: number }[] = [
+    { key: "all", label: "All", count: stats.total },
+    { key: "active", label: "Active", count: stats.active },
+    { key: "paused", label: "Paused", count: stats.paused },
+  ];
+
+  if (loading) {
+    return (
+      <>
+        <div className="h-36 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        <CardGridSkeleton count={3} variant="internship" columns="sm:grid-cols-2" className="mt-6" />
+      </>
+    );
+  }
+
   if (listings.length === 0) {
     return (
-      <EmptyState
-        title="No listings yet"
-        description="Create your first internship to start receiving applications."
-        actionLabel="Create internship"
-        actionHref="/company/internships/new"
-      />
+      <>
+        <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-6 py-8 shadow-lg dark:border-indigo-500/20">
+          <h1 className="text-2xl font-bold text-white sm:text-3xl">My Internship Posts</h1>
+          <p className="mt-2 max-w-xl text-sm text-indigo-100/90">
+            Create listings, track applicants, and manage active roles from one place.
+          </p>
+          <Link
+            href="/company/internships/new"
+            className="mt-5 inline-flex items-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50"
+          >
+            Create internship
+          </Link>
+        </section>
+        <div className="mt-6">
+          <EmptyState
+            title="No listings yet"
+            description="Create your first internship to start receiving applications."
+            actionLabel="Create internship"
+            actionHref="/company/internships/new"
+          />
+        </div>
+      </>
     );
   }
 
   return (
     <>
+      <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-lg dark:border-indigo-500/20">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white sm:text-3xl">My Internship Posts</h1>
+            <p className="mt-2 max-w-xl text-sm text-indigo-100/90">
+              Edit listings, pause roles, and review applicants for each post.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                <p className="text-xl font-bold tabular-nums text-white">{stats.total}</p>
+                <p className="text-xs font-medium text-indigo-100/80">Total posts</p>
+              </div>
+              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                <p className="text-xl font-bold tabular-nums text-white">{stats.active}</p>
+                <p className="text-xs font-medium text-indigo-100/80">Active</p>
+              </div>
+              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                <p className="text-xl font-bold tabular-nums text-white">{stats.applicants}</p>
+                <p className="text-xs font-medium text-indigo-100/80">Applicants</p>
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/company/internships/new"
+            className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50"
+          >
+            + Create internship
+          </Link>
+        </div>
+      </section>
+
       {actionError ? (
-        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
+        <div
+          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+          role="alert"
+        >
           {actionError}
         </div>
       ) : null}
       {actionMessage ? (
-        <div className="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700 transition-colors duration-300 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300" role="status">
+        <div
+          className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+          role="status"
+        >
           {actionMessage}
         </div>
       ) : null}
 
-      <Table headers={["Title", "Status", "Posted", "Applicants", "Actions"]}>
-        {listings.map((i) => {
-          const busy = actionLoadingId === i.id;
-          const isActive = i.status === "active";
-          return (
-            <tr key={i.id} className="transition-colors duration-300 hover:bg-gray-50 dark:hover:bg-slate-800/60">
-              <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 transition-colors duration-300 dark:text-white">
-                {i.title}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3">
-                <Badge variant={statusVariant[i.status] ?? "default"}>{i.status}</Badge>
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                {i.created_at ? new Date(i.created_at).toLocaleDateString() : "—"}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                {i.applicants_count ?? 0}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 text-sm">
-                <span className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/company/internships/${i.id}/edit`}
-                    className="text-gray-600 transition-colors duration-300 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white"
-                  >
-                    Edit
-                  </Link>
-                  <span className="text-gray-300 transition-colors duration-300 dark:text-slate-600">|</span>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void setListingActive(i.id, !isActive)}
-                    className="text-gray-600 transition-colors duration-300 hover:text-gray-900 disabled:opacity-60 dark:text-slate-300 dark:hover:text-white"
-                  >
-                    {busy ? "Updating..." : isActive ? "Pause" : "Resume"}
-                  </button>
-                  <span className="text-gray-300 transition-colors duration-300 dark:text-slate-600">|</span>
-                  <button
-                    type="button"
-                    disabled={busy || !isActive}
-                    onClick={() => {
-                      setConfirmCloseId(i.id);
-                      setConfirmCloseOpen(true);
-                    }}
-                    className="text-gray-600 transition-colors duration-300 hover:text-gray-900 disabled:opacity-60 dark:text-slate-300 dark:hover:text-white"
-                    title={!isActive ? "Already inactive" : "Close sets this listing inactive"}
-                  >
-                    Close
-                  </button>
-                  <span className="text-gray-300 transition-colors duration-300 dark:text-slate-600">|</span>
-                  <Link
-                    href={`/company/internships/${i.id}/applications`}
-                    className="font-medium text-gray-900 transition-colors duration-300 hover:underline dark:text-white"
-                  >
-                    View Applicants
-                  </Link>
-                </span>
-              </td>
-            </tr>
-          );
-        })}
-      </Table>
+      <section className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.map((opt) => {
+              const isActive = filter === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setFilter(opt.key)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {opt.label}
+                  <span className="ms-1.5 tabular-nums opacity-80">({opt.count})</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            {visibleListings.length} listing{visibleListings.length === 1 ? "" : "s"}
+          </p>
+        </div>
+      </section>
+
+      {visibleListings.length === 0 ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-900/50">
+          <p className="text-sm text-slate-600 dark:text-slate-400">No {filter === "paused" ? "paused" : filter} listings.</p>
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {visibleListings.map((listing) => {
+            const busy = actionLoadingId === listing.id;
+            const isActive = listing.status === "active";
+            const applicants = listing.applicants_count ?? 0;
+
+            return (
+              <article
+                key={listing.id}
+                className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/30"
+              >
+                <div className="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500" />
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="line-clamp-2 text-base font-semibold leading-snug text-slate-900 dark:text-white">
+                      {listing.title}
+                    </h2>
+                    <Badge variant={isActive ? "success" : "default"}>{isActive ? "Active" : "Paused"}</Badge>
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                      <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Posted</dt>
+                      <dd className="mt-0.5 font-medium text-slate-900 dark:text-white">
+                        {formatPostedDate(listing.created_at)}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                      <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Applicants</dt>
+                      <dd className="mt-0.5 font-medium tabular-nums text-slate-900 dark:text-white">{applicants}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    <Link
+                      href={`/company/internships/${listing.id}/applications`}
+                      className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white shadow-md transition hover:bg-[#6D28D9] sm:flex-none"
+                    >
+                      View applicants
+                    </Link>
+                    <Link
+                      href={`/company/internships/${listing.id}/edit`}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void setListingActive(listing.id, !isActive)}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      {busy ? "…" : isActive ? "Pause" : "Resume"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !isActive}
+                      onClick={() => {
+                        setConfirmCloseId(listing.id);
+                        setConfirmCloseOpen(true);
+                      }}
+                      className="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
+                      title={!isActive ? "Already inactive" : "Close sets this listing inactive"}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <Modal
         isOpen={confirmCloseOpen}
@@ -256,7 +386,11 @@ export default function CompanyInternshipsList() {
         title="Close internship listing?"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setConfirmCloseOpen(false)} disabled={Boolean(confirmCloseId && actionLoadingId === confirmCloseId)}>
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmCloseOpen(false)}
+              disabled={Boolean(confirmCloseId && actionLoadingId === confirmCloseId)}
+            >
               Cancel
             </Button>
             <Button
@@ -273,7 +407,8 @@ export default function CompanyInternshipsList() {
         }
       >
         <p className="text-sm text-gray-700 transition-colors duration-300 dark:text-slate-300">
-          Closing will set this listing to <span className="font-medium">inactive</span>. Students won’t see it in browse results anymore.
+          Closing will set this listing to <span className="font-medium">inactive</span>. Students won’t see it in browse
+          results anymore.
         </p>
       </Modal>
     </>

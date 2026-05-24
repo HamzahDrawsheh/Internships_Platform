@@ -4,6 +4,8 @@ import { profileEn, cvBuilderEn } from "@/lib/i18n/locales/profile-cv.en";
 import { profileAr, cvBuilderAr } from "@/lib/i18n/locales/profile-cv.ar";
 import { legalEn } from "@/lib/i18n/locales/legal.en";
 import { legalAr } from "@/lib/i18n/locales/legal.ar";
+import { supervisorEn } from "@/lib/i18n/locales/supervisor.en";
+import { supervisorAr } from "@/lib/i18n/locales/supervisor.ar";
 
 export const LOCALE_STORAGE_KEY = "ai-intern-jordan-locale";
 
@@ -23,6 +25,7 @@ export const messages = {
       myInternshipPosts: "My Internship Posts",
       createInternship: "Create Internship",
       applications: "Applications",
+      feedbacks: "Feedbacks",
       traineeReports: "Trainee Reports",
       companyProfile: "Company Profile",
       students: "Students",
@@ -170,6 +173,7 @@ export const messages = {
     profile: profileEn,
     cvBuilder: cvBuilderEn,
     legal: legalEn,
+    supervisor: supervisorEn,
     landing: {
       heroBadge: "Jordan's AI internship platform",
       heroTitleBefore: "Start your",
@@ -315,6 +319,7 @@ export const messages = {
       myInternshipPosts: "إعلانات التدريب",
       createInternship: "إنشاء تدريب",
       applications: "الطلبات",
+      feedbacks: "التقييمات",
       traineeReports: "تقارير المتدربين",
       companyProfile: "ملف الشركة",
       students: "الطلاب",
@@ -457,6 +462,7 @@ export const messages = {
       password: "كلمة المرور",
     },
     profile: profileAr,
+    supervisor: supervisorAr,
     cvBuilder: cvBuilderAr,
     legal: legalAr,
     landing: {

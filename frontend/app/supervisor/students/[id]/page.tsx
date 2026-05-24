@@ -4,10 +4,38 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Container } from "@/components/layout/Container";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { DetailPageSkeleton } from "@/components/loading";
-import { Button, Card } from "@/components/ui";
+import { Badge, EmptyState } from "@/components/ui";
+import { StudentProfileAvatar } from "@/components/profile/StudentProfileAvatar";
+import { ColoredChips, ProfileField, ProfileSectionCard } from "@/components/profile/StudentProfileUi";
+import { normalizeProfileGender, type ProfileGender } from "@/lib/profile/gender";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
+import { fmt } from "@/lib/i18n/format";
+import {
+  applicationStatusBadgeVariant,
+  deriveStudentPlacementStatus,
+  placementStatusBadgeVariant,
+  type StudentPlacementStatus,
+} from "@/lib/supervisor/student-placement-status";
+
+function placementStatusLabel(status: StudentPlacementStatus, t: (key: string) => string): string {
+  const keys: Record<StudentPlacementStatus, string> = {
+    Active: "supervisor.students.active",
+    Pending: "supervisor.students.pending",
+    Completed: "supervisor.students.completed",
+    Available: "supervisor.students.available",
+  };
+  return t(keys[status]);
+}
+
+function appStatusLabel(status: string, t: (key: string) => string): string {
+  const k = status.trim().toLowerCase();
+  if (!k || k === "unknown") return t("supervisor.studentDetail.statusUnknown");
+  const key = `supervisor.reports.${k}` as const;
+  const translated = t(key);
+  return translated === key ? status : translated;
+}
 
 function departmentsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   return (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
@@ -18,46 +46,21 @@ function hasApplicationMessage(message: string) {
   return t.length > 0 && t !== "—";
 }
 
-function ApplicationStatusBadge({ status }: { status: string }) {
-  const k = status.trim().toLowerCase();
-  const base =
-    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors";
-  if (k === "accepted") {
-    return (
-      <span
-        className={`${base} border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200`}
-      >
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
-        {status}
-      </span>
-    );
-  }
-  if (k === "rejected") {
-    return (
-      <span
-        className={`${base} border-red-200 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200`}
-      >
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
-        {status}
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`${base} border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100`}
-    >
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-      {status}
-    </span>
-  );
+function formatApplicationDate(value: string | null | undefined): string {
+  if (value == null || String(value).trim() === "") return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function StudentDetailsPage() {
   const params = useParams();
+  const { t } = useI18n();
   const id = typeof params.id === "string" ? params.id : "";
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [applicationsQueryError, setApplicationsQueryError] = useState<string | null>(null);
+  const [gender, setGender] = useState<ProfileGender>("");
   const [studentInfo, setStudentInfo] = useState<{
     student_id: string;
     full_name: string;
@@ -83,30 +86,16 @@ export default function StudentDetailsPage() {
     }[]
   >([]);
 
-  const formatApplicationDate = (value: string | null | undefined) => {
-    if (value == null || String(value).trim() === "") return "—";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "—";
-    return new Intl.DateTimeFormat("en-GB", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(parsed);
-  };
-
   useEffect(() => {
     const supabase = createClient();
 
     const loadDetails = async () => {
       setLoading(true);
-      setError(null);
+      setErrorKey(null);
       setApplicationsQueryError(null);
 
       if (!id) {
-        setError("Invalid student id.");
+        setErrorKey("invalidId");
         setLoading(false);
         return;
       }
@@ -117,12 +106,12 @@ export default function StudentDetailsPage() {
       } = await supabase.auth.getUser();
       if (userError) {
         console.error("supervisor student details getUser error:", userError);
-        setError("Unable to load your account.");
+        setErrorKey("loadAccountError");
         setLoading(false);
         return;
       }
       if (!user) {
-        setError("Please login to access this page.");
+        setErrorKey("loginRequired");
         setLoading(false);
         return;
       }
@@ -133,13 +122,13 @@ export default function StudentDetailsPage() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (supervisorError) {
-        console.error("supervisor student details supervisor query error:", JSON.stringify(supervisorError, null, 2));
-        setError("Unable to load supervisor profile.");
+        console.error("supervisor student details supervisor query error:", supervisorError);
+        setErrorKey("loadProfileError");
         setLoading(false);
         return;
       }
       if (!supervisor?.department) {
-        setError("Supervisor profile not found.");
+        setErrorKey("supervisorNotFound");
         setLoading(false);
         return;
       }
@@ -151,46 +140,30 @@ export default function StudentDetailsPage() {
         .maybeSingle();
 
       if (studentError) {
-        console.error("student error:", JSON.stringify(studentError, null, 2));
-        setError("Unable to load student details.");
+        console.error("student error:", studentError);
+        setErrorKey("loadStudentError");
         setLoading(false);
         return;
       }
       if (!student || !departmentsMatch(student.department, supervisor.department)) {
-        setError("Access denied or student not found.");
+        setErrorKey("accessDenied");
         setLoading(false);
         return;
       }
-
-      console.log("student.id:", student?.id);
-      console.log("student.user_id:", student?.user_id);
-
-      // If profile is null with profile error "no error", run in Supabase SQL Editor (replace UUID):
-      // SELECT s.id AS student_id, s.user_id, p.id AS profile_id, p.full_name, p.email
-      // FROM public.students s
-      // LEFT JOIN public.profiles p ON p.id = s.user_id
-      // WHERE s.id = 'PUT_STUDENT_ID_FROM_ROUTE_HERE';
 
       const { data: profile, error: profileError } =
         student.user_id == null || student.user_id === ""
           ? { data: null, error: null }
           : await supabase
               .from("profiles")
-              .select("id, full_name, email")
+              .select("id, full_name, email, gender")
               .eq("id", student.user_id)
               .maybeSingle();
 
-      console.log("profile result:", profile);
-      console.log("profile error:", profileError ? JSON.stringify(profileError, null, 2) : "no error");
-
-      if (!student.user_id) {
-        console.warn("Student row has no user_id; cannot load profile (students.id):", student.id);
-      } else if (!profile) {
-        console.warn(
-          "No profile row returned for student.user_id (missing FK target or RLS blocked SELECT):",
-          student.user_id,
-        );
+      if (profileError) {
+        console.error("profile error:", profileError);
       }
+      setGender(normalizeProfileGender(profile?.gender));
 
       const { data: additionalRow, error: additionalInfoError } = await supabase
         .from("student_additional_info")
@@ -199,7 +172,7 @@ export default function StudentDetailsPage() {
         .maybeSingle();
 
       if (additionalInfoError) {
-        console.error("additional info error:", JSON.stringify(additionalInfoError, null, 2));
+        console.error("additional info error:", additionalInfoError);
       }
 
       let year = "—";
@@ -234,35 +207,19 @@ export default function StudentDetailsPage() {
         hasAdditionalInfoRow,
       });
 
-      // Applications history: v_application_student_details.student_id is s.id (students PK / applications.student_id), NOT user_id.
-      // Department gate: use `student.department` from the row already loaded above. A second students query for department can return
-      // null under RLS and would incorrectly clear all rows in finalApplications.
-      console.log("student.id:", student.id);
-
-      const { data: applications, error: applicationsError } = await supabase
+      const { data: applicationsData, error: applicationsError } = await supabase
         .from("v_application_student_details")
-        .select(
-          `
-          application_id,
-          internship_title,
-          application_status,
-          applied_at
-        `,
-        )
+        .select("application_id, internship_title, application_status, applied_at")
         .eq("student_id", id)
         .order("applied_at", { ascending: false });
 
-      console.log("applications:", applications);
-
       if (applicationsError) {
-        console.error("v_application_student_details error:", JSON.stringify(applicationsError, null, 2));
-        setApplicationsQueryError(
-          applicationsError.message || "Unable to load application history. Please try again.",
-        );
+        console.error("v_application_student_details error:", applicationsError);
+        setApplicationsQueryError("loadAppsError");
         setApplications([]);
       } else {
         const finalApplications = departmentsMatch(student.department, supervisor.department)
-          ? (applications ?? [])
+          ? (applicationsData ?? [])
           : [];
 
         const applicationIds = finalApplications.map((a) => a.application_id);
@@ -292,10 +249,8 @@ export default function StudentDetailsPage() {
             : { data: [] as { id: string; message: string | null; internship_positions: PosRow | PosRow[] }[], error: null };
 
         if (extrasError) {
-          console.error("applications extras error:", JSON.stringify(extrasError, null, 2));
-          setApplicationsQueryError(
-            extrasError.message || "Unable to load company or message for applications.",
-          );
+          console.error("applications extras error:", extrasError);
+          setApplicationsQueryError("loadAppsExtrasError");
           setApplications([]);
         } else {
           setApplicationsQueryError(null);
@@ -340,197 +295,274 @@ export default function StudentDetailsPage() {
     loadDetails();
   }, [id]);
 
-  const applicationsTable = useMemo(() => applications, [applications]);
+  const placementStatus = useMemo(
+    () => deriveStudentPlacementStatus(applications.map((a) => ({ status: a.status.toLowerCase() }))),
+    [applications],
+  );
+
+  const heroSubtitle = studentInfo
+    ? [studentInfo.university !== "—" ? studentInfo.university : "", studentInfo.major !== "—" ? studentInfo.major : ""]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  const courseCount = studentInfo?.taken_courses.length ?? 0;
+  const skillCount = studentInfo?.technical_skills.length ?? 0;
 
   return (
-    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
-      <Container className="max-w-4xl">
-        <PageHeader
-          title="Student Details"
-          description="Monitoring view for a student in your department."
-          action={
-            <Link href="/supervisor/students">
-              <Button variant="secondary">Back to list</Button>
-            </Link>
-          }
-        />
+    <main className="pb-10 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
+      <Container className="max-w-3xl">
         {loading ? (
           <DetailPageSkeleton />
-        ) : error ? (
-          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
-        ) : (
+        ) : errorKey ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            {t(`supervisor.studentDetail.${errorKey}`)}
+          </p>
+        ) : studentInfo ? (
           <>
-            <Card>
-              <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Student info</h2>
-              <div className="mt-3 grid gap-2 text-sm text-gray-700 transition-colors duration-300 dark:text-slate-300 sm:grid-cols-2">
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Full name:</span> {studentInfo?.full_name ?? "—"}</p>
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Email:</span> {studentInfo?.email ?? "—"}</p>
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">University:</span> {studentInfo?.university ?? "—"}</p>
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Department:</span> {studentInfo?.department ?? "—"}</p>
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Major:</span> {studentInfo?.major ?? "—"}</p>
-                <p><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Year:</span> {studentInfo?.year ?? "—"}</p>
-                <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Bio:</span> {studentInfo?.bio ?? "—"}</p>
-                {!studentInfo?.hasAdditionalInfoRow ? (
-                  <p className="sm:col-span-2 text-slate-600 dark:text-slate-400">
-                    No additional info provided
-                  </p>
-                ) : (
-                  <>
-                    <p className="sm:col-span-2"><span className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Academic Info:</span> GPA: {studentInfo?.gpa != null ? studentInfo.gpa : "Not provided"}</p>
-                    <div className="sm:col-span-2">
-                      <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Skills:</p>
-                      {studentInfo && studentInfo.technical_skills.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {studentInfo.technical_skills.map((skill) => (
-                            <span
-                              key={skill}
-                              className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-500/20 dark:text-violet-200"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-1">No data</p>
-                      )}
+            <section className="relative overflow-hidden rounded-2xl border border-violet-200/50 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 shadow-lg shadow-violet-200/40 dark:border-violet-500/20 dark:shadow-violet-900/30">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-12 left-1/3 h-36 w-36 rounded-full bg-fuchsia-400/20 blur-3xl" />
+              <div className="relative p-6 sm:p-8">
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <StudentProfileAvatar gender={gender} name={studentInfo.full_name} />
+                    <div className="min-w-0">
+                      <h1 className="truncate text-2xl font-bold text-white sm:text-3xl">
+                        {studentInfo.full_name !== "—" ? studentInfo.full_name : t("supervisor.studentDetail.studentFallback")}
+                      </h1>
+                      {studentInfo.email !== "—" ? (
+                        <p className="mt-1 truncate text-sm text-violet-100/90">{studentInfo.email}</p>
+                      ) : null}
+                      {heroSubtitle ? <p className="mt-1 text-sm text-violet-100/80">{heroSubtitle}</p> : null}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {studentInfo.department !== "—" ? (
+                          <span className="inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                            {studentInfo.department}
+                          </span>
+                        ) : null}
+                        <span className="inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                          {placementStatusLabel(placementStatus, t)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="sm:col-span-2">
-                      <p className="font-medium text-gray-900 transition-colors duration-300 dark:text-white">Taken Courses:</p>
-                      {studentInfo && studentInfo.taken_courses.length > 0 ? (
-                        <ul className="mt-1 list-inside list-disc space-y-1">
-                          {studentInfo.taken_courses.map((course) => (
-                            <li key={course}>{course}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-1">No data</p>
-                      )}
-                    </div>
-                  </>
-                )}
+                  </div>
+                  <Link href="/supervisor/students" className="shrink-0">
+                    <span className="inline-flex items-center justify-center rounded-full border border-white/40 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20">
+                      {t("supervisor.studentDetail.backToList")}
+                    </span>
+                  </Link>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                    <p className="text-lg font-bold tabular-nums text-white">
+                      {studentInfo.gpa != null ? studentInfo.gpa.toFixed(1) : "—"}
+                    </p>
+                    <p className="text-xs font-medium text-violet-100/80">{t("supervisor.studentDetail.gpa")}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                    <p className="text-lg font-bold tabular-nums text-white">{courseCount > 0 ? courseCount : "—"}</p>
+                    <p className="text-xs font-medium text-violet-100/80">{t("supervisor.studentDetail.courses")}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                    <p className="text-lg font-bold tabular-nums text-white">{applications.length}</p>
+                    <p className="text-xs font-medium text-violet-100/80">{t("supervisor.studentDetail.applicationsStat")}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                    <p className="text-lg font-bold tabular-nums text-white">{skillCount > 0 ? skillCount : "—"}</p>
+                    <p className="text-xs font-medium text-violet-100/80">{t("supervisor.studentDetail.skillsLabel")}</p>
+                  </div>
+                </div>
               </div>
-            </Card>
-            <section className="mt-6">
-              <h2 className="text-lg font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Applications history</h2>
-              {applicationsQueryError ? (
-                <p
-                  className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
-                  role="alert"
-                >
-                  {applicationsQueryError}
-                </p>
-              ) : applicationsTable.length === 0 ? (
-                <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
-                  <svg
-                    className="mb-5 h-12 w-12 text-slate-300 dark:text-slate-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.25}
-                    aria-hidden
-                  >
+            </section>
+
+            <p className="mt-6 text-sm text-slate-600 dark:text-slate-400">
+              {t("supervisor.studentDetail.monitoringDesc")}
+            </p>
+
+            <div className="mt-6 space-y-5">
+              <ProfileSectionCard
+                title={t("supervisor.studentDetail.personalInfo")}
+                accent="violet"
+                icon={
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                  </svg>
+                }
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ProfileField label={t("supervisor.studentDetail.fullName")} value={studentInfo.full_name} />
+                  <ProfileField label={t("supervisor.studentDetail.email")} value={studentInfo.email} />
+                  <ProfileField label={t("supervisor.studentDetail.university")} value={studentInfo.university} />
+                  <ProfileField label={t("supervisor.studentDetail.department")} value={studentInfo.department} />
+                  <ProfileField label={t("supervisor.studentDetail.major")} value={studentInfo.major} />
+                  <ProfileField label={t("supervisor.studentDetail.year")} value={studentInfo.year} />
+                </div>
+              </ProfileSectionCard>
+
+              <ProfileSectionCard
+                title={t("supervisor.studentDetail.bioSkills")}
+                accent="cyan"
+                icon={
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      fillRule="evenodd"
+                      d="M11.3 1.046a1 1 0 011.414 0l1.544 1.544a1 1 0 01.293.707V5.5a1 1 0 001 1h2.203a1 1 0 01.707.293l1.544 1.544a1 1 0 010 1.414l-1.544 1.544a1 1 0 01-.707.293H15.5a1 1 0 00-1 1v2.203a1 1 0 01-.293.707l-1.544 1.544a1 1 0 01-1.414 0l-1.544-1.544a1 1 0 01-.293-.707V15.5a1 1 0 00-1-1h-2.203a1 1 0 01-.707-.293l-1.544-1.544a1 1 0 010-1.414l1.544-1.544a1 1 0 01.707-.293H5.5a1 1 0 001-1V8.544a1 1 0 01.293-.707l1.544-1.544zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                      clipRule="evenodd"
                     />
                   </svg>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">No application history</h3>
-                  <p className="mt-2 max-w-sm text-sm text-gray-500 dark:text-slate-400">
-                    This student has not applied to any internships yet.
+                }
+              >
+                <div className="space-y-3">
+                  <ProfileField label={t("supervisor.studentDetail.bio")} value={studentInfo.bio} />
+                  <div className="rounded-xl bg-slate-50/80 px-4 py-3 dark:bg-slate-800/40">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      {t("supervisor.studentDetail.technicalSkills")}
+                    </p>
+                    <div className="mt-2">
+                      <ColoredChips items={studentInfo.technical_skills} />
+                    </div>
+                  </div>
+                </div>
+              </ProfileSectionCard>
+
+              <ProfileSectionCard
+                title={t("supervisor.studentDetail.academicRecord")}
+                accent="emerald"
+                icon={
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                    <path
+                      fillRule="evenodd"
+                      d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                }
+              >
+                {!studentInfo.hasAdditionalInfoRow ? (
+                  <p className="rounded-xl bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
+                    {t("supervisor.studentDetail.noAcademicInfo")}
                   </p>
+                ) : (
+                  <div className="space-y-3">
+                    <ProfileField
+                      label={t("supervisor.studentDetail.gpa")}
+                      value={studentInfo.gpa != null ? String(studentInfo.gpa) : undefined}
+                    />
+                    <div className="rounded-xl bg-slate-50/80 px-4 py-3 dark:bg-slate-800/40">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {t("supervisor.studentDetail.takenCourses")}
+                      </p>
+                      <div className="mt-2">
+                        <ColoredChips items={studentInfo.taken_courses} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </ProfileSectionCard>
+
+              <ProfileSectionCard
+                title={t("supervisor.studentDetail.applicationsHistory")}
+                accent="fuchsia"
+                icon={
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path
+                      fillRule="evenodd"
+                      d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 00-1 1v6a1 1 0 102 0v-6a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                }
+              >
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <Badge variant={placementStatusBadgeVariant(placementStatus)}>
+                    {placementStatusLabel(placementStatus, t)}
+                  </Badge>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                    {fmt(t("supervisor.studentDetail.applicationsTotal"), { count: applications.length })}
+                  </span>
                 </div>
-              ) : (
-                <div
-                  className="animate-fade-up mt-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
-                >
-                  <table className="min-w-[44rem] w-full table-fixed border-collapse text-left sm:min-w-0 sm:table-auto">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50/90 dark:border-slate-800 dark:bg-slate-800/80">
-                        <th
-                          scope="col"
-                          className="px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-gray-600 sm:px-4 dark:text-slate-300"
+
+                {applicationsQueryError ? (
+                  <p
+                    className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                    role="alert"
+                  >
+                    {t(`supervisor.studentDetail.${applicationsQueryError}`)}
+                  </p>
+                ) : applications.length === 0 ? (
+                  <EmptyState
+                    title={t("supervisor.studentDetail.noApplicationsTitle")}
+                    description={t("supervisor.studentDetail.noApplicationsDesc")}
+                  />
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {applications.map((application, index) => {
+                      const showMessage = hasApplicationMessage(application.message);
+                      const isLatest = index === 0;
+                      return (
+                        <article
+                          key={application.id}
+                          className={`overflow-hidden rounded-xl border bg-white shadow-sm transition dark:bg-slate-900 ${
+                            isLatest
+                              ? "border-violet-300 ring-1 ring-violet-200/60 dark:border-violet-500/40 dark:ring-violet-500/20"
+                              : "border-slate-200/80 dark:border-slate-800"
+                          }`}
                         >
-                          Company
-                        </th>
-                        <th
-                          scope="col"
-                          className="px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-gray-600 sm:px-4 dark:text-slate-300"
-                        >
-                          Internship / Training
-                        </th>
-                        <th
-                          scope="col"
-                          className="w-[7.5rem] px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-gray-600 sm:px-4 dark:text-slate-300"
-                        >
-                          Status
-                        </th>
-                        <th
-                          scope="col"
-                          className="w-40 px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-gray-600 sm:px-4 dark:text-slate-300"
-                        >
-                          Applied
-                        </th>
-                        <th
-                          scope="col"
-                          className="min-w-[8rem] px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-gray-600 sm:px-4 dark:text-slate-300"
-                        >
-                          Message
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                      {applicationsTable.map((application, index) => {
-                        const isLatest = index === 0;
-                        const msg = application.message;
-                        const showMessage = hasApplicationMessage(msg);
-                        return (
-                          <tr
-                            key={application.id}
-                            className={`align-top transition-colors duration-200 ease-out hover:bg-violet-50/60 dark:hover:bg-slate-800/70 ${
-                              isLatest
-                                ? "bg-violet-50/50 ring-1 ring-inset ring-violet-200/60 dark:bg-violet-950/20 dark:ring-violet-500/25"
-                                : ""
-                            }`}
-                          >
-                            <td className="px-3 py-4 text-sm font-medium break-words text-gray-900 sm:px-4 dark:text-white">
-                              <span className="line-clamp-2" title={application.company_name}>
-                                {application.company_name}
-                              </span>
-                            </td>
-                            <td className="px-3 py-4 text-sm break-words text-gray-800 sm:px-4 dark:text-slate-200">
-                              <span className="line-clamp-2" title={application.internship_title}>
-                                {application.internship_title}
-                              </span>
-                            </td>
-                            <td className="px-3 py-4 align-middle sm:px-4">
-                              <ApplicationStatusBadge status={application.status} />
-                            </td>
-                            <td className="px-3 py-4 text-sm tabular-nums break-words text-gray-600 sm:px-4 dark:text-slate-400">
-                              {formatApplicationDate(application.applied_at)}
-                            </td>
-                            <td className="max-w-[10rem] px-3 py-4 text-sm sm:max-w-xs sm:px-4">
-                              {showMessage ? (
-                                <p
-                                  className="line-clamp-2 break-words text-gray-700 dark:text-slate-300"
-                                  title={msg}
-                                >
-                                  {msg}
+                          <div className="h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                {isLatest ? (
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
+                                    {t("supervisor.studentDetail.latest")}
+                                  </p>
+                                ) : null}
+                                <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                                  {application.company_name}
+                                </h3>
+                                <p className="mt-0.5 truncate text-sm text-violet-700/90 dark:text-violet-300/90">
+                                  {application.internship_title}
                                 </p>
+                              </div>
+                              <Badge variant={applicationStatusBadgeVariant(application.status)}>
+                                {appStatusLabel(application.status, t)}
+                              </Badge>
+                            </div>
+
+                            <dl className="mt-3 space-y-2 text-sm">
+                              <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
+                                <dt className="text-slate-500 dark:text-slate-400">{t("supervisor.studentDetail.applied")}</dt>
+                                <dd className="font-medium text-slate-900 dark:text-white">
+                                  {formatApplicationDate(application.applied_at)}
+                                </dd>
+                              </div>
+                            </dl>
+
+                            <div className="mt-3 rounded-lg bg-slate-50/80 px-3 py-2 text-sm dark:bg-slate-800/40">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                {t("supervisor.studentDetail.message")}
+                              </p>
+                              {showMessage ? (
+                                <p className="mt-1 line-clamp-3 text-slate-700 dark:text-slate-300">{application.message}</p>
                               ) : (
-                                <span className="text-slate-400 italic dark:text-slate-500">No message provided</span>
+                                <p className="mt-1 italic text-slate-400 dark:text-slate-500">
+                                  {t("supervisor.studentDetail.noMessage")}
+                                </p>
                               )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </ProfileSectionCard>
+            </div>
           </>
-        )}
+        ) : null}
       </Container>
     </main>
   );

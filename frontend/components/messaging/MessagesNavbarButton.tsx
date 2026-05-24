@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMessagesDrawer } from "@/context/MessagesDrawerContext";
+import { SidebarIcon } from "@/components/layout/SidebarIcon";
 import { useI18n } from "@/lib/i18n/context";
 import type { MessagingViewerRole } from "@/lib/messaging";
 import { createClient } from "@/lib/supabase/client";
@@ -52,9 +53,7 @@ export function MessagesNavbarButton({ enabled }: Props) {
       title={t("nav.messages")}
       aria-label={`${t("nav.messages")} — chat with people`}
     >
-      <span className="text-base" aria-hidden>
-        💬
-      </span>
+      <SidebarIcon name="message" />
       <span className="hidden md:inline">{t("nav.messages")}</span>
     </button>
   );

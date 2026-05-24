@@ -6,10 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AttendancePreview } from "@/components/internship-reports/AttendancePreview";
+import { EmployerEvaluationReadOnly } from "@/components/internship-reports/EmployerEvaluationReadOnly";
 import { MonthlyReportStatusBadge } from "@/components/internship-reports/MonthlyReportStatusBadge";
 import { Button, EmptyState, Textarea, ReportsPageSkeleton } from "@/components/ui";
 import { computeAttendancePercentage, filterAttendanceForMonth, formatIsoDate } from "@/lib/internship-reports/helpers";
-import type { AttendanceRow, MonthlyReportRow, WeeklyReportRow } from "@/lib/internship-reports/types";
+import type { AttendanceRow, EmployerEvaluationRow, MonthlyReportRow, WeeklyReportRow } from "@/lib/internship-reports/types";
 import { createClient } from "@/lib/supabase/client";
 
 const COMMENT_CHIPS = [
@@ -19,13 +20,6 @@ const COMMENT_CHIPS = [
   "Clarify assignments",
 ];
 
-type EmployerEval = {
-  relations_with_others?: string;
-  overall_performance?: string;
-  attendance_record?: string;
-  additional_remarks?: string;
-};
-
 export default function SupervisorMonthlyReviewPage() {
   const params = useParams();
   const router = useRouter();
@@ -33,7 +27,7 @@ export default function SupervisorMonthlyReviewPage() {
   const monthNumber = Number(params.monthNumber);
   const [report, setReport] = useState<MonthlyReportRow | null>(null);
   const [weeks, setWeeks] = useState<WeeklyReportRow[]>([]);
-  const [employerEval, setEmployerEval] = useState<EmployerEval | null>(null);
+  const [employerEval, setEmployerEval] = useState<EmployerEvaluationRow | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [comments, setComments] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
@@ -63,7 +57,7 @@ export default function SupervisorMonthlyReviewPage() {
           supabase.from("internship_attendance").select("*").eq("internship_id", internshipId),
         ]);
         setWeeks((wks ?? []) as WeeklyReportRow[]);
-        setEmployerEval((ev ?? null) as EmployerEval | null);
+        setEmployerEval((ev ?? null) as EmployerEvaluationRow | null);
         setAttendance((att ?? []) as AttendanceRow[]);
       }
 
@@ -228,19 +222,10 @@ export default function SupervisorMonthlyReviewPage() {
           </div>
 
           <div className="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-purple-700 dark:text-purple-300">Part II — Employer</h3>
-            {employerEval ? (
-              <dl className="mt-4 space-y-3 text-sm">
-                <div><dt className="text-xs text-gray-500">Relations</dt><dd>{employerEval.relations_with_others ?? "—"}</dd></div>
-                <div><dt className="text-xs text-gray-500">Overall performance</dt><dd>{employerEval.overall_performance ?? "—"}</dd></div>
-                <div><dt className="text-xs text-gray-500">Attendance rating</dt><dd>{employerEval.attendance_record ?? "—"}</dd></div>
-                {employerEval.additional_remarks && (
-                  <div><dt className="text-xs text-gray-500">Remarks</dt><dd className="whitespace-pre-wrap">{employerEval.additional_remarks}</dd></div>
-                )}
-              </dl>
-            ) : (
-              <p className="mt-4 text-sm text-gray-500">Employer evaluation not submitted yet.</p>
-            )}
+            <h3 className="text-sm font-bold uppercase tracking-wide text-purple-700 dark:text-purple-300">
+              Part II — Employer Evaluation
+            </h3>
+            <EmployerEvaluationReadOnly evaluation={employerEval} />
           </div>
         </div>
 

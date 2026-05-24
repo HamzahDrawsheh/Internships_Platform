@@ -32,6 +32,14 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "CODE", "PRE", "SVG"]);
 const SKIP_SELECTOR = "[data-i18n-skip], [contenteditable='true']";
+const SITE_NAVBAR_ID = "site-navbar";
+
+function isInSkippedRegion(element: Element | null): boolean {
+  if (!element) return true;
+  if (element.closest(SKIP_SELECTOR)) return true;
+  if (element.closest(`#${SITE_NAVBAR_ID}`)) return true;
+  return false;
+}
 
 function applyDocumentLocale(locale: Locale) {
   const html = document.documentElement;
@@ -41,6 +49,7 @@ function applyDocumentLocale(locale: Locale) {
 
 function restoreDomTranslations(root: ParentNode) {
   root.querySelectorAll("[data-i18n-applied]").forEach((element) => {
+    if (isInSkippedRegion(element)) return;
     const original = element.getAttribute("data-i18n-applied");
     if (original == null) return;
 
@@ -56,7 +65,7 @@ function restoreDomTranslations(root: ParentNode) {
 function applyDomTranslations(root: ParentNode) {
   root.querySelectorAll("input[placeholder], textarea[placeholder]").forEach((element) => {
     if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) return;
-    if (element.closest(SKIP_SELECTOR)) return;
+    if (isInSkippedRegion(element)) return;
 
     const original = element.getAttribute("data-i18n-applied") ?? element.placeholder;
     const translated = localizeText(original, "ar");
@@ -71,7 +80,7 @@ function applyDomTranslations(root: ParentNode) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
-      if (!parent || SKIP_TAGS.has(parent.tagName) || parent.closest(SKIP_SELECTOR)) {
+      if (!parent || SKIP_TAGS.has(parent.tagName) || isInSkippedRegion(parent)) {
         return NodeFilter.FILTER_REJECT;
       }
       const text = node.textContent?.trim();
@@ -146,8 +155,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     applyDocumentLocale(locale);
     window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+    requestAnimationFrame(() => {
+      window.scrollTo(scrollX, scrollY);
+    });
   }, [locale, ready]);
 
   const setLocale = useCallback((next: Locale) => {

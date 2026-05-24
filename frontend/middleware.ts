@@ -101,7 +101,6 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
       return (
         pathname === "/dashboard/supervisor" ||
         pathname.startsWith("/supervisor") ||
-        pathname.startsWith("/companies") ||
         pathname.startsWith("/notifications")
       );
     case "admin":
@@ -109,7 +108,8 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname.startsWith("/admin") ||
         pathname === "/dashboard/admin" ||
         pathname.startsWith("/companies") ||
-        pathname.startsWith("/notifications")
+        pathname.startsWith("/notifications") ||
+        pathname === "/account-suspended"
       );
     default:
       return false;
@@ -121,6 +121,7 @@ function isProtected(pathname: string): boolean {
     pathname === "/onboarding" ||
     pathname.startsWith("/onboarding/") ||
     pathname === "/pending-approval" ||
+    pathname === "/account-suspended" ||
     pathname.startsWith("/internships") ||
     pathname.startsWith("/applications") ||
     pathname.startsWith("/companies") ||
@@ -184,13 +185,20 @@ export async function middleware(request: NextRequest) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, is_suspended")
     .eq("id", user.id)
     .maybeSingle();
   if (profileError) {
     console.error("middleware profile query error:", profileError);
   }
   const role = (profile?.role as ProfileRole) ?? null;
+
+  if (profile?.is_suspended && pathname !== "/account-suspended") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/account-suspended";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
 
   const { data: latestUpgradeRequest, error: latestUpgradeRequestError } = await supabase
     .from("role_upgrade_requests")
@@ -260,6 +268,12 @@ export async function middleware(request: NextRequest) {
     if (pathname !== onboardingTarget) {
       return NextResponse.redirect(new URL(onboardingTarget, request.url));
     }
+  }
+
+  if (role === "supervisor" && (pathname === "/companies" || pathname.startsWith("/companies/"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.replace(/^\/companies/, "/supervisor/companies");
+    return NextResponse.redirect(url);
   }
 
   if (isProtected(pathname) && !isAllowedForRole(pathname, role)) {

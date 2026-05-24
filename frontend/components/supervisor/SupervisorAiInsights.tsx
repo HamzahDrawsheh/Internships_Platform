@@ -7,6 +7,8 @@ import {
   parseCompanyAiFeedbackSummaryRpc,
   type CompanyAiFeedbackSummaryData,
 } from "@/components/companies/CompanyAiFeedbackSummary";
+import { useI18n } from "@/lib/i18n/context";
+import { fmt } from "@/lib/i18n/format";
 
 type Props = {
   /** When false, no RPC is called (e.g. supervisor has no department row). */
@@ -15,6 +17,7 @@ type Props = {
 };
 
 export function SupervisorAiInsights({ eligible, className = "" }: Props) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<CompanyAiFeedbackSummaryData | null>(null);
@@ -76,9 +79,9 @@ export function SupervisorAiInsights({ eligible, className = "" }: Props) {
   if (error) {
     return (
       <section className={outerClass}>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Supervisor AI insights</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("supervisor.insights.title")}</h2>
         <p className="mt-2 text-sm text-amber-800 dark:text-amber-200" role="alert">
-          Unable to load insights: {error}
+          {t("supervisor.insights.loadError")} {error}
         </p>
       </section>
     );
@@ -95,15 +98,14 @@ export function SupervisorAiInsights({ eligible, className = "" }: Props) {
     <section className={outerClass}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Supervisor AI insights</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-            Department-level aggregates from analyzed training evaluations (no raw student text).
-          </p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("supervisor.insights.title")}</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t("supervisor.insights.subtitle")}</p>
         </div>
-        <div className="rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-900 dark:bg-teal-500/15 dark:text-teal-100">
-          Avg score {avgLabel}
-          {avgLabel !== "—" ? " / 1" : ""}
-        </div>
+        {avgLabel !== "—" ? (
+          <div className="rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-900 dark:bg-teal-500/15 dark:text-teal-100">
+            {fmt(t("supervisor.insights.avgScore"), { score: avgLabel })}
+          </div>
+        ) : null}
       </div>
 
       {total === 0 ? (
@@ -111,36 +113,37 @@ export function SupervisorAiInsights({ eligible, className = "" }: Props) {
           <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-teal-100 text-xl dark:bg-teal-500/15">
             <span aria-hidden>📊</span>
           </div>
-          <h3 className="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">No AI summaries yet</h3>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            Insights appear when students in your department complete internships and evaluations are analyzed.
-          </p>
+          <h3 className="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">
+            {t("supervisor.insights.noSummariesTitle")}
+          </h3>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("supervisor.insights.noSummariesDesc")}</p>
         </div>
       ) : (
         <>
           <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-            Based on <span className="font-semibold text-gray-900 dark:text-gray-100">{total}</span> analyzed
-            feedback{total === 1 ? "" : "s"} in your department.
+            {fmt(total === 1 ? t("supervisor.insights.basedOnOne") : t("supervisor.insights.basedOnMany"), {
+              count: total,
+            })}
           </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <Card className="border-emerald-200/80 bg-emerald-50/80 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
               <p className="text-xs font-medium uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
-                Positive
+                {t("supervisor.insights.positive")}
               </p>
               <p className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-100">{s?.positive ?? 0}</p>
               <p className="text-xs text-emerald-800/80 dark:text-emerald-200/80">{pct(s?.positive ?? 0)}%</p>
             </Card>
             <Card className="border-slate-200 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-800/80">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                Neutral
+                {t("supervisor.insights.neutral")}
               </p>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{s?.neutral ?? 0}</p>
               <p className="text-xs text-slate-600 dark:text-slate-400">{pct(s?.neutral ?? 0)}%</p>
             </Card>
             <Card className="border-rose-200/80 bg-rose-50/80 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
               <p className="text-xs font-medium uppercase tracking-wide text-rose-800 dark:text-rose-200">
-                Negative
+                {t("supervisor.insights.negative")}
               </p>
               <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{s?.negative ?? 0}</p>
               <p className="text-xs text-rose-800/80 dark:text-rose-200/80">{pct(s?.negative ?? 0)}%</p>
@@ -149,7 +152,9 @@ export function SupervisorAiInsights({ eligible, className = "" }: Props) {
 
           {(s?.keywords?.length ?? 0) > 0 && (
             <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Themes & keywords</h3>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {t("supervisor.insights.themesKeywords")}
+              </h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(s?.keywords ?? []).map((kw) => (
                   <span
