@@ -11,6 +11,7 @@ import { LandingHomeNav } from "@/components/landing/LandingHomeNav";
 import { AppBrand } from "@/components/layout/AppBrand";
 import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell";
 import { useI18n } from "@/lib/i18n/context";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { createClient } from "@/lib/supabase/client";
 
 export default function Navbar() {
@@ -18,6 +19,7 @@ export default function Navbar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [homeHref, setHomeHref] = useState("/onboarding");
   const [themeMounted, setThemeMounted] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const roleResolvedRef = useRef(false);
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
@@ -128,7 +130,6 @@ export default function Navbar() {
 
             {!isHomePage && <NotificationsDropdown enabled={isAuthenticated} />}
 
-<<<<<<< HEAD
             {!isHomePage && (
               <div className="relative">
                 <button
@@ -173,7 +174,7 @@ export default function Navbar() {
                             onClick={() => setAccountOpen(false)}
                             className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                           >
-                            Login
+                            {t("nav.login")}
                           </Link>
                         )}
                       </div>
@@ -181,15 +182,6 @@ export default function Navbar() {
                   </>
                 )}
               </div>
-=======
-            {!isHomePage && !isAuthenticated && (
-              <Link
-                href="/auth/login"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-              >
-                {t("nav.login")}
-              </Link>
->>>>>>> 6d81e373318b6201615229d8436869e083c82991
             )}
           </div>
         </div>

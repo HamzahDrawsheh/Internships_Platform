@@ -130,11 +130,8 @@ function isProtected(pathname: string): boolean {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/notifications") ||
-<<<<<<< HEAD
-    pathname.startsWith("/settings")
-=======
+    pathname.startsWith("/settings") ||
     pathname.startsWith("/resume-builder")
->>>>>>> 6d81e373318b6201615229d8436869e083c82991
   );
 }
 
