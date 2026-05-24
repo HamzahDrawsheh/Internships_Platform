@@ -21,9 +21,23 @@ function rpcErrorCode(err: unknown): string {
  * Marks accepted applications as completed when `training_end_date` has passed (see migration
  * `20260508200000_training_schedule_auto_complete.sql`). Safe to call on every student load.
  */
+/** Fire-and-forget: sends emails queued by DB triggers (e.g. training_completed). */
+async function drainTransactionalEmailQueue(): Promise<void> {
+  try {
+    await fetch("/api/notifications/process-email-queue", { method: "POST" });
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[transactional_email_queue] drain request failed:", err);
+    }
+  }
+}
+
 export async function invokeAutoCompleteExpiredTrainings(supabase: SupabaseClient): Promise<void> {
   const { error } = await supabase.rpc("auto_complete_expired_trainings");
-  if (!error) return;
+  if (!error) {
+    void drainTransactionalEmailQueue();
+    return;
+  }
 
   const text = formatRpcError(error);
   const code = rpcErrorCode(error);

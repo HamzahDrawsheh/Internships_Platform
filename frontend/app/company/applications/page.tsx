@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge, Button, EmptyState, Input, Modal, Select, Table } from "@/components/ui";
+import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
 import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
@@ -405,17 +406,17 @@ export default function CompanyApplicationsPage() {
                 ? "rejected"
                 : "info";
 
-        const { error: notificationError } = await supabase.from("notifications").insert({
-          user_id: targetUserId,
+        const notifyResult = await dispatchNotification({
+          recipientUserId: targetUserId,
           title,
           message,
           type,
-          is_read: false,
-          related_application_id: selectedApplicationId,
+          relatedApplicationId: selectedApplicationId,
+          linkPath: "/applications",
         });
 
-        if (notificationError) {
-          console.error("company applications notification insert error:", notificationError);
+        if (!notifyResult.ok) {
+          console.error("company applications notification error:", notifyResult.error);
           setError("Application updated, but failed to notify the student.");
         }
       }

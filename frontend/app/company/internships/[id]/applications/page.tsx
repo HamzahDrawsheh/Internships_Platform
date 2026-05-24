@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge, Button, Input, Modal, Select, Table, EmptyState } from "@/components/ui";
+import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
 import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
@@ -401,17 +402,17 @@ export default function ApplicantsPage() {
               ? "rejected"
               : "info";
 
-      const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: studentRow.user_id,
+      const notifyResult = await dispatchNotification({
+        recipientUserId: studentRow.user_id,
         title: titleText,
         message,
         type,
-        is_read: false,
-        related_application_id: applicationId,
+        relatedApplicationId: applicationId,
+        linkPath: "/applications",
       });
 
-      if (notificationError) {
-        console.error("company applicants notification insert error:", notificationError);
+      if (!notifyResult.ok) {
+        console.error("company applicants notification error:", notifyResult.error);
         setActionMessage("Status updated, but failed to notify the student.");
       }
     }

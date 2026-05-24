@@ -88,6 +88,11 @@ export default function NotificationsDropdown({ enabled }: Props) {
 
   useEffect(() => {
     if (!enabled) return;
+    void fetch("/api/notifications/process-email-queue", { method: "POST" }).catch(() => {});
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
     const supabase = createClient();
     const {
       data: { subscription },

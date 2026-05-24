@@ -55,6 +55,17 @@ export default function SignupPage() {
       return;
     }
     setSuccess(true);
+
+    void fetch("/api/email/welcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        fullName: fullName.trim() || undefined,
+      }),
+    }).catch((err) => {
+      console.error("welcome email request failed:", err);
+    });
   };
 
   if (success) {

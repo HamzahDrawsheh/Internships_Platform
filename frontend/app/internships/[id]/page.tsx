@@ -108,112 +108,35 @@ export default function InternshipDetailsPage() {
     setSubmitting(true);
     setError(null);
     setSuccess(null);
-    const supabase = createClient();
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const applyResponse = await fetch("/api/applications/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        positionId: position.id,
+        message: coverLetter.trim() || null,
+      }),
+    });
 
-    if (userError) {
-      console.error("apply internship getUser error:", userError);
-      setError("Unable to verify your account.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!user) {
-      setError("Please log in first to apply.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (profileError) {
-      console.error("apply internship role check error:", profileError);
-      setError("Unable to validate your role.");
-      setSubmitting(false);
-      return;
-    }
-    if (profile?.role && profile.role !== "student") {
-      setError("Only students can apply to internships.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { data: student, error: studentError } = await supabase
-      .from("students")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-    if (studentError) {
-      console.error("apply internship student lookup error:", studentError);
-    }
-
-    if (!student) {
-      setError("Student profile not found. Please complete your student profile first.");
-      setSubmitting(false);
-      return;
-    }
-
-    const applicationPayload = {
-      student_id: student.id,
-      position_id: position.id,
-      message: coverLetter.trim() || null,
+    const applyBody = (await applyResponse.json()) as {
+      ok: boolean;
+      error?: string;
+      code?: string;
+      notificationWarning?: string;
     };
 
-    const { data: insertedApp, error: insertError } = await supabase
-      .from("applications")
-      .insert({
-        ...applicationPayload,
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      if (insertError.code === "23505") {
+    if (!applyResponse.ok || !applyBody.ok) {
+      if (applyBody.code === "already_applied" || applyResponse.status === 409) {
         setError("You already applied to this internship.");
       } else {
-        setError(insertError.message);
+        setError(applyBody.error ?? "Failed to submit application.");
       }
       setSubmitting(false);
       return;
     }
 
-    if (insertedApp?.id) {
-      const { data: posMeta } = await supabase
-        .from("internship_positions")
-        .select("title, company_id")
-        .eq("id", position.id)
-        .maybeSingle();
-      const { data: companyMeta } = posMeta?.company_id
-        ? await supabase.from("companies").select("user_id, company_name").eq("id", posMeta.company_id).maybeSingle()
-        : { data: null };
-
-      const { data: applicantProfile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-      const applicantName =
-        applicantProfile?.full_name?.trim() ||
-        user.email?.split("@")[0] ||
-        "A student";
-
-      if (companyMeta?.user_id) {
-        const internshipTitle = posMeta?.title?.trim() || position.title;
-        const { error: notifyErr } = await supabase.from("notifications").insert({
-          user_id: companyMeta.user_id,
-          title: "New application",
-          message: `${applicantName} applied to “${internshipTitle}”.`,
-          type: "new_application",
-          is_read: false,
-          related_application_id: insertedApp.id,
-        });
-        if (notifyErr) {
-          console.error("notify company new application error:", notifyErr);
-        }
-      }
+    if (applyBody.notificationWarning) {
+      console.warn("Application submitted; company notification issue:", applyBody.notificationWarning);
     }
 
     setSuccess("Application submitted successfully.");

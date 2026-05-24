@@ -148,6 +148,18 @@ export default function Navbar() {
                       className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-lg transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900"
                       role="menu"
                     >
+                      {isAuthenticated && (
+                        <div className="px-2 py-1">
+                          <Link
+                            href="/settings/notifications"
+                            onClick={() => setAccountOpen(false)}
+                            className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                            role="menuitem"
+                          >
+                            Notification settings
+                          </Link>
+                        </div>
+                      )}
                       <div className="px-4 py-2">
                         {isAuthenticated ? (
                           <LogoutButton />

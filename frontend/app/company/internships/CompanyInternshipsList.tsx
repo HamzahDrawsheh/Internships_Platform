@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import EmptyState from "@/components/common/EmptyState";
 import { Modal, Button, Table, Badge } from "@/components/ui";
@@ -131,25 +132,19 @@ export default function CompanyInternshipsList() {
             console.error("load students for application_expired notifications:", studentsErr);
           } else {
             const userIdByStudentId = new Map((studentRows ?? []).map((s) => [s.id, s.user_id]));
-            const notificationRows = pendingApps
-              .map((app) => {
-                const uid = userIdByStudentId.get(app.student_id);
-                if (!uid) return null;
-                return {
-                  user_id: uid,
-                  title: "Application closed",
-                  message: `Your pending application to “${listingTitle}” was closed — this internship listing is no longer active.`,
-                  type: "application_expired" as const,
-                  is_read: false,
-                  related_application_id: app.id,
-                };
-              })
-              .filter((row): row is NonNullable<typeof row> => row !== null);
-
-            if (notificationRows.length > 0) {
-              const { error: notifyErr } = await supabase.from("notifications").insert(notificationRows);
-              if (notifyErr) {
-                console.error("application_expired notifications insert:", notifyErr);
+            for (const app of pendingApps) {
+              const uid = userIdByStudentId.get(app.student_id);
+              if (!uid) continue;
+              const notifyResult = await dispatchNotification({
+                recipientUserId: uid,
+                title: "Application closed",
+                message: `Your pending application to “${listingTitle}” was closed — this internship listing is no longer active.`,
+                type: "application_expired",
+                relatedApplicationId: app.id,
+                linkPath: "/applications",
+              });
+              if (!notifyResult.ok) {
+                console.error("application_expired notification error:", notifyResult.error);
               }
             }
           }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { dispatchNotification } from "@/lib/notifications/client";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { createClient } from "@/lib/supabase/client";
 import ApplicationTable from "@/components/applications/ApplicationTable";
@@ -436,16 +437,16 @@ export default function ApplicationsList() {
         studentProfile?.full_name?.trim() || evalAuthUser?.email?.split("@")[0] || "A student";
       const internshipTitle = selectedEvaluationApp.internship_title?.trim() || "your internship";
       if (companyOwner?.user_id) {
-        const { error: notifyEvalErr } = await supabase.from("notifications").insert({
-          user_id: companyOwner.user_id,
+        const notifyEvalResult = await dispatchNotification({
+          recipientUserId: companyOwner.user_id,
           title: "New training evaluation",
           message: `${who} submitted a training evaluation for “${internshipTitle}”.`,
           type: "new_training_evaluation",
-          is_read: false,
-          related_application_id: selectedEvaluationApp.id,
+          relatedApplicationId: selectedEvaluationApp.id,
+          linkPath: "/company/applications",
         });
-        if (notifyEvalErr) {
-          console.error("[ApplicationsList] training evaluation notification error:", notifyEvalErr);
+        if (!notifyEvalResult.ok) {
+          console.error("[ApplicationsList] training evaluation notification error:", notifyEvalResult.error);
         }
       }
     }
@@ -526,16 +527,16 @@ export default function ApplicationsList() {
         const who =
           studentProfile?.full_name?.trim() || authUser?.email?.split("@")[0] || "A student";
         if (companyOwner?.user_id) {
-          const { error: notifyRatingErr } = await supabase.from("notifications").insert({
-            user_id: companyOwner.user_id,
+          const notifyRatingResult = await dispatchNotification({
+            recipientUserId: companyOwner.user_id,
             title: "New star rating",
             message: `${who} rated “${internshipTitle}” (${Number(ratingValue)}/5).`,
             type: "new_feedback",
-            is_read: false,
-            related_rating_id: ratingRowId,
+            relatedRatingId: ratingRowId,
+            linkPath: "/company/applications",
           });
-          if (notifyRatingErr) {
-            console.error("[ApplicationsList] company rating notification error:", notifyRatingErr);
+          if (!notifyRatingResult.ok) {
+            console.error("[ApplicationsList] company rating notification error:", notifyRatingResult.error);
           }
         }
       }

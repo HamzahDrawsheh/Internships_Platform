@@ -128,7 +128,8 @@ function isProtected(pathname: string): boolean {
     pathname.startsWith("/supervisor") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/profile") ||
-    pathname.startsWith("/notifications")
+    pathname.startsWith("/notifications") ||
+    pathname.startsWith("/settings")
   );
 }
 
@@ -172,6 +173,10 @@ export async function middleware(request: NextRequest) {
       url.searchParams.set("next", pathname);
       return NextResponse.redirect(url);
     }
+    return response;
+  }
+
+  if (pathname.startsWith("/settings")) {
     return response;
   }
 
