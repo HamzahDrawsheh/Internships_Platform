@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ProfileFormSkeleton } from "@/components/loading";
 import { Button, Card, Input, Textarea } from "@/components/ui";
+import { normalizeIndustryForStorage } from "@/lib/companies/industry";
 import { createClient } from "@/lib/supabase/client";
 
 export default function CreateCompanyProfilePage() {
@@ -115,7 +117,7 @@ export default function CreateCompanyProfilePage() {
       company_name: companyName.trim(),
       description: description.trim() || null,
       location: location.trim() || null,
-      industry: industry.trim() || null,
+      industry: normalizeIndustryForStorage(industry),
       website: website.trim() || null,
       contact_email: user.email ?? null,
     });
@@ -140,7 +142,7 @@ export default function CreateCompanyProfilePage() {
           description="Complete your company profile to start posting internships."
         />
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading...</p>
+          <ProfileFormSkeleton />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (

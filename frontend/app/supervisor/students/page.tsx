@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Table, EmptyState, Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
@@ -110,7 +111,7 @@ export default function StudentsListPage() {
             .from("applications")
             .select("student_id, status")
             .in("student_id", studentIds)
-        : { data: [] as { student_id: string; status: "pending" | "accepted" | "rejected" }[], error: null };
+        : { data: [] as { student_id: string; status: "pending" | "accepted" | "rejected" | "completed" }[], error: null };
 
       if (applicationsError) {
         console.error("supervisor students applications query error:", applicationsError);
@@ -119,8 +120,12 @@ export default function StudentsListPage() {
       const statusByStudentId = new Map<string, string>();
       (applicationsData ?? []).forEach((application) => {
         const current = statusByStudentId.get(application.student_id);
-        if (application.status === "accepted") {
-          statusByStudentId.set(application.student_id, "Accepted");
+        if (application.status === "completed") {
+          statusByStudentId.set(application.student_id, "Completed");
+          return;
+        }
+        if (application.status === "accepted" && current !== "Completed") {
+          statusByStudentId.set(application.student_id, "Active");
           return;
         }
         if (!current && application.status === "pending") {
@@ -171,7 +176,7 @@ export default function StudentsListPage() {
           description="Students in your academic department: applications, acceptance count, and placement status."
         />
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading assigned students...</p>
+          <TableListPageSkeleton />
         ) : error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
         ) : rows.length === 0 ? (

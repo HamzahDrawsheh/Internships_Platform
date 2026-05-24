@@ -1,4 +1,7 @@
+"use client";
+
 import { type SelectHTMLAttributes } from "react";
+import { useI18n } from "@/lib/i18n/context";
 
 export interface SelectOption {
   value: string;
@@ -13,12 +16,13 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "chi
 }
 
 export function Select({ label, options, error, id, className = "", ...props }: SelectProps) {
+  const { lt } = useI18n();
   const selectId = id ?? (label ? label.toLowerCase().replace(/\s/g, "-") : undefined);
   return (
     <div className="w-full">
       {label && (
         <label htmlFor={selectId} className="mb-1 block text-sm font-medium text-gray-700 transition-colors duration-300 dark:text-slate-300">
-          {label}
+          {lt(label)}
         </label>
       )}
       <select
@@ -30,13 +34,13 @@ export function Select({ label, options, error, id, className = "", ...props }: 
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
-            {opt.label}
+            {lt(opt.label)}
           </option>
         ))}
       </select>
       {error && (
         <p id={selectId ? `${selectId}-error` : undefined} className="mt-1 text-sm text-red-600" role="alert">
-          {error}
+          {lt(error)}
         </p>
       )}
     </div>

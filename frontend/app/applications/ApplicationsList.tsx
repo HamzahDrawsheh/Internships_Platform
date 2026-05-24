@@ -6,6 +6,7 @@ import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-
 import { createClient } from "@/lib/supabase/client";
 import ApplicationTable from "@/components/applications/ApplicationTable";
 import EmptyState from "@/components/common/EmptyState";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
 import type { Application, ApplicationStatus } from "@/lib/types";
 
@@ -565,7 +566,7 @@ export default function ApplicationsList() {
     setModalOpen(false);
   };
 
-  if (loading) return <p className="text-gray-600 transition-colors duration-300 dark:text-slate-400">Loading…</p>;
+  if (loading) return <TableListPageSkeleton showWelcome={false} showFilters={false} />;
   if (applications.length === 0) {
     return (
       <EmptyState

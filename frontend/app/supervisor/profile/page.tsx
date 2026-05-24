@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ProfileFormSkeleton } from "@/components/loading";
 import { Button, Card, EmptyState, Input, Select } from "@/components/ui";
 import { academicDepartmentSelectOptions, isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
@@ -190,7 +191,7 @@ export default function SupervisorProfilePage() {
           description="Your account and supervisor profile details."
         />
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading profile...</p>
+          <ProfileFormSkeleton />
         ) : error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
         ) : !profile ? (

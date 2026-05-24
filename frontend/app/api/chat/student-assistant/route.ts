@@ -8,6 +8,12 @@ import {
 } from "@/lib/server/in-memory-user-rate-limit";
 import { cosineSimilarity, parsePgVector } from "@/lib/ai/vector-utils";
 import { buildMatchInsights } from "@/lib/ai/match-insights";
+import {
+  buildStudentInternshipReportsContext,
+  isReportRelatedQuestion,
+  rankReportLinesForQuestion,
+} from "@/lib/ai/student-assistant-internship-context";
+import { parseCompanyEvaluationRpc, type CompanyEvaluationSummary } from "@/lib/companies/evaluation";
 
 type ChatBody = {
   message?: string;
@@ -36,41 +42,33 @@ function normalizeText(input: unknown, maxLen = 1500): string {
   return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
 }
 
-type CompanyEvalAgg = {
-  company_level: string | null;
-  avg_score: number | null;
-  total_feedbacks: number;
-  avg_rating?: number | null;
-};
+type CompanyEvalAgg = Pick<
+  CompanyEvaluationSummary,
+  | "company_level"
+  | "avg_score"
+  | "total_feedbacks"
+  | "avg_rating"
+  | "is_new_company"
+  | "evaluation_enabled"
+  | "acceptance_ratio_pct"
+  | "completion_rate_pct"
+  | "company_score"
+>;
 
 function parseCompanyEvalPayload(data: unknown): CompanyEvalAgg | null {
-  if (!data || typeof data !== "object") return null;
-  const d = data as Record<string, unknown>;
-  const levelRaw = d.company_level;
-  const company_level =
-    typeof levelRaw === "string" && ["white", "gray", "black"].includes(levelRaw) ? levelRaw : null;
-  let avg_score: number | null = null;
-  if (typeof d.avg_score === "number" && Number.isFinite(d.avg_score)) avg_score = d.avg_score;
-  else if (d.avg_score != null && String(d.avg_score).length > 0) {
-    const n = Number(d.avg_score);
-    if (Number.isFinite(n)) avg_score = n;
-  }
-  let total_feedbacks = 0;
-  if (typeof d.total_feedbacks === "number" && Number.isFinite(d.total_feedbacks)) {
-    total_feedbacks = d.total_feedbacks;
-  } else if (d.total_feedbacks != null) {
-    const n = Number(d.total_feedbacks);
-    if (Number.isFinite(n)) total_feedbacks = n;
-  }
-  let avg_rating: number | null | undefined;
-  if (d.avg_rating !== undefined) {
-    if (typeof d.avg_rating === "number" && Number.isFinite(d.avg_rating)) avg_rating = d.avg_rating;
-    else {
-      const n = Number(d.avg_rating);
-      avg_rating = Number.isFinite(n) ? n : null;
-    }
-  }
-  return { company_level, avg_score, total_feedbacks, avg_rating };
+  const parsed = parseCompanyEvaluationRpc(data);
+  if (!parsed) return null;
+  return {
+    company_level: parsed.company_level,
+    avg_score: parsed.avg_score,
+    total_feedbacks: parsed.total_feedbacks,
+    avg_rating: parsed.avg_rating,
+    is_new_company: parsed.is_new_company,
+    evaluation_enabled: parsed.evaluation_enabled,
+    acceptance_ratio_pct: parsed.acceptance_ratio_pct,
+    completion_rate_pct: parsed.completion_rate_pct,
+    company_score: parsed.company_score,
+  };
 }
 
 async function loadCompanyEvaluations(
@@ -228,6 +226,8 @@ export async function POST(request: Request) {
       (student as { embedding?: unknown }).embedding ?? null
     );
 
+    const internshipReportsCtx = await buildStudentInternshipReportsContext(admin, studentId);
+
     const [{ data: applications }, { data: allCompanies }, { data: allActivePositions }] =
       await Promise.all([
         admin
@@ -351,7 +351,12 @@ export async function POST(request: Request) {
           `TITLE: ${normalizeText(p.title, 300)}`,
           `COMPANY_ID: ${cid}`,
           `COMPANY_NAME: ${sp.company_name}`,
-          `COMPANY_LEVEL (W/G/B): ${evalAgg?.company_level ?? "unknown"} (white=stronger aggregate training feedback, gray=mid, black=lower; null=no data)`,
+          `COMPANY_LEVEL (W/G/B): ${evalAgg?.company_level ?? "unknown"} (white=stronger weighted score, gray=mid, black=lower; null=new or insufficient data)`,
+          `COMPANY_NEW: ${evalAgg?.is_new_company ? "yes" : "no"}`,
+          `COMPANY_EVAL_PUBLIC: ${evalAgg?.evaluation_enabled ? "yes" : "no"}`,
+          `COMPANY_WEIGHTED_SCORE_0_TO_1: ${evalAgg?.company_score ?? "null"}`,
+          `COMPANY_ACCEPTANCE_RATE_PCT: ${evalAgg?.acceptance_ratio_pct ?? "null"}`,
+          `COMPANY_COMPLETION_RATE_PCT: ${evalAgg?.completion_rate_pct ?? "null"}`,
           `COMPANY_TRAINING_AVG_SCORE_0_TO_1: ${evalAgg?.avg_score ?? "null"}`,
           `N_TRAINING_EVALUATIONS: ${evalAgg?.total_feedbacks ?? 0}`,
           `MATCH_PERCENT_SEMANTIC: ${sp.match_percentage != null ? `${sp.match_percentage}% (cosine similarity of profile vs listing embeddings when both exist)` : "not_computed"}`,
@@ -378,6 +383,11 @@ export async function POST(request: Request) {
         loc,
         site,
         `level=${ev?.company_level ?? "n/a"}`,
+        `new=${ev?.is_new_company ? "yes" : "no"}`,
+        `eval_public=${ev?.evaluation_enabled ? "yes" : "no"}`,
+        `score=${ev?.company_score ?? "n/a"}`,
+        `accept_pct=${ev?.acceptance_ratio_pct ?? "n/a"}`,
+        `completion_pct=${ev?.completion_rate_pct ?? "n/a"}`,
         `avg=${ev?.avg_score ?? "n/a"}`,
         `n=${ev?.total_feedbacks ?? 0}`,
         desc ? `desc=${desc}` : "",
@@ -476,7 +486,10 @@ export async function POST(request: Request) {
       `your_applications=${(applications ?? []).length}`,
       `your_training_evaluations=${(evaluations ?? []).length}`,
       `your_company_ratings=${(ratings ?? []).length}`,
-      "company_level: white = stronger aggregate training feedback for that company, gray = mid, black = lower (from get_company_evaluation RPC; null = insufficient data).",
+      `has_internship_tracking=${internshipReportsCtx.hasInternshipTracking ? "yes" : "no"}`,
+      "company_level: white/gray/black from weighted company_score (acceptance ratio, completion, student feedback); null = new company or not enough data for public evaluation.",
+      "is_new_company: yes until the company has posted internships AND accepted at least one trainee.",
+      "evaluation_enabled: public scores/rankings only when the company has enough track record (3+ completed internships or 5+ student evaluations).",
       "match_percentage: semantic similarity 0–100 from student vs internship embeddings (same idea as /api/recommendations/internships) when both embeddings exist.",
     ].join("\n");
 
@@ -484,6 +497,7 @@ export async function POST(request: Request) {
       platformSummary,
       studentProfileBlock,
       additionalBlock,
+      internshipReportsCtx.contextBlock,
       "=== COMPANY_DIRECTORY (all loaded companies + aggregates) ===\n" + companyDirectoryLines.join("\n"),
       "=== INTERNSHIP_MATCH_INDEX (compact, best match first) ===\n" + matchIndexLines.join("\n"),
       "=== INTERNSHIP_DETAILS (applied + top semantic matches; includes match insights) ===\n" +
@@ -495,6 +509,18 @@ export async function POST(request: Request) {
 
     let contextText = contextParts.join("\n\n");
     contextText = truncateContext(contextText, MAX_CONTEXT_CHARS);
+
+    const reportRanked = rankReportLinesForQuestion(internshipReportsCtx.reportSummaryLines, message);
+    if (reportRanked.length > 0 || isReportRelatedQuestion(message)) {
+      const lines =
+        reportRanked.length > 0
+          ? reportRanked
+          : internshipReportsCtx.reportSummaryLines.slice(0, 8);
+      contextText = truncateContext(
+        `${contextText}\n\n=== TOP_MONTHLY_REPORTS_FOR_THIS_QUESTION (retrieved from your data) ===\n${lines.join("\n")}`,
+        MAX_CONTEXT_CHARS
+      );
+    }
 
     const queryEmbedding = await embedQuery(message);
     if (queryEmbedding && positionsList.length > 0) {
@@ -538,7 +564,9 @@ DATA YOU HAVE:
   - company_level "white" | "gray" | "black" = W / G / B style band from pooled student training evaluations (white = stronger average, black = lower); null / n/a = not enough data.
 - Active internships (loaded cap), each with semantic match_percentage vs this student's profile when embeddings exist (same family as the recommendations API).
 - This student's applications, training evaluations, and star ratings.
-- Optional "TOP_POSITIONS_FOR_THIS_QUESTION" lines when the student's question is embedded against listings.
+- **Monthly JUST internship reports**: live tracking per internship (status per month, due dates, what Part I sections are filled, attendance summary, next action, form URLs). Section MONTHLY_INTERNSHIP_REPORTS_GUIDE + YOUR_INTERNSHIP_TRACKING & MONTHLY REPORTS.
+- Optional "TOP_POSITIONS_FOR_THIS_QUESTION" when the question is embedded against listings.
+- Optional "TOP_MONTHLY_REPORTS_FOR_THIS_QUESTION" when the question matches report keywords or report lines.
 
 TONE:
 - Be kind, encouraging, and conversational.
@@ -549,8 +577,18 @@ TONE:
   2) Upload CV (optional)
   3) Browse internships + apply
   4) Track applications
-  5) After completion: submit training evaluation + company rating
-  Mention they can open the "Getting started" wizard on the Student Dashboard for the same guided steps.
+  5) After acceptance: complete **monthly JUST internship reports** each month (Student Part I → employer → university supervisor) via Monthly internship reports in the dashboard
+  6) After all months approved + internship end date: upload **final report** PDF
+  7) After completion: submit training evaluation + company rating
+  Mention they can open the "Getting started" wizard on the Student Dashboard for application steps, and **Monthly internship reports** for the JUST workflow.
+
+MONTHLY REPORT QUESTIONS:
+- Use ONLY YOUR_INTERNSHIP_TRACKING & MONTHLY REPORTS data for statuses, due dates, and next actions.
+- Give concrete steps: which month to open, which wizard step (Basic info / Assignments / Weekly / Review), and the exact path from NEXT_ACTION or open_form in context.
+- If student_can_submit=no, explain who must act next (employer or supervisor) or why the month is locked.
+- If revision_requested is set, tell them what to fix and that they can edit only when status allows (rejected / overdue / unlocked).
+- Attendance is entered by the employer; student sees a read-only summary on the Review step.
+- Never invent report statuses or due dates not in context.
 
 CRITICAL RULES (anti-hallucination):
 - For facts (names, levels, match %, statuses): use ONLY the CONTEXT below.

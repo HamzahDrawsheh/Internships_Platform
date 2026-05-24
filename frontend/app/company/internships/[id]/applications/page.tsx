@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Badge, Button, Input, Modal, Select, Table, EmptyState } from "@/components/ui";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
@@ -440,7 +441,7 @@ export default function ApplicantsPage() {
           </div>
         ) : null}
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading applicants...</p>
+          <TableListPageSkeleton showWelcome={false} />
         ) : rows.length === 0 ? (
           <EmptyState
             title="No applicants yet"

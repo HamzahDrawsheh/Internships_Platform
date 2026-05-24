@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { Button, Modal } from "@/components/ui";
+import { CompanyLogo } from "@/components/companies/CompanyLogo";
 import { createClient } from "@/lib/supabase/client";
-import CompanyDashboardContent from "./CompanyDashboardContent";
+import CompanyDashboardContent, { type CompanyDashboardSummary } from "./CompanyDashboardContent";
 
 export default function CompanyDashboardPage() {
   const [companyName, setCompanyName] = useState("Company");
+  const [welcomeHint, setWelcomeHint] = useState("Manage your internships, applicants, and company activity");
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
   const [hasLogo, setHasLogo] = useState<boolean | null>(null);
   const [internshipCount, setInternshipCount] = useState<number | null>(null);
@@ -28,6 +31,7 @@ export default function CompanyDashboardPage() {
 
       if (!user) {
         setCompanyName("Company");
+        setCompanyLogoUrl(null);
         setProfileComplete(null);
         setHasLogo(null);
         setInternshipCount(null);
@@ -43,6 +47,7 @@ export default function CompanyDashboardPage() {
 
       if (!company) {
         setCompanyName("Company");
+        setCompanyLogoUrl(null);
         setProfileComplete(false);
         setHasLogo(false);
         setInternshipCount(0);
@@ -51,6 +56,7 @@ export default function CompanyDashboardPage() {
       }
 
       setCompanyName(company.company_name?.trim() || "Company");
+      setCompanyLogoUrl(typeof company.logo_url === "string" && company.logo_url.trim() ? company.logo_url.trim() : null);
       const complete =
         Boolean(company.company_name?.trim()) &&
         Boolean(company.description?.trim()) &&
@@ -114,13 +120,19 @@ export default function CompanyDashboardPage() {
       <Container>
         <section className="animate-fade-up rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
-                Welcome back, {loadingHeader ? "…" : companyName} 👋
-              </h1>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                Manage your internships, applicants, and company activity
-              </p>
+            <div className="flex items-center gap-4">
+              <CompanyLogo
+                name={loadingHeader ? "Company" : companyName}
+                logoUrl={companyLogoUrl}
+                size="hero"
+                className="shadow-md ring-4 ring-white dark:ring-gray-900"
+              />
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
+                  Welcome back, {loadingHeader ? "…" : companyName} 👋
+                </h1>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{welcomeHint}</p>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="primary" onClick={() => { setGettingStartedStep(0); setGettingStartedOpen(true); }}>
@@ -215,7 +227,7 @@ export default function CompanyDashboardPage() {
           })()}
         </Modal>
 
-        <CompanyDashboardContent />
+        <CompanyDashboardContent onSummary={(s: CompanyDashboardSummary) => setWelcomeHint(s.welcomeHint)} />
       </Container>
     </main>
   );

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { DetailPageSkeleton } from "@/components/loading";
 import { Button, Card } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
@@ -354,7 +355,7 @@ export default function StudentDetailsPage() {
           }
         />
         {loading ? (
-          <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading student details...</p>
+          <DetailPageSkeleton />
         ) : error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
         ) : (

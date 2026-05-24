@@ -6,9 +6,30 @@ import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-
 import { createClient } from "@/lib/supabase/client";
 import type { Application } from "@/lib/types";
 import StudentAssistantChat from "@/components/chat/StudentAssistantChat";
+import { StudentInternshipTrackCard } from "@/components/dashboard/StudentInternshipTrackCard";
+import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
+import { DashboardPageSkeleton } from "@/components/loading";
 import { Button, Modal } from "@/components/ui";
+import { canStudentSubmitReport } from "@/lib/internship-reports/helpers";
+import { buildInternshipTrackSummary } from "@/lib/internship-reports/track-summary";
+import type { MonthlyReportRow } from "@/lib/internship-reports/types";
+import { ensureStudentInternshipTracking } from "@/lib/internship-reports/sync-status";
+import { useI18n } from "@/lib/i18n/context";
+import { fmt } from "@/lib/i18n/format";
+import { localizeTrackHint } from "@/lib/i18n/track-display";
+
+type EnrolledInternship = {
+  id: string;
+  status: string;
+  start_date: string;
+  end_date: string;
+  position_title: string;
+  company_name: string;
+  track: ReturnType<typeof buildInternshipTrackSummary>;
+};
 
 export default function StudentDashboardContent() {
+  const { t } = useI18n();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("Student");
@@ -19,6 +40,8 @@ export default function StudentDashboardContent() {
 
   const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
   const [gettingStartedStep, setGettingStartedStep] = useState(0);
+  const [reportsDueCount, setReportsDueCount] = useState(0);
+  const [enrolledInternship, setEnrolledInternship] = useState<EnrolledInternship | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,6 +83,71 @@ export default function StudentDashboardContent() {
 
       await invokeAutoCompleteExpiredTrainings(supabase);
 
+      const loadInternshipTracking = async () => {
+        try {
+          await ensureStudentInternshipTracking(supabase);
+          const { data: internships } = await supabase
+            .from("internships")
+            .select("id, status, start_date, end_date, application_id")
+            .eq("student_id", student.id)
+            .neq("status", "cancelled")
+            .order("created_at", { ascending: false });
+
+          const primary = (internships ?? [])[0];
+          if (!primary) {
+            setEnrolledInternship(null);
+            setReportsDueCount(0);
+            return;
+          }
+
+          let due = 0;
+          if (primary.status === "pending_supervisor_approval") {
+            due = 1;
+          } else {
+            const { data: reps } = await supabase
+              .from("internship_monthly_reports")
+              .select("*")
+              .eq("internship_id", primary.id);
+            const reports = (reps ?? []) as MonthlyReportRow[];
+            due = reports.filter((r) => canStudentSubmitReport(r, reports)).length;
+          }
+          setReportsDueCount(due);
+
+          const { data: app } = await supabase
+            .from("applications")
+            .select("position_id, internship_positions(title, companies(company_name))")
+            .eq("id", primary.application_id)
+            .maybeSingle();
+          const pos = app?.internship_positions as { title?: string; companies?: { company_name?: string } } | null;
+
+          const { data: reps } = await supabase
+            .from("internship_monthly_reports")
+            .select("*")
+            .eq("internship_id", primary.id)
+            .order("month_number");
+          const reports = (reps ?? []) as MonthlyReportRow[];
+
+          setEnrolledInternship({
+            id: primary.id,
+            status: primary.status,
+            start_date: primary.start_date,
+            end_date: primary.end_date,
+            position_title: pos?.title ?? "Internship",
+            company_name: pos?.companies?.company_name ?? "Company",
+            track: buildInternshipTrackSummary(
+              reports,
+              primary.start_date,
+              primary.end_date,
+              primary.status,
+              due,
+            ),
+          });
+        } catch {
+          setEnrolledInternship(null);
+          setReportsDueCount(0);
+        }
+      };
+
       const { data: appRows, error: appError } = await supabase
         .from("applications")
         .select("id, student_id, position_id, status, message, applied_at")
@@ -68,6 +156,7 @@ export default function StudentDashboardContent() {
 
       if (appError || !appRows?.length) {
         setApplications([]);
+        await loadInternshipTracking();
         setLoading(false);
         return;
       }
@@ -100,6 +189,7 @@ export default function StudentDashboardContent() {
       });
 
       setApplications(mapped);
+      await loadInternshipTracking();
       setLoading(false);
     };
 
@@ -108,14 +198,22 @@ export default function StudentDashboardContent() {
 
   const total = applications.length;
   const pending = applications.filter((a) => a.status === "pending").length;
-  const accepted = applications.filter((a) => a.status === "accepted").length;
-  const rejected = applications.filter((a) => a.status === "rejected").length;
+  const active = applications.filter((a) => a.status === "accepted").length;
+  const completed = applications.filter((a) => a.status === "completed").length;
   const recent = applications.slice(0, 5);
 
   const hasDepartment = Boolean(studentMeta?.department && studentMeta.department.trim());
   const hasCv = Boolean(studentMeta?.cv_path && studentMeta.cv_path.trim());
   const hasApplied = total > 0;
   const hasCompletedTraining = applications.some((a) => a.status === "completed");
+
+  const welcomeSubtitle = enrolledInternship
+    ? localizeTrackHint(enrolledInternship.track.hint, t)
+    : pending > 0
+      ? pending === 1
+        ? t("dashboard.student.oneApplicationPending")
+        : fmt(t("dashboard.student.applicationsPending"), { count: pending })
+      : t("dashboard.student.trackProgress");
 
   const gettingStartedSteps: Array<{
     title: string;
@@ -125,83 +223,76 @@ export default function StudentDashboardContent() {
     href?: string;
   }> = [
     {
-      title: "Complete your profile",
-      description: "Add your department, skills, and preferences so we can personalize recommendations.",
+      title: t("dashboard.student.stepProfileTitle"),
+      description: t("dashboard.student.stepProfileDesc"),
       complete: hasDepartment,
-      ctaLabel: hasDepartment ? "View profile" : "Complete profile",
+      ctaLabel: hasDepartment ? t("dashboard.student.stepProfileCtaDone") : t("dashboard.student.stepProfileCtaTodo"),
       href: "/profile/student",
     },
     {
-      title: "Upload your CV (optional but recommended)",
-      description: "A CV helps companies review your application faster.",
+      title: t("dashboard.student.stepCvTitle"),
+      description: t("dashboard.student.stepCvDesc"),
       complete: hasCv,
-      ctaLabel: hasCv ? "View profile" : "Upload CV",
+      ctaLabel: hasCv ? t("dashboard.student.stepCvCtaDone") : t("dashboard.student.stepCvCtaTodo"),
       href: "/profile/student",
     },
     {
-      title: "Browse & apply",
-      description: "Explore internships and submit your first application.",
+      title: t("dashboard.student.stepBrowseTitle"),
+      description: t("dashboard.student.stepBrowseDesc"),
       complete: hasApplied,
-      ctaLabel: hasApplied ? "Browse more" : "Browse internships",
+      ctaLabel: hasApplied ? t("dashboard.student.stepBrowseCtaDone") : t("dashboard.student.stepBrowseCtaTodo"),
       href: "/internships",
     },
     {
-      title: "Track applications & feedback",
-      description: "Monitor your application statuses and add training evaluations after completing an internship.",
+      title: t("dashboard.student.stepTrackTitle"),
+      description: t("dashboard.student.stepTrackDesc"),
       complete: hasCompletedTraining,
-      ctaLabel: "View applications",
+      ctaLabel: t("dashboard.student.stepTrackCta"),
       href: "/applications",
     },
   ];
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="h-7 w-56 rounded bg-gray-200 dark:bg-gray-700" />
-          <div className="mt-3 h-4 w-72 rounded bg-gray-200 dark:bg-gray-700" />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((item) => (
-            <div
-              key={item}
-              className="animate-pulse rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-            >
-              <div className="h-4 w-24 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="mt-4 h-8 w-12 rounded bg-gray-200 dark:bg-gray-700" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <DashboardPageSkeleton showTrack showWidget showTable />;
   }
 
   const stats = [
     {
-      label: "Total Applications",
+      label: t("dashboard.student.totalApplications"),
       value: total,
       cardClass: "bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300",
     },
     {
-      label: "Pending",
+      label: t("dashboard.student.pending"),
       value: pending,
       cardClass: "bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300",
     },
     {
-      label: "Accepted",
-      value: accepted,
+      label: t("dashboard.student.active"),
+      value: active,
       cardClass: "bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300",
     },
     {
-      label: "Rejected",
-      value: rejected,
-      cardClass: "bg-red-100 text-red-900 dark:bg-red-500/10 dark:text-red-300",
+      label: t("dashboard.student.completed"),
+      value: completed,
+      cardClass: "bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300",
     },
   ];
+
+  const applicationStatusLabel = (status: Application["status"]) => {
+    if (status === "pending") return t("dashboard.student.statusPending");
+    if (status === "accepted") return t("dashboard.student.statusAccepted");
+    if (status === "rejected") return t("dashboard.student.statusRejected");
+    if (status === "completed") return t("dashboard.student.statusCompletedApp");
+    return status;
+  };
 
   const getStatusClasses = (status: Application["status"]) => {
     if (status === "accepted") {
       return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300";
+    }
+    if (status === "completed") {
+      return "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300";
     }
     if (status === "rejected") {
       return "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300";
@@ -216,30 +307,76 @@ export default function StudentDashboardContent() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
-              Welcome back, {userName} 👋
+              {t("dashboard.welcomeBack")}, {userName} 👋
             </h1>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Track your internship journey and progress
-            </p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{welcomeSubtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary" onClick={() => { setGettingStartedStep(0); setGettingStartedOpen(true); }}>
-              Getting started
+              {t("dashboard.gettingStarted")}
             </Button>
             <Link
               href="/profile/student"
               className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 hover:text-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-purple-300 dark:focus-visible:ring-offset-gray-900"
             >
-              Update Profile
+              {t("common.updateProfile")}
             </Link>
           </div>
         </div>
       </section>
 
+      <DashboardReportWidget
+        count={reportsDueCount}
+        href="/dashboard/student/internship-reports"
+        label={
+          reportsDueCount === 1
+            ? t("dashboard.student.reportDueOne")
+            : t("dashboard.student.reportDueMany")
+        }
+      />
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((item, idx) => (
+          <article
+            key={item.label}
+            className={`animate-fade-up rounded-2xl p-6 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md ${item.cardClass}`}
+            style={{ animationDelay: `${idx * 80}ms` }}
+          >
+            <p className="text-sm font-medium">{item.label}</p>
+            <p className="mt-4 text-3xl font-bold">{item.value}</p>
+          </article>
+        ))}
+      </section>
+
+      {enrolledInternship ? (
+        <StudentInternshipTrackCard
+          positionTitle={enrolledInternship.position_title}
+          companyName={enrolledInternship.company_name}
+          startDate={enrolledInternship.start_date}
+          endDate={enrolledInternship.end_date}
+          track={enrolledInternship.track}
+        />
+      ) : null}
+
+      {(active > 0 || completed > 0) && !enrolledInternship && (
+        <Link
+          href="/dashboard/student/internship-reports"
+          className="block rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-5 transition hover:border-purple-300 dark:border-purple-900/50 dark:from-purple-950/30 dark:to-indigo-950/20"
+        >
+          <p className="font-semibold text-purple-900 dark:text-purple-200">{t("dashboard.student.monthlyReportsLink")}</p>
+          <p className="mt-1 text-sm text-purple-800/80 dark:text-purple-300/80">
+            {t("dashboard.student.monthlyReportsLinkDesc")}
+          </p>
+        </Link>
+      )}
+
       <Modal
         isOpen={gettingStartedOpen}
         onClose={() => setGettingStartedOpen(false)}
-        title={`Getting started (${gettingStartedStep + 1}/${gettingStartedSteps.length})`}
+        title={fmt(t("dashboard.student.gettingStartedProgress"), {
+          step: gettingStartedStep + 1,
+          total: gettingStartedSteps.length,
+        })}
         footer={
           <>
             <Button
@@ -247,11 +384,11 @@ export default function StudentDashboardContent() {
               onClick={() => setGettingStartedStep((s) => Math.max(0, s - 1))}
               disabled={gettingStartedStep === 0}
             >
-              Back
+              {t("common.back")}
             </Button>
             {gettingStartedSteps[gettingStartedStep]?.href ? (
               <Link href={gettingStartedSteps[gettingStartedStep]!.href!}>
-                <Button variant="secondary">Open</Button>
+                <Button variant="secondary">{t("common.open")}</Button>
               </Link>
             ) : null}
             <Button
@@ -264,7 +401,7 @@ export default function StudentDashboardContent() {
                 }
               }}
             >
-              {gettingStartedStep >= gettingStartedSteps.length - 1 ? "Finish" : "Next"}
+              {gettingStartedStep >= gettingStartedSteps.length - 1 ? t("common.finish") : t("common.next")}
             </Button>
           </>
         }
@@ -287,49 +424,36 @@ export default function StudentDashboardContent() {
                         : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
                     }`}
                   >
-                    {step.complete ? "Done" : "To do"}
+                    {step.complete ? t("dashboard.student.doneLabel") : t("dashboard.student.todoLabel")}
                   </span>
                 </div>
               </div>
               <div className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
-                <p className="font-semibold">Your checklist</p>
-                <ul className="list-disc space-y-1 pl-5">
+                <p className="font-semibold">{t("dashboard.student.yourChecklist")}</p>
+                <ul className="list-disc space-y-1 ps-5">
                   {gettingStartedSteps.map((s, idx) => (
                     <li key={s.title} className={idx === gettingStartedStep ? "font-medium" : ""}>
                       {s.title}{" "}
                       <span className="opacity-70">
-                        ({s.complete ? "done" : "to do"})
+                        ({s.complete ? t("dashboard.student.doneStatus") : t("dashboard.student.todoStatus")})
                       </span>
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 text-sm text-gray-700 dark:border-purple-400/20 dark:bg-purple-500/10 dark:text-gray-200">
-                Tip: you can ask the assistant “what are the getting started steps?” and it will explain the sequence.
+                {t("dashboard.student.tipAssistant")}
               </div>
             </div>
           );
         })()}
       </Modal>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((item, idx) => (
-          <article
-            key={item.label}
-            className={`animate-fade-up rounded-2xl p-6 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md ${item.cardClass}`}
-            style={{ animationDelay: `${idx * 80}ms` }}
-          >
-            <p className="text-sm font-medium">{item.label}</p>
-            <p className="mt-4 text-3xl font-bold">{item.value}</p>
-          </article>
-        ))}
-      </section>
-
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recent Applications</h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Your latest internship activity</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("dashboard.student.recentApplications")}</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t("dashboard.student.latestActivity")}</p>
           </div>
         </div>
 
@@ -338,15 +462,15 @@ export default function StudentDashboardContent() {
             <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-purple-100 text-2xl dark:bg-purple-500/15">
               <span aria-hidden>🧭</span>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">You haven&apos;t applied yet</h3>
+            <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("dashboard.student.noApplicationsYet")}</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              Start exploring internships and submit your first application.
+              {t("dashboard.student.noApplicationsDesc")}
             </p>
             <Link
               href="/internships"
               className="mt-5 inline-flex items-center rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
             >
-              Browse Internships
+              {t("nav.browseInternships")}
             </Link>
           </div>
         ) : (
@@ -354,20 +478,20 @@ export default function StudentDashboardContent() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800/80">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    Internship
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    {t("dashboard.student.internshipCol")}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    Company
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    {t("dashboard.student.companyCol")}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    Applied Date
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    {t("dashboard.student.appliedDateCol")}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    Status
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    {t("dashboard.student.statusCol")}
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                    Action
+                  <th className="px-4 py-3 text-end text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    {t("dashboard.student.actionCol")}
                   </th>
                 </tr>
               </thead>
@@ -385,17 +509,17 @@ export default function StudentDashboardContent() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-4">
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium capitalize ${getStatusClasses(app.status)}`}
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(app.status)}`}
                       >
-                        {app.status}
+                        {applicationStatusLabel(app.status)}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-right">
+                    <td className="whitespace-nowrap px-4 py-4 text-end">
                       <Link
                         href={`/internships/${app.position_id}`}
                         className="inline-flex rounded-lg border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 transition-all duration-300 hover:bg-purple-50 hover:text-purple-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:border-purple-400/40 dark:text-purple-300 dark:hover:bg-purple-500/15 dark:hover:text-purple-200 dark:focus-visible:ring-offset-gray-900"
                       >
-                        View
+                        {t("dashboard.student.view")}
                       </Link>
                     </td>
                   </tr>

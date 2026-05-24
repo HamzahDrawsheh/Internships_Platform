@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TableListPageSkeleton } from "@/components/loading";
 import { Badge, Button, EmptyState, Input, Modal, Select, Table } from "@/components/ui";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
+import { MessageStudentButton } from "@/components/messaging/MessageStudentButton";
 import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
 import type { ApplicationStatus } from "@/lib/types";
 
@@ -20,6 +22,7 @@ type Application = {
   applied_at: string;
 };
 type StudentDetail = {
+  userId: string;
   fullName: string;
   email: string;
   university: string;
@@ -222,6 +225,7 @@ export default function CompanyApplicationsPage() {
           }
         }
         detailsMap.set(s.id, {
+          userId: s.user_id,
           fullName: profile?.full_name?.trim() || "Student",
           email: profile?.email ?? "—",
           university: s.university ?? "—",
@@ -486,7 +490,7 @@ export default function CompanyApplicationsPage() {
       />
 
       {loading ? (
-        <p className="text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">Loading applications...</p>
+        <TableListPageSkeleton showWelcome={false} />
       ) : error ? (
         <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 transition-colors duration-300 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</p>
       ) : applications.length === 0 ? (
@@ -614,6 +618,13 @@ export default function CompanyApplicationsPage() {
         title="Application details"
         footer={
           <>
+            {selectedStudent?.userId ? (
+              <MessageStudentButton
+                studentUserId={selectedStudent.userId}
+                studentName={selectedStudent.fullName}
+                onMessage={() => setDetailOpen(false)}
+              />
+            ) : null}
             <Button variant="secondary" onClick={() => setDetailOpen(false)} disabled={actionLoading}>
               Close
             </Button>

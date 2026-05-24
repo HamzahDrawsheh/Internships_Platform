@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 const LS_OPEN = "internconnect-student-chat-open";
 const LS_WIDE = "internconnect-student-chat-wide";
@@ -94,7 +95,7 @@ function AssistantReplyBubble({ message }: { message: ChatMessage }) {
       )}
     >
       {message.content ? (
-        <div className="whitespace-pre-wrap">{message.content}</div>
+        <ChatMarkdown content={message.content} />
       ) : message.streaming ? (
         <ChatLoadingIndicator compact />
       ) : null}
@@ -308,9 +309,10 @@ export default function StudentAssistantChat() {
     }
   }
 
-  const shellOuter = wide
-    ? "fixed top-4 right-4 bottom-4 z-50 flex flex-col"
-    : "fixed right-5 bottom-5 z-50 flex flex-col";
+  const shellOuter =
+    open && wide
+      ? "fixed top-[4.75rem] left-4 bottom-4 z-50 flex flex-col"
+      : "fixed left-5 bottom-5 z-50 flex flex-col";
 
   const shellInner = classNames(
     "flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 dark:border-gray-800 dark:bg-gray-900",
@@ -335,10 +337,10 @@ export default function StudentAssistantChat() {
           <div className="flex flex-shrink-0 flex-col border-b border-gray-200 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between sm:gap-2 px-3 py-3 sm:px-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                Student Assistant
+                ✨ AI Assistant
               </p>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Friendly help from your saved data
+                Answers from your profile — not human chat
               </p>
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-end gap-1 sm:mt-0">
@@ -455,9 +457,10 @@ export default function StudentAssistantChat() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-500/25 transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+          className="rounded-full border border-teal-200 bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-teal-500/25 transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:border-teal-500/40 dark:focus-visible:ring-offset-gray-900"
+          title="AI Assistant — help with internships and applications"
         >
-          Chat
+          ✨ AI Assistant
         </button>
       )}
     </div>

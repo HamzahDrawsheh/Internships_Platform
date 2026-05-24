@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ProfileFormSkeleton } from "@/components/loading";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
 
 const CV_BUCKET = "student-cvs";
 
@@ -288,6 +290,7 @@ function buildCvPdfFromPreview(f: CvPdfFields): jsPDF {
 }
 
 export default function ResumeBuilderPage() {
+  const { t } = useI18n();
   const previewRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -331,7 +334,7 @@ export default function ResumeBuilderPage() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        setForbidden("Sign in as a student to use the CV builder.");
+        setForbidden(t("cvBuilder.errors.signInStudent"));
         setLoading(false);
         return;
       }
@@ -343,13 +346,13 @@ export default function ResumeBuilderPage() {
         .maybeSingle();
 
       if (profileError) {
-        setForbidden("Unable to load your profile.");
+        setForbidden(t("cvBuilder.errors.loadProfile"));
         setLoading(false);
         return;
       }
 
       if (profile?.role && profile.role !== "student") {
-        setForbidden("Only student accounts can access the CV builder.");
+        setForbidden(t("cvBuilder.errors.studentsOnly"));
         setLoading(false);
         return;
       }
@@ -364,13 +367,13 @@ export default function ResumeBuilderPage() {
         .maybeSingle();
 
       if (studentError) {
-        setForbidden("Unable to load your student profile.");
+        setForbidden(t("cvBuilder.errors.loadStudent"));
         setLoading(false);
         return;
       }
 
       if (!studentRow) {
-        setForbidden("Complete student onboarding first, then return here.");
+        setForbidden(t("cvBuilder.errors.completeOnboarding"));
         setLoading(false);
         return;
       }
@@ -431,14 +434,14 @@ export default function ResumeBuilderPage() {
     };
 
     void load();
-  }, []);
+  }, [t]);
 
   const handleSaveCv = useCallback(async () => {
     setMessage(null);
     setSaveError(null);
 
     if (!studentId) {
-      setSaveError("Student profile not loaded.");
+      setSaveError(t("cvBuilder.errors.notLoaded"));
       return;
     }
 
@@ -469,7 +472,7 @@ export default function ResumeBuilderPage() {
       });
 
       if (uploadError) {
-        setSaveError(uploadError.message || "Could not upload CV.");
+        setSaveError(uploadError.message || t("cvBuilder.errors.uploadFailed"));
         setSaving(false);
         return;
       }
@@ -480,16 +483,14 @@ export default function ResumeBuilderPage() {
         .eq("id", studentId);
 
       if (updateError) {
-        setSaveError(updateError.message || "Uploaded file but could not update your profile.");
+        setSaveError(updateError.message || t("cvBuilder.errors.uploadProfileFailed"));
         setSaving(false);
         return;
       }
 
-      setMessage(
-        `CV saved to bucket "${CV_BUCKET}" at students/${studentId}/cv.pdf and linked to your profile.`
-      );
+      setMessage(t("cvBuilder.cvSavedMessage"));
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Could not generate PDF.");
+      setSaveError(e instanceof Error ? e.message : t("cvBuilder.errors.pdfFailed"));
     }
     setSaving(false);
   }, [
@@ -540,16 +541,16 @@ export default function ResumeBuilderPage() {
 
       if (!res.ok) {
         if (data.error === "ai_not_configured") {
-          setImproveError("AI assistant is not configured on this server (missing API key).");
+          setImproveError(t("cvBuilder.errors.aiNotConfigured"));
         } else {
-          setImproveError(data.error === "forbidden" ? "Only students can use this feature." : "Could not get AI suggestions. Try again.");
+          setImproveError(data.error === "forbidden" ? t("cvBuilder.errors.aiForbidden") : t("cvBuilder.errors.aiFailed"));
         }
         setImproving(false);
         return;
       }
 
       if (!data.ok) {
-        setImproveError("Could not get AI suggestions.");
+        setImproveError(t("cvBuilder.errors.aiEmpty"));
         setImproving(false);
         return;
       }
@@ -560,9 +561,9 @@ export default function ResumeBuilderPage() {
         experience: data.experience ?? "",
         projects: data.projects ?? "",
       });
-      setMessage("Review the AI suggestions below, edit if needed, then click Apply AI suggestions.");
+      setMessage(t("cvBuilder.reviewAiMessage"));
     } catch {
-      setImproveError("Network error while contacting AI.");
+      setImproveError(t("cvBuilder.errors.aiNetwork"));
     }
     setImproving(false);
   }, [fullName, university, major, skills, education, experience, projects, linkedin, githubPortfolio]);
@@ -575,8 +576,8 @@ export default function ResumeBuilderPage() {
     setProjects(pendingAi.projects);
     setPendingAi(null);
     setImproveError(null);
-    setMessage("AI suggestions applied to your form. Review everything before saving or downloading.");
-  }, [pendingAi]);
+    setMessage(t("cvBuilder.aiAppliedMessage"));
+  }, [pendingAi, t]);
 
   const handleDiscardAiSuggestions = useCallback(() => {
     setPendingAi(null);
@@ -605,7 +606,7 @@ export default function ResumeBuilderPage() {
       });
       pdf.save(DOWNLOAD_CV_FILENAME);
     } catch (e) {
-      setDownloadError(e instanceof Error ? e.message : "Could not generate PDF.");
+      setDownloadError(e instanceof Error ? e.message : t("cvBuilder.errors.pdfFailed"));
     }
     setDownloading(false);
   }, [
@@ -628,7 +629,7 @@ export default function ResumeBuilderPage() {
     return (
       <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
         <Container className="max-w-6xl">
-          <p className="text-sm text-gray-600 dark:text-slate-400">Loading…</p>
+          <ProfileFormSkeleton />
         </Container>
       </main>
     );
@@ -638,7 +639,7 @@ export default function ResumeBuilderPage() {
     return (
       <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
         <Container className="max-w-lg">
-          <PageHeader title="CV Builder" description="Build and export your CV as PDF." />
+          <PageHeader title={t("cvBuilder.title")} description={t("cvBuilder.descShort")} />
           <Card className="mt-6">
             <p className="text-sm text-gray-700 dark:text-slate-300">{forbidden}</p>
           </Card>
@@ -651,8 +652,8 @@ export default function ResumeBuilderPage() {
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-6xl">
         <PageHeader
-          title="CV Builder"
-          description="Edit your details and preview your CV. Saving uploads a PDF to your profile using the same storage path as manual CV upload. AI suggestions should be reviewed before saving."
+          title={t("cvBuilder.title")}
+          description={t("cvBuilder.desc")}
         />
 
         {message && (
@@ -691,94 +692,93 @@ export default function ResumeBuilderPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-2 lg:items-start">
           <div className="space-y-6">
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Contact</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.contact")}</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Input label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <Input label={t("cvBuilder.fullName")} value={fullName} onChange={(e) => setFullName(e.target.value)} />
                 <Input
-                  label="Email"
+                  label={t("cvBuilder.email")}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
                 />
-                <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Amman" />
+                <Input label={t("cvBuilder.phone")} value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Input label={t("cvBuilder.city")} value={city} onChange={(e) => setCity(e.target.value)} placeholder={t("cvBuilder.phCity")} />
               </div>
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Professional summary</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.professionalSummary")}</h2>
               <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                Short overview for your CV (optional). Can be filled manually or from AI suggestions.
+                {t("cvBuilder.summaryHint")}
               </p>
               <Textarea
                 className="mt-4"
-                label="Summary"
+                label={t("cvBuilder.summary")}
                 rows={4}
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
-                placeholder="2–4 sentences about your background and goals."
+                placeholder={t("cvBuilder.phSummary")}
               />
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Education</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.education")}</h2>
               <div className="mt-4 grid gap-4">
-                <Input label="University" value={university} onChange={(e) => setUniversity(e.target.value)} />
-                <Input label="Major" value={major} onChange={(e) => setMajor(e.target.value)} />
+                <Input label={t("cvBuilder.university")} value={university} onChange={(e) => setUniversity(e.target.value)} />
+                <Input label={t("cvBuilder.major")} value={major} onChange={(e) => setMajor(e.target.value)} />
                 <Textarea
-                  label="Education (detail)"
+                  label={t("cvBuilder.educationDetail")}
                   rows={5}
                   value={education}
                   onChange={(e) => setEducation(e.target.value)}
-                  placeholder="Degrees, coursework, GPA, etc."
+                  placeholder={t("cvBuilder.phEducation")}
                 />
               </div>
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Skills &amp; experience</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.skillsExperience")}</h2>
               <div className="mt-4 grid gap-4">
                 <Textarea
-                  label="Skills"
+                  label={t("cvBuilder.skills")}
                   rows={3}
                   value={skills}
                   onChange={(e) => setSkills(e.target.value)}
-                  placeholder="Comma-separated or one per line"
+                  placeholder={t("cvBuilder.phSkills")}
                 />
                 <Textarea
-                  label="Experience"
+                  label={t("cvBuilder.experience")}
                   rows={5}
                   value={experience}
                   onChange={(e) => setExperience(e.target.value)}
                 />
-                <Textarea label="Projects" rows={5} value={projects} onChange={(e) => setProjects(e.target.value)} />
+                <Textarea label={t("cvBuilder.projects")} rows={5} value={projects} onChange={(e) => setProjects(e.target.value)} />
               </div>
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Links</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.links")}</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Input
-                  label="LinkedIn"
+                  label={t("cvBuilder.linkedin")}
                   value={linkedin}
                   onChange={(e) => setLinkedin(e.target.value)}
-                  placeholder="https://linkedin.com/in/..."
+                  placeholder={t("cvBuilder.phLinkedin")}
                 />
                 <Input
-                  label="GitHub / Portfolio"
+                  label={t("cvBuilder.githubPortfolio")}
                   value={githubPortfolio}
                   onChange={(e) => setGithubPortfolio(e.target.value)}
-                  placeholder="https://..."
+                  placeholder={t("cvBuilder.phGithub")}
                 />
               </div>
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Optional AI assistant</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.aiAssistant")}</h2>
               <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                Improve wording for ATS using only what you entered above. Nothing is saved automatically—review and click
-                Apply when ready.
+                {t("cvBuilder.aiHint")}
               </p>
               <div className="mt-4">
                 <Button
@@ -787,43 +787,43 @@ export default function ResumeBuilderPage() {
                   onClick={() => void handleImproveWithAi()}
                   disabled={saving || downloading || improving}
                 >
-                  {improving ? "Working…" : "Improve with AI"}
+                  {improving ? t("cvBuilder.working") : t("cvBuilder.improveWithAi")}
                 </Button>
               </div>
 
               {pendingAi && (
                 <div className="mt-6 space-y-4 border-t border-gray-200 pt-6 dark:border-slate-700">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Suggested edits (review before applying)</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{t("cvBuilder.suggestedEdits")}</p>
                   <Textarea
-                    label="Suggested summary"
+                    label={t("cvBuilder.suggestedSummary")}
                     rows={3}
                     value={pendingAi.summary}
                     onChange={(e) => setPendingAi({ ...pendingAi, summary: e.target.value })}
                   />
                   <Textarea
-                    label="Suggested skills"
+                    label={t("cvBuilder.suggestedSkills")}
                     rows={3}
                     value={pendingAi.skills}
                     onChange={(e) => setPendingAi({ ...pendingAi, skills: e.target.value })}
                   />
                   <Textarea
-                    label="Suggested experience"
+                    label={t("cvBuilder.suggestedExperience")}
                     rows={6}
                     value={pendingAi.experience}
                     onChange={(e) => setPendingAi({ ...pendingAi, experience: e.target.value })}
                   />
                   <Textarea
-                    label="Suggested projects"
+                    label={t("cvBuilder.suggestedProjects")}
                     rows={6}
                     value={pendingAi.projects}
                     onChange={(e) => setPendingAi({ ...pendingAi, projects: e.target.value })}
                   />
                   <div className="flex flex-wrap gap-3">
                     <Button type="button" variant="primary" onClick={handleApplyAiSuggestions}>
-                      Apply AI suggestions
+                      {t("cvBuilder.applyAi")}
                     </Button>
                     <Button type="button" variant="secondary" onClick={handleDiscardAiSuggestions}>
-                      Discard
+                      {t("cvBuilder.discard")}
                     </Button>
                   </div>
                 </div>
@@ -837,7 +837,7 @@ export default function ResumeBuilderPage() {
                 onClick={() => void handleDownloadCv()}
                 disabled={saving || downloading || improving}
               >
-                {downloading ? "Preparing download…" : "Download my CV"}
+                {downloading ? t("cvBuilder.preparingDownload") : t("cvBuilder.downloadCv")}
               </Button>
               <Button
                 type="button"
@@ -845,14 +845,14 @@ export default function ResumeBuilderPage() {
                 onClick={() => void handleSaveCv()}
                 disabled={saving || downloading || improving}
               >
-                {saving ? "Saving…" : "Save as my CV"}
+                {saving ? t("cvBuilder.saving") : t("cvBuilder.saveAsCv")}
               </Button>
             </div>
           </div>
 
           <div className="lg:sticky lg:top-8">
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">
-              Live preview
+              {t("cvBuilder.livePreview")}
             </p>
             {/* Preview is visual-only; exported PDF is generated from form fields (ATS-friendly text PDF). */}
             <div className="max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-200 bg-gray-100 p-3 dark:border-slate-700 dark:bg-slate-900">
@@ -875,7 +875,7 @@ export default function ResumeBuilderPage() {
               >
                 <header style={{ borderBottom: "1px solid #e5e5e5", paddingBottom: "16px" }}>
                   <h1 style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.02em", color: "#000000", margin: 0 }}>
-                    {fullName.trim() || "Your name"}
+                    {fullName.trim() || t("cvBuilder.previewName")}
                   </h1>
                   <div
                     style={{
@@ -920,7 +920,7 @@ export default function ResumeBuilderPage() {
                         margin: 0,
                       }}
                     >
-                      Professional summary
+                      {t("cvBuilder.professionalSummary")}
                     </h2>
                     <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222", lineHeight: 1.5 }}>
                       {summary.trim()}
@@ -940,7 +940,7 @@ export default function ResumeBuilderPage() {
                         margin: 0,
                       }}
                     >
-                      Education
+                      {t("cvBuilder.education")}
                     </h2>
                     {university.trim() && (
                       <p style={{ marginTop: "8px", fontSize: "14px", fontWeight: 600, color: "#111111" }}>
@@ -968,7 +968,7 @@ export default function ResumeBuilderPage() {
                         margin: 0,
                       }}
                     >
-                      Skills
+                      {t("cvBuilder.skills")}
                     </h2>
                     <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222" }}>
                       {skills.trim()}
@@ -988,7 +988,7 @@ export default function ResumeBuilderPage() {
                         margin: 0,
                       }}
                     >
-                      Experience
+                      {t("cvBuilder.experience")}
                     </h2>
                     <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222" }}>
                       {experience.trim()}
@@ -1008,7 +1008,7 @@ export default function ResumeBuilderPage() {
                         margin: 0,
                       }}
                     >
-                      Projects
+                      {t("cvBuilder.projects")}
                     </h2>
                     <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222" }}>
                       {projects.trim()}

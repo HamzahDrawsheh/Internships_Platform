@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
-import { ThemeProvider } from "@/components/theme-provider";
+import { AppProviders } from "@/components/providers/AppProviders";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,9 +14,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "AI Intern Jordan",
   description: "AI & Data Science Internship Platform — Launch your AI Career in Jordan",
+  icons: {
+    icon: "/brand-mark.svg",
+  },
 };
 
 export default function RootLayout({
@@ -29,10 +37,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <AppProviders>
           <Navbar />
           {children}
-        </ThemeProvider>
+        </AppProviders>
       </body>
     </html>
   );

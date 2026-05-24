@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ProfileFormSkeleton } from "@/components/loading";
 import { Input, Textarea, Button, Card, Select } from "@/components/ui";
-import { academicDepartmentSelectOptions, isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
+import { isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/context";
+import {
+  ALL_PREDEFINED_COURSES,
+  buildAvailabilityOptions,
+  buildPreferredWorkTypeOptions,
+  buildStudentCourseCategories,
+  buildStudentDepartmentOptions,
+  optionLabel,
+} from "@/lib/i18n/student-profile-options";
 
-const studentDepartmentOptions = [{ value: "", label: "Select your department" }, ...academicDepartmentSelectOptions];
+const CV_BUCKET = "student-cvs";
+const MAX_CV_BYTES = 5 * 1024 * 1024;
 
 function parseCsv(input: string): string[] {
   return input
@@ -16,84 +27,12 @@ function parseCsv(input: string): string[] {
     .filter(Boolean);
 }
 
-const preferredWorkTypeOptions = [
-  { value: "", label: "No preference" },
-  { value: "remote", label: "Remote" },
-  { value: "onsite", label: "On-site" },
-  { value: "hybrid", label: "Hybrid" },
-];
-
-const availabilityOptions = [
-  { value: "", label: "Not specified" },
-  { value: "part-time", label: "Part-time" },
-  { value: "full-time", label: "Full-time" },
-];
-
-const CV_BUCKET = "student-cvs";
-const MAX_CV_BYTES = 5 * 1024 * 1024;
-
-const courseCategories = [
-  {
-    title: "Core Courses",
-    courses: [
-      "Introduction to Data Science",
-      "Introduction to Artificial Intelligence",
-      "Programming",
-      "Object-Oriented Programming (OOP)",
-      "Data Structures",
-      "Algorithms",
-      "Database Systems",
-      "Discrete Mathematics",
-    ],
-  },
-  {
-    title: "Mathematics & Statistics",
-    courses: [
-      "Calculus 1",
-      "Calculus 2",
-      "Linear Algebra",
-      "Probability & Statistics",
-      "Statistical Inference",
-      "Numerical Methods",
-    ],
-  },
-  {
-    title: "Artificial Intelligence",
-    courses: [
-      "Artificial Intelligence",
-      "Machine Learning",
-      "Deep Learning",
-      "Natural Language Processing (NLP)",
-      "Computer Vision",
-      "Intelligent Systems",
-    ],
-  },
-  {
-    title: "Data Science",
-    courses: [
-      "Data Mining",
-      "Big Data Analytics",
-      "Data Visualization",
-      "Data Warehousing",
-      "Business Intelligence",
-      "Predictive Analytics",
-    ],
-  },
-  {
-    title: "Technical Support",
-    courses: [
-      "Operating Systems",
-      "Computer Networks",
-      "Cloud Computing",
-      "Distributed Systems",
-      "Software Engineering",
-    ],
-  },
-];
-
-const PREDEFINED_COURSES = courseCategories.flatMap((category) => category.courses);
-
 export default function StudentProfilePage() {
+  const { t } = useI18n();
+  const studentDepartmentOptions = useMemo(() => buildStudentDepartmentOptions(t), [t]);
+  const preferredWorkTypeOptions = useMemo(() => buildPreferredWorkTypeOptions(t), [t]);
+  const availabilityOptions = useMemo(() => buildAvailabilityOptions(t), [t]);
+  const courseCategories = useMemo(() => buildStudentCourseCategories(t), [t]);
   const [name, setName] = useState("");
   const [university, setUniversity] = useState("");
   const [department, setDepartment] = useState("");
@@ -136,13 +75,13 @@ export default function StudentProfilePage() {
 
       if (userError) {
         console.error("student profile getUser error:", JSON.stringify(userError, null, 2));
-        setError("Unable to load your profile.");
+        setError(t("profile.student.errors.loadProfile"));
         setLoading(false);
         return;
       }
 
       if (!user) {
-        setError("You must be logged in to edit your profile.");
+        setError(t("profile.student.errors.loginRequired"));
         setLoading(false);
         return;
       }
@@ -160,7 +99,7 @@ export default function StudentProfilePage() {
       } else {
         setName(profileRow?.full_name ?? "");
         if (profileRow?.role && profileRow.role !== "student") {
-          setError("Only student accounts can save this profile.");
+          setError(t("profile.student.errors.studentsOnly"));
           setLoading(false);
           return;
         }
@@ -174,7 +113,7 @@ export default function StudentProfilePage() {
 
       if (studentError) {
         console.error("student profile fetch students error:", JSON.stringify(studentError, null, 2));
-        setError("Unable to load your student data.");
+        setError(t("profile.student.errors.loadStudent"));
         setLoading(false);
         return;
       }
@@ -219,8 +158,8 @@ export default function StudentProfilePage() {
 
       if (preferencesRow) {
         const allTakenCourses = (preferencesRow.taken_courses ?? []) as string[];
-        const selectedPredefined = allTakenCourses.filter((course: string) => PREDEFINED_COURSES.includes(course));
-        const inferredCustom = allTakenCourses.filter((course: string) => !PREDEFINED_COURSES.includes(course));
+        const selectedPredefined = allTakenCourses.filter((course: string) => ALL_PREDEFINED_COURSES.includes(course));
+        const inferredCustom = allTakenCourses.filter((course: string) => !ALL_PREDEFINED_COURSES.includes(course));
         setTakenCourses(selectedPredefined);
         setCustomCourses(inferredCustom.join(", "));
         setGpa(preferencesRow.gpa != null ? String(preferencesRow.gpa) : "");
@@ -236,7 +175,7 @@ export default function StudentProfilePage() {
     };
 
     loadStudentProfile();
-  }, []);
+  }, [t]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,13 +191,13 @@ export default function StudentProfilePage() {
 
     if (userError) {
       console.error("student profile save getUser error:", JSON.stringify(userError, null, 2));
-      setError("Unable to verify your session.");
+      setError(t("profile.student.errors.verifySession"));
       setSaving(false);
       return;
     }
 
     if (!user) {
-      setError("You must be logged in to save your profile.");
+      setError(t("profile.student.errors.loginSave"));
       setSaving(false);
       return;
     }
@@ -273,19 +212,19 @@ export default function StudentProfilePage() {
 
     if (profileError) {
       console.error("student profile save role check error:", JSON.stringify(profileError, null, 2));
-      setError("Unable to validate your account role.");
+      setError(t("profile.student.errors.validateRole"));
       setSaving(false);
       return;
     }
 
     if (profileRow?.role !== "student") {
-      setError("Only student accounts can save this profile.");
+      setError(t("profile.student.errors.studentsOnly"));
       setSaving(false);
       return;
     }
 
     if (!isValidDepartment(department.trim())) {
-      setError("Please choose your academic department from the list.");
+      setError(t("profile.student.errors.chooseDepartment"));
       setSaving(false);
       return;
     }
@@ -309,7 +248,7 @@ export default function StudentProfilePage() {
     const parsedGpa = Number.parseFloat(gpa);
     const validGpa = !gpa.trim() || (Number.isFinite(parsedGpa) && parsedGpa >= 0 && parsedGpa <= 4);
     if (!validGpa) {
-      setError("GPA must be a number between 0 and 4.");
+      setError(t("profile.student.errors.invalidGpa"));
       setSaving(false);
       return;
     }
@@ -322,7 +261,7 @@ export default function StudentProfilePage() {
 
     if (existingError && existingError.code !== "PGRST116") {
       console.error("student profile check existing error:", JSON.stringify(existingError, null, 2));
-      setError("Unable to save your student profile.");
+      setError(t("profile.student.errors.saveFailed"));
       setSaving(false);
       return;
     }
@@ -414,28 +353,28 @@ export default function StudentProfilePage() {
     setCvUploadError(null);
 
     if (!studentRowId) {
-      setCvUploadError("Save your profile once with a valid department before uploading a CV.");
+      setCvUploadError(t("profile.student.saveDeptBeforeCv"));
       return;
     }
 
     if (!cvFile) {
-      setCvUploadError("Choose a PDF file first.");
+      setCvUploadError(t("profile.student.choosePdfFirst"));
       return;
     }
 
     const lower = cvFile.name.toLowerCase();
     if (!lower.endsWith(".pdf")) {
-      setCvUploadError("Only PDF files are allowed.");
+      setCvUploadError(t("profile.student.pdfOnly"));
       return;
     }
 
     if (cvFile.type && cvFile.type !== "application/pdf") {
-      setCvUploadError("Only PDF files are allowed.");
+      setCvUploadError(t("profile.student.pdfOnly"));
       return;
     }
 
     if (cvFile.size > MAX_CV_BYTES) {
-      setCvUploadError("PDF must be 5MB or smaller.");
+      setCvUploadError(t("profile.student.pdfSize"));
       return;
     }
 
@@ -451,7 +390,7 @@ export default function StudentProfilePage() {
 
     if (uploadError) {
       console.error("student CV upload error:", uploadError);
-      setCvUploadError(uploadError.message || "Upload failed.");
+      setCvUploadError(uploadError.message || t("profile.student.errors.uploadFailed"));
       setCvUploading(false);
       return;
     }
@@ -463,14 +402,14 @@ export default function StudentProfilePage() {
 
     if (updateError) {
       console.error("student CV path update error:", updateError);
-      setCvUploadError(updateError.message || "Saved file but could not update profile.");
+      setCvUploadError(updateError.message || t("profile.student.errors.uploadProfileFailed"));
       setCvUploading(false);
       return;
     }
 
     setCvPath(objectPath);
     setCvFile(null);
-    setCvMessage("CV uploaded successfully.");
+    setCvMessage(t("profile.student.cvUploadSuccess"));
     setCvUploading(false);
   };
 
@@ -478,12 +417,8 @@ export default function StudentProfilePage() {
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-2xl">
         <PageHeader
-          title="Student Profile"
-          description={
-            editMode
-              ? "Update your information. Changes will improve recommendations."
-              : "Your profile information (read-only)."
-          }
+          title={t("profile.student.title")}
+          description={editMode ? t("profile.student.descEdit") : t("profile.student.descView")}
           action={
             editMode ? (
               <Button
@@ -495,49 +430,57 @@ export default function StudentProfilePage() {
                   setError(null);
                 }}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
             ) : (
               <Button type="button" variant="primary" onClick={() => setEditMode(true)} disabled={loading}>
-                Update profile
+                {t("common.updateProfile")}
               </Button>
             )
           }
         />
+        {!loading && (
+          <div
+            className="mb-6 rounded-xl border border-purple-200 bg-purple-50/80 px-4 py-3 text-sm text-purple-900 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-100"
+            role="note"
+          >
+            <p className="font-medium">{t("profile.student.tipTitle")}</p>
+            <p className="mt-1 text-purple-800/90 dark:text-purple-200/90">{t("profile.student.tipBody")}</p>
+          </div>
+        )}
         {error && (
           <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800 transition-colors duration-300 dark:border dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">{error}</div>
         )}
         {saved && (
-          <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800 transition-colors duration-300 dark:border dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300" role="status">Changes saved.</div>
+          <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800 transition-colors duration-300 dark:border dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300" role="status">{t("profile.student.changesSaved")}</div>
         )}
-        {loading && (
-          <div className="mb-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800 transition-colors duration-300 dark:border dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300" role="status">Loading profile...</div>
-        )}
-        {!editMode ? (
+        {loading ? (
+          <ProfileFormSkeleton />
+        ) : !editMode ? (
           <div className="space-y-6">
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-                Personal info
+                {t("profile.student.personalInfo")}
               </h2>
               <div className="mt-4 space-y-3 text-sm">
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Full name</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.fullName")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{name.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">University</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.university")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{university.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Department</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.department")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{department.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Major</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.major")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{major.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Year</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.year")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{year.trim() || "—"}</p>
                 </div>
               </div>
@@ -545,15 +488,15 @@ export default function StudentProfilePage() {
 
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-                Skills & bio
+                {t("profile.student.skillsBio")}
               </h2>
               <div className="mt-4 space-y-3 text-sm">
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Skills</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.skills")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{skills.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Bio</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.bio")}</p>
                   <p className="mt-1 whitespace-pre-wrap text-gray-900 dark:text-white">{bio.trim() || "—"}</p>
                 </div>
               </div>
@@ -561,43 +504,43 @@ export default function StudentProfilePage() {
 
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-                Additional information
+                {t("profile.student.additionalInfo")}
               </h2>
               <div className="mt-4 space-y-3 text-sm">
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">GPA</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.gpa")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{gpa.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Technical skills</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.technicalSkills")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{technicalSkills.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Soft skills</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.softSkills")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{softSkills.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preferred field</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.preferredField")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{preferredField.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preferred work type</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.preferredWorkType")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">
-                    {preferredWorkTypeOptions.find((o) => o.value === preferredWorkType)?.label ?? "—"}
+                    {optionLabel(preferredWorkType, preferredWorkTypeOptions)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preferred location</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.preferredLocation")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">{preferredLocation.trim() || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Availability</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.availability")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">
-                    {availabilityOptions.find((o) => o.value === availability)?.label ?? "—"}
+                    {optionLabel(availability, availabilityOptions)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Courses</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{t("profile.student.courses")}</p>
                   <p className="mt-1 text-gray-900 dark:text-white">
                     {takenCourses.length || customCourses.trim()
                       ? [...takenCourses, ...parseCsv(customCourses)].filter(Boolean).join(", ")
@@ -609,56 +552,56 @@ export default function StudentProfilePage() {
 
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-                CV
+                {t("profile.student.cv")}
               </h2>
               <p className="mt-2 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-300">
-                {cvPath ? "A CV is uploaded (cv.pdf)." : "No CV uploaded yet."}
+                {cvPath ? t("profile.student.cvUploaded") : t("profile.student.cvNotUploaded")}
               </p>
               <p className="mt-2 text-xs text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                To upload/replace your CV, click “Update profile”.
+                {t("profile.student.cvReplaceHint")}
               </p>
             </Card>
           </div>
         ) : (
         <form onSubmit={handleSave} className="space-y-6">
           <Card>
-            <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">Personal info</h2>
+            <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">{t("profile.student.personalInfo")}</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
-              <Input label="University" value={university} onChange={(e) => setUniversity(e.target.value)} placeholder="University name" />
+              <Input label={t("profile.student.fullName")} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("profile.student.phName")} />
+              <Input label={t("profile.student.university")} value={university} onChange={(e) => setUniversity(e.target.value)} placeholder={t("profile.student.phUniversity")} />
               <Select
-                label="Department"
+                label={t("profile.student.department")}
                 required
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 options={studentDepartmentOptions}
               />
-              <Input label="Major" value={major} onChange={(e) => setMajor(e.target.value)} placeholder="e.g. Computer Science" />
-              <Input label="Year" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 3rd, 4th" />
+              <Input label={t("profile.student.major")} value={major} onChange={(e) => setMajor(e.target.value)} placeholder={t("profile.student.phMajor")} />
+              <Input label={t("profile.student.year")} value={year} onChange={(e) => setYear(e.target.value)} placeholder={t("profile.student.phYear")} />
             </div>
           </Card>
           <Card>
             <Input
-              label="Skills (comma-separated)"
+              label={t("profile.student.skillsComma")}
               value={skills}
               onChange={(e) => setSkills(e.target.value)}
-              placeholder="Python, ML, SQL"
+              placeholder={t("profile.student.phSkills")}
             />
             <Textarea
-              label="Bio"
+              label={t("profile.student.bio")}
               rows={3}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               className="mt-4"
-              placeholder="Short bio for your profile"
+              placeholder={t("profile.student.phBio")}
             />
           </Card>
           <Card>
             <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
-              Additional Information
+              {t("profile.student.additionalInfo")}
             </h2>
             <div className="mt-4 space-y-4">
-              <h3 className="text-sm font-medium text-gray-800 dark:text-slate-200">Courses</h3>
+              <h3 className="text-sm font-medium text-gray-800 dark:text-slate-200">{t("profile.student.courses")}</h3>
               {courseCategories.map((category) => (
                 <div key={category.title} className="rounded-md border border-gray-200 p-3 dark:border-slate-700">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{category.title}</h4>
@@ -685,61 +628,61 @@ export default function StudentProfilePage() {
                 </div>
               ))}
               <Input
-                label="Other courses (comma-separated)"
+                label={t("profile.student.otherCourses")}
                 value={customCourses}
                 onChange={(e) => setCustomCourses(e.target.value)}
-                placeholder="Reinforcement Learning, Time Series Analysis"
+                placeholder={t("profile.student.phOtherCourses")}
               />
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Input
-                label="GPA (optional)"
+                label={t("profile.student.gpaOptional")}
                 type="number"
                 min={0}
                 max={4}
                 step="0.01"
                 value={gpa}
                 onChange={(e) => setGpa(e.target.value)}
-                placeholder="e.g. 3.50"
+                placeholder={t("profile.student.phGpa")}
               />
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Input
-                label="Technical skills (comma-separated)"
+                label={t("profile.student.technicalSkillsComma")}
                 value={technicalSkills}
                 onChange={(e) => setTechnicalSkills(e.target.value)}
-                placeholder="Python, TensorFlow, SQL"
+                placeholder={t("profile.student.phTechSkills")}
               />
               <Input
-                label="Soft skills (comma-separated)"
+                label={t("profile.student.softSkillsComma")}
                 value={softSkills}
                 onChange={(e) => setSoftSkills(e.target.value)}
-                placeholder="Communication, Teamwork"
+                placeholder={t("profile.student.phSoftSkills")}
               />
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Input
-                label="Preferred field"
+                label={t("profile.student.preferredField")}
                 value={preferredField}
                 onChange={(e) => setPreferredField(e.target.value)}
-                placeholder="AI, Data Science, Web"
+                placeholder={t("profile.student.phField")}
               />
               <Input
-                label="Preferred location"
+                label={t("profile.student.preferredLocation")}
                 value={preferredLocation}
                 onChange={(e) => setPreferredLocation(e.target.value)}
-                placeholder="Amman"
+                placeholder={t("profile.student.phLocation")}
               />
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Select
-                label="Preferred work type"
+                label={t("profile.student.preferredWorkType")}
                 options={preferredWorkTypeOptions}
                 value={preferredWorkType}
                 onChange={(e) => setPreferredWorkType(e.target.value)}
               />
               <Select
-                label="Availability"
+                label={t("profile.student.availability")}
                 options={availabilityOptions}
                 value={availability}
                 onChange={(e) => setAvailability(e.target.value)}
@@ -747,10 +690,9 @@ export default function StudentProfilePage() {
             </div>
           </Card>
           <Card>
-            <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">CV upload</h2>
+            <h2 className="text-sm font-semibold text-gray-900 transition-colors duration-300 dark:text-white">{t("profile.student.cvUpload")}</h2>
             <p className="mt-1 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
-              PDF only, max 5MB. Your CV is stored privately; companies only get a temporary link when they review your
-              application.
+              {t("profile.student.cvUploadDesc")}
             </p>
             {cvMessage && (
               <div
@@ -775,7 +717,7 @@ export default function StudentProfilePage() {
                   accept="application/pdf,.pdf"
                   disabled={cvUploading || !studentRowId}
                   className="block w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 transition-colors duration-300 file:mr-4 file:rounded file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-slate-700 dark:file:text-white dark:hover:file:bg-slate-600"
-                  aria-label="Upload CV (PDF)"
+                  aria-label={t("profile.student.uploadCvAria")}
                   onChange={(e) => {
                     const file = e.target.files?.[0] ?? null;
                     setCvFile(file);
@@ -784,21 +726,21 @@ export default function StudentProfilePage() {
                   }}
                 />
                 <p className="mt-2 text-sm text-gray-500 transition-colors duration-300 dark:text-slate-400">
-                  {cvPath ? "A CV is on file (cv.pdf). You can replace it below." : "No CV uploaded yet."}
+                  {cvPath ? t("profile.student.cvOnFile") : t("profile.student.cvNotUploaded")}
                   {!studentRowId && (
                     <span className="mt-1 block text-amber-700 dark:text-amber-300">
-                      Save your profile with a valid department first, then upload your CV.
+                      {t("profile.student.cvSaveDeptFirst")}
                     </span>
                   )}
                 </p>
               </div>
               <Button type="button" variant="secondary" disabled={cvUploading || !studentRowId || !cvFile} onClick={() => void handleCvUpload()}>
-                {cvUploading ? "Uploading..." : "Upload CV"}
+                {cvUploading ? t("profile.student.uploading") : t("profile.student.uploadCv")}
               </Button>
             </div>
           </Card>
           <Button type="submit" variant="primary" disabled={loading || saving}>
-            {saving ? "Saving..." : "Save changes"}
+            {saving ? t("profile.student.saving") : t("profile.student.saveChanges")}
           </Button>
         </form>
         )}
