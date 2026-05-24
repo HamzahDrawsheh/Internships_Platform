@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildMatchInsights, type MatchInsights } from "@/lib/ai/match-insights";
+import { analyzeSkillGap, type SkillGapAnalysis } from "@/lib/skill-match";
 import { blendRecommendationScore } from "@/lib/companies/evaluation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -17,8 +18,14 @@ type ScoredRecommendationRow = {
   company_confidence: "high" | "medium" | "low";
 };
 
+type SkillGapPayload = Pick<
+  SkillGapAnalysis,
+  "matchedSkills" | "missingSkills" | "missingSkillsCount" | "hasDetectableInternshipSkills"
+>;
+
 type RecommendationRow = ScoredRecommendationRow & {
   match_insights: MatchInsights;
+  skill_gap: SkillGapPayload;
 };
 
 export async function GET(request: Request) {
@@ -159,6 +166,11 @@ export async function GET(request: Request) {
 
   const recommendations: RecommendationRow[] = top.map((row) => {
     const detail = detailById.get(row.internship_id);
+    const internshipSource = {
+      requirements: detail?.requirements ?? null,
+      description: detail?.description ?? null,
+    };
+    const gap = analyzeSkillGap(studentSources, internshipSource);
     return {
       ...row,
       match_insights: buildMatchInsights({
@@ -168,6 +180,12 @@ export async function GET(request: Request) {
         internshipDescription: detail?.description ?? null,
         matchPercentage: row.match_percentage,
       }),
+      skill_gap: {
+        matchedSkills: gap.matchedSkills,
+        missingSkills: gap.missingSkills,
+        missingSkillsCount: gap.missingSkillsCount,
+        hasDetectableInternshipSkills: gap.hasDetectableInternshipSkills,
+      },
     };
   });
 

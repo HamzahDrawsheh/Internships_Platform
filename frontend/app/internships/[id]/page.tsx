@@ -7,7 +7,10 @@ import { Container } from "@/components/layout/Container";
 import { DetailPageSkeleton } from "@/components/loading";
 import { Badge, Button, Modal, Textarea, EmptyState } from "@/components/ui";
 import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
+import { SkillGapLearningPlanCard } from "@/components/students/SkillGapLearningPlanCard";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
+import { useI18n } from "@/lib/i18n/context";
+import { analyzeSkillGapWithPlan, type SkillGapAnalysis } from "@/lib/skill-match";
 import { createClient } from "@/lib/supabase/client";
 import { formatInternshipDateRange } from "@/lib/internships/dates";
 import type { ApplicationStatus } from "@/lib/types";
@@ -15,6 +18,7 @@ import type { ApplicationStatus } from "@/lib/types";
 const locationLabel: Record<string, string> = { remote: "Remote", onsite: "On-site", hybrid: "Hybrid" };
 
 export default function InternshipDetailsPage() {
+  const { t } = useI18n();
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
   const [applyOpen, setApplyOpen] = useState(false);
@@ -41,6 +45,9 @@ export default function InternshipDetailsPage() {
   const [companyName, setCompanyName] = useState<string>("Company");
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [existingApplicationStatus, setExistingApplicationStatus] = useState<ApplicationStatus | null>(null);
+  const [isStudentViewer, setIsStudentViewer] = useState(false);
+  const [skillGapLoading, setSkillGapLoading] = useState(false);
+  const [skillGapAnalysis, setSkillGapAnalysis] = useState<SkillGapAnalysis | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -48,6 +55,9 @@ export default function InternshipDetailsPage() {
     const load = async () => {
       setLoading(true);
       setExistingApplicationStatus(null);
+      setIsStudentViewer(false);
+      setSkillGapAnalysis(null);
+      setSkillGapLoading(false);
       const { data: pos } = await supabase
         .from("internship_positions")
         .select("id, title, description, requirements, duration, start_date, end_date, additional_notes, location, type, is_active, created_at, company_id")
@@ -76,7 +86,13 @@ export default function InternshipDetailsPage() {
       if (user) {
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
         if (profile?.role === "student") {
-          const { data: student } = await supabase.from("students").select("id").eq("user_id", user.id).maybeSingle();
+          setIsStudentViewer(true);
+          setSkillGapLoading(true);
+          const { data: student } = await supabase
+            .from("students")
+            .select("id, skills, major, department")
+            .eq("user_id", user.id)
+            .maybeSingle();
           if (student?.id) {
             await invokeAutoCompleteExpiredTrainings(supabase);
             const { data: appRow } = await supabase
@@ -86,7 +102,31 @@ export default function InternshipDetailsPage() {
               .eq("position_id", pos.id)
               .maybeSingle();
             if (appRow?.status) setExistingApplicationStatus(appRow.status as ApplicationStatus);
+
+            const { data: additional } = await supabase
+              .from("student_additional_info")
+              .select("technical_skills, taken_courses, gpa")
+              .eq("user_id", user.id)
+              .maybeSingle();
+
+            setSkillGapAnalysis(
+              analyzeSkillGapWithPlan(
+                {
+                  skills: student.skills,
+                  major: student.major,
+                  department: student.department,
+                  technical_skills: additional?.technical_skills ?? [],
+                  taken_courses: additional?.taken_courses ?? [],
+                },
+                {
+                  requirements: pos.requirements,
+                  description: pos.description,
+                },
+                t
+              )
+            );
           }
+          setSkillGapLoading(false);
         }
       }
 
@@ -94,7 +134,7 @@ export default function InternshipDetailsPage() {
     };
 
     if (id) load();
-  }, [id]);
+  }, [id, t]);
 
   const skills = useMemo(
     () =>
@@ -286,6 +326,12 @@ export default function InternshipDetailsPage() {
             </div>
           </section>
         </div>
+
+        {isStudentViewer && skillGapAnalysis && (
+          <div className="mt-6">
+            <SkillGapLearningPlanCard loading={skillGapLoading} analysis={skillGapAnalysis} />
+          </div>
+        )}
 
         <p className="mt-4">
           <Link href="/internships" className="text-sm font-medium text-gray-900 hover:underline dark:text-gray-100">

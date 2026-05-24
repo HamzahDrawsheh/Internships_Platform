@@ -8,6 +8,8 @@ import { CardGridSkeleton } from "@/components/loading";
 import { Input, Select, Button, EmptyState, SearchBar } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
+import { useI18n } from "@/lib/i18n/context";
+import { formatMissingSkillsCount } from "@/lib/skill-match";
 import { createClient } from "@/lib/supabase/client";
 import type { ApplicationStatus } from "@/lib/types";
 import { InternshipCard } from "@/components/internships/InternshipCard";
@@ -25,6 +27,13 @@ type RecommendationMatchInsights = {
   tips: string[];
 };
 
+type RecommendationSkillGap = {
+  matchedSkills: string[];
+  missingSkills: string[];
+  missingSkillsCount: number;
+  hasDetectableInternshipSkills: boolean;
+};
+
 type RecommendedInternship = {
   internship_id: string;
   title: string;
@@ -32,6 +41,7 @@ type RecommendedInternship = {
   similarity_score: number;
   match_percentage: number;
   match_insights?: RecommendationMatchInsights;
+  skill_gap?: RecommendationSkillGap;
 };
 
 const locationOptions: SelectOption[] = [
@@ -51,6 +61,7 @@ const skillOptions: SelectOption[] = [
 ];
 
 export default function BrowseInternshipsPage() {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [locationType, setLocationType] = useState("");
   const [skill, setSkill] = useState("");
@@ -200,6 +211,7 @@ export default function BrowseInternshipsPage() {
             similarity_score: unknown;
             match_percentage: unknown;
             match_insights?: RecommendationMatchInsights;
+            skill_gap?: RecommendationSkillGap;
           };
 
           let rawRows: RecRow[] = [];
@@ -252,6 +264,7 @@ export default function BrowseInternshipsPage() {
               similarity_score: Number(row.similarity_score ?? 0),
               match_percentage: Number(row.match_percentage ?? 0),
               ...(row.match_insights != null ? { match_insights: row.match_insights } : {}),
+              ...(row.skill_gap != null ? { skill_gap: row.skill_gap } : {}),
             }))
           );
 
@@ -689,11 +702,20 @@ export default function BrowseInternshipsPage() {
                   <p className="mt-3 text-xs text-gray-600 dark:text-gray-300">
                     Recommended based on your profile, skills, and preferences.
                   </p>
+                  {item.skill_gap?.hasDetectableInternshipSkills ? (
+                    <p className="mt-2 text-xs font-medium text-amber-800 dark:text-amber-200/90">
+                      {formatMissingSkillsCount(item.skill_gap.missingSkillsCount, t)}
+                    </p>
+                  ) : null}
                   {(() => {
                     const mi = item.match_insights;
                     const summaryFirst = mi?.summary_lines?.[0]?.trim() ?? "";
-                    const matchedShow = (mi?.matched_skills ?? []).slice(0, 3);
-                    const gapsShow = (mi?.gaps ?? []).slice(0, 2);
+                    const matchedShow = (
+                      item.skill_gap?.matchedSkills ??
+                      mi?.matched_skills ??
+                      []
+                    ).slice(0, 3);
+                    const gapsShow = (item.skill_gap?.missingSkills ?? []).slice(0, 2);
                     const hasInsightsBlock =
                       mi != null &&
                       (summaryFirst.length > 0 || matchedShow.length > 0 || gapsShow.length > 0);

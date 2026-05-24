@@ -270,6 +270,35 @@ export const messages = {
         retrying: "Retrying…",
       },
     },
+    skillMatch: {
+      title: "Missing Skills & Learning Plan",
+      skillsYouHave: "Skills you have",
+      skillsToImprove: "Skills to improve",
+      learningPlan: "Learning plan",
+      callout: "Improve these skills to increase your chance of acceptance.",
+      noMissing: "No missing skills found. You are a strong match for this internship.",
+      noMissingShort: "No missing skills",
+      addProfileSkills: "Add more skills to your profile to get a better analysis.",
+      noInternshipSkills: "No clear required skills were found for this internship.",
+      missingCount: "{{count}} missing skills",
+      plans: {
+        powerBi: {
+          week1: "Week 1: Learn Power BI basics and interface.",
+          week2: "Week 2: Practice data cleaning and dashboard creation.",
+          week3: "Week 3: Build a small dashboard project and add it to your CV.",
+        },
+        machineLearning: {
+          week1: "Week 1: Review basic statistics and Python libraries.",
+          week2: "Week 2: Learn supervised learning basics.",
+          week3: "Week 3: Build a small classification or prediction project.",
+        },
+        generic: {
+          week1: "Week 1: Learn {{skill}} fundamentals and core concepts.",
+          week2: "Week 2: Practice {{skill}} through guided exercises.",
+          week3: "Week 3: Build a small practice project and add it to your CV.",
+        },
+      },
+    },
   },
   ar: {
     nav: {
@@ -526,6 +555,35 @@ export const messages = {
         defaultsHintSuffix: "بعد سحب تحديثات قاعدة البيانات.",
         tryAgain: "إعادة المحاولة",
         retrying: "جاري إعادة المحاولة…",
+      },
+    },
+    skillMatch: {
+      title: "المهارات الناقصة وخطة التعلم",
+      skillsYouHave: "المهارات المتوفرة لديك",
+      skillsToImprove: "مهارات تحتاج إلى تطوير",
+      learningPlan: "خطة التعلم",
+      callout: "طوّر هذه المهارات لزيادة فرص قبولك.",
+      noMissing: "لا توجد مهارات ناقصة. أنت مناسب جدًا لهذا التدريب.",
+      noMissingShort: "لا توجد مهارات ناقصة",
+      addProfileSkills: "أضف المزيد من المهارات إلى ملفك الشخصي للحصول على تحليل أفضل.",
+      noInternshipSkills: "لم يتم العثور على مهارات مطلوبة واضحة لهذا التدريب.",
+      missingCount: "{{count}} مهارات ناقصة",
+      plans: {
+        powerBi: {
+          week1: "الأسبوع الأول: تعلّم أساسيات Power BI والواجهة.",
+          week2: "الأسبوع الثاني: تدّرب على تنظيف البيانات وإنشاء لوحات المعلومات.",
+          week3: "الأسبوع الثالث: أنشئ لوحة معلومات صغيرة وأضفها إلى سيرتك الذاتية.",
+        },
+        machineLearning: {
+          week1: "الأسبوع الأول: راجع الإحصاء الأساسي ومكتبات Python.",
+          week2: "الأسبوع الثاني: تعلّم أساسيات التعلم الخاضع للإشراف.",
+          week3: "الأسبوع الثالث: نفّذ مشروع تصنيف أو تنبؤ بسيط.",
+        },
+        generic: {
+          week1: "الأسبوع الأول: تعلّم أساسيات {{skill}} والمفاهيم الأساسية.",
+          week2: "الأسبوع الثاني: تدّرب على {{skill}} من خلال تمارين موجهة.",
+          week3: "الأسبوع الثالث: أنشئ مشروعًا تطبيقيًا صغيرًا وأضفه إلى سيرتك الذاتية.",
+        },
       },
     },
   },
