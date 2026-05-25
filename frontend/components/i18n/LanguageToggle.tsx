@@ -2,13 +2,11 @@
 
 import { useI18n } from "@/lib/i18n/context";
 import type { Locale } from "@/lib/i18n/messages";
+import { NAV_LANGUAGE_OPTION_CLASS } from "@/components/layout/navControlStyles";
 
 type LanguageToggleProps = {
   className?: string;
 };
-
-const optionBase =
-  "relative z-10 min-w-[3.25rem] rounded-full px-3.5 py-1.5 text-xs font-semibold tracking-wide transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950";
 
 export function LanguageToggle({ className = "" }: LanguageToggleProps) {
   const { locale, setLocale, t } = useI18n();
@@ -27,7 +25,7 @@ export function LanguageToggle({ className = "" }: LanguageToggleProps) {
       <button
         type="button"
         onClick={() => select("ar")}
-        className={`${optionBase} ${
+        className={`${NAV_LANGUAGE_OPTION_CLASS} ${
           locale === "ar"
             ? "bg-gradient-to-r from-[#7C3AED] to-[#6366F1] text-white shadow-md shadow-purple-500/30"
             : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
@@ -40,7 +38,7 @@ export function LanguageToggle({ className = "" }: LanguageToggleProps) {
       <button
         type="button"
         onClick={() => select("en")}
-        className={`${optionBase} ${
+        className={`${NAV_LANGUAGE_OPTION_CLASS} ${
           locale === "en"
             ? "bg-gradient-to-r from-[#7C3AED] to-[#6366F1] text-white shadow-md shadow-purple-500/30"
             : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"

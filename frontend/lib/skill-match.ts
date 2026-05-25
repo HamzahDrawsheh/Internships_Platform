@@ -129,6 +129,60 @@ const INVALID_SUBSTRINGS = [
 
 const STANDALONE_STOP_WORDS = new Set(["and", "or", "we", "you", "a", "an", "the", "to", "for"]);
 
+/** Junk tokens sometimes scraped from posting prose — never show as skills or improvement tips. */
+const IMPROVEMENT_STOP_WORDS = new Set([
+  ...STANDALONE_STOP_WORDS,
+  "nothing",
+  "something",
+  "anything",
+  "everything",
+  "none",
+  "n/a",
+  "na",
+  "tbd",
+  "unknown",
+  "other",
+  "misc",
+  "when",
+  "where",
+  "which",
+  "what",
+  "who",
+  "how",
+  "why",
+  "this",
+  "that",
+  "these",
+  "those",
+  "here",
+  "there",
+  "with",
+  "from",
+  "into",
+  "about",
+  "after",
+  "before",
+  "returns",
+  "splits",
+  "caller",
+  "drops",
+  "blob",
+  "may",
+  "can",
+  "will",
+  "must",
+  "should",
+  "have",
+  "has",
+  "had",
+  "been",
+  "being",
+  "are",
+  "is",
+  "was",
+  "were",
+]);
+
 export type LearningPlanEntry = {
   skill: string;
   steps: string[];
@@ -322,6 +376,30 @@ function mergeStudentCanonicalSkills(input: SkillGapStudentInput): string[] {
 function studentHasCanonical(studentCanonical: Set<string>, requiredCanonical: string): boolean {
   if (studentCanonical.has(requiredCanonical)) return true;
   return false;
+}
+
+/**
+ * Whitelist-only skill labels safe to show in “how to improve” lists.
+ * Drops prose fragments (e.g. “nothing”) scraped from posting text.
+ */
+export function sanitizeImprovementSkills(...labels: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const raw of labels) {
+    if (typeof raw !== "string") continue;
+    const norm = normalizeRaw(raw);
+    if (!norm || IMPROVEMENT_STOP_WORDS.has(norm) || isInvalidPhrase(raw)) continue;
+
+    const canonical = toCanonicalSkill(raw);
+    if (!canonical) continue;
+
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    out.push(DISPLAY_BY_CANONICAL.get(canonical) ?? canonical);
+  }
+
+  return out.slice(0, 6);
 }
 
 export function formatMissingSkillsCount(count: number, t: (key: string) => string): string {

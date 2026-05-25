@@ -8,7 +8,14 @@ import { Badge, EmptyState, Input, Table } from "@/components/ui";
 import { useAdminAccess } from "@/lib/admin/use-admin-access";
 import { createClient } from "@/lib/supabase/client";
 
-type ApplicationStatus = "pending" | "accepted" | "rejected" | "completed";
+type ApplicationStatus =
+  | "pending"
+  | "accepted_pending_commit"
+  | "accepted"
+  | "rejected"
+  | "completed"
+  | "commitment_expired"
+  | "withdrawn";
 
 type ApplicationRow = {
   id: string;
@@ -21,18 +28,32 @@ type ApplicationRow = {
 
 type StatusFilter = "all" | ApplicationStatus;
 
-const STATUSES: ApplicationStatus[] = ["pending", "accepted", "rejected", "completed"];
+const STATUSES: ApplicationStatus[] = [
+  "pending",
+  "accepted_pending_commit",
+  "accepted",
+  "rejected",
+  "completed",
+  "commitment_expired",
+  "withdrawn",
+];
 
 function statusBadge(status: ApplicationStatus) {
   switch (status) {
     case "pending":
       return <Badge variant="warning">Pending</Badge>;
+    case "accepted_pending_commit":
+      return <Badge variant="warning">Awaiting confirmation</Badge>;
     case "accepted":
       return <Badge variant="success">Accepted</Badge>;
     case "completed":
       return <Badge variant="info">Completed</Badge>;
     case "rejected":
       return <Badge variant="danger">Rejected</Badge>;
+    case "commitment_expired":
+      return <Badge variant="danger">Offer expired</Badge>;
+    case "withdrawn":
+      return <Badge variant="default">Withdrawn</Badge>;
     default:
       return <Badge>{status}</Badge>;
   }

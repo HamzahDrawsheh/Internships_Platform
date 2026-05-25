@@ -8,7 +8,11 @@ import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
 import { MessageStudentButton } from "@/components/messaging/MessageStudentButton";
-import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
+import {
+  buildCompanyStatusPatch,
+  canCompanyTransitionStatus,
+  COMMITMENT_PENDING_STATUS,
+} from "@/lib/applications/commitment";
 import type { ApplicationStatus } from "@/lib/types";
 
 type Position = { id: string; title: string; duration_weeks?: number | null };
@@ -348,30 +352,29 @@ export default function CompanyApplicationsPage() {
         return;
       }
 
-      const canTransition =
-        (appRow.status === "pending" && (status === "accepted" || status === "rejected")) ||
-        (appRow.status === "accepted" && status === "completed");
-      if (!canTransition) {
+      const effectiveNextStatus = status;
+      if (!canCompanyTransitionStatus(appRow.status, effectiveNextStatus)) {
         setError("Invalid status transition for this application.");
         return;
       }
 
-      const scheduleWeeks = ownedPosition
-        ? resolveDurationWeeks({
-            duration_weeks: ownedPosition.duration_weeks as number | null | undefined,
-            duration: ownedPosition.duration as string | null | undefined,
-          })
-        : null;
-
-      const applicationPatch: Record<string, unknown> = { status };
-      if (status === "accepted") {
-        applicationPatch.accepted_at = new Date().toISOString();
-        applicationPatch.training_end_date =
-          scheduleWeeks != null ? computeTrainingEndDateIso(scheduleWeeks) : null;
-      } else if (status === "rejected") {
-        applicationPatch.accepted_at = null;
-        applicationPatch.training_end_date = null;
+      if (effectiveNextStatus === "accepted") {
+        const { data: committedApps, error: committedError } = await supabase
+          .from("applications")
+          .select("id")
+          .eq("student_id", appRow.student_id)
+          .eq("status", "accepted")
+          .limit(1);
+        if (committedError) {
+          console.error("company applications committed check error:", committedError);
+        }
+        if (committedApps?.length) {
+          setError("This student has already committed to another internship.");
+          return;
+        }
       }
+
+      const applicationPatch = buildCompanyStatusPatch(effectiveNextStatus, null);
 
       const { error: updateError } = await supabase
         .from("applications")
@@ -399,14 +402,15 @@ export default function CompanyApplicationsPage() {
           : "Internship";
 
       if (targetUserId) {
-        const message = status === "accepted"
-          ? `🎉 Your application for ${internshipTitle} at ${companyName} has been accepted.`
-          : status === "rejected"
-            ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
-            : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
+        const message =
+          status === "accepted"
+            ? `🎉 Your application for ${internshipTitle} at ${companyName} was accepted. Confirm your commitment within 3 days on My Applications — or the offer expires.`
+            : status === "rejected"
+              ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
+              : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
         const title =
           status === "accepted"
-            ? "Application accepted"
+            ? "Confirm your internship commitment"
             : status === "rejected"
               ? "Application rejected"
               : "Internship completed";
@@ -414,7 +418,7 @@ export default function CompanyApplicationsPage() {
           status === "completed"
             ? "training_completed"
             : status === "accepted"
-              ? "accepted"
+              ? "commitment_required"
               : status === "rejected"
                 ? "rejected"
                 : "info";
@@ -434,9 +438,14 @@ export default function CompanyApplicationsPage() {
         }
       }
 
+      const storedStatus =
+        effectiveNextStatus === "accepted" ? COMMITMENT_PENDING_STATUS : effectiveNextStatus;
+
       setApplications((prev) =>
         prev.map((application) =>
-          application.id === selectedApplicationId ? { ...application, status } : application
+          application.id === selectedApplicationId
+            ? { ...application, status: storedStatus as ApplicationStatus }
+            : application
         )
       );
     } finally {
@@ -485,15 +494,21 @@ export default function CompanyApplicationsPage() {
 
   const stats = useMemo(() => {
     const pending = applications.filter((a) => a.status === "pending").length;
+    const awaitingCommit = applications.filter((a) => a.status === COMMITMENT_PENDING_STATUS).length;
     const accepted = applications.filter((a) => a.status === "accepted").length;
     const completed = applications.filter((a) => a.status === "completed").length;
     const withCv = applications.filter((a) => studentDetailById.get(a.student_id)?.hasCv).length;
-    return { total: applications.length, pending, accepted, completed, withCv };
+    return { total: applications.length, pending, awaitingCommit, accepted, completed, withCv };
   }, [applications, studentDetailById]);
 
   const statusFilterOptions: { value: "" | ApplicationStatus; label: string; count: number }[] = [
     { value: "", label: "All", count: stats.total },
     { value: "pending", label: "Pending", count: stats.pending },
+    {
+      value: COMMITMENT_PENDING_STATUS,
+      label: "Awaiting student confirmation",
+      count: stats.awaitingCommit,
+    },
     { value: "accepted", label: "Accepted", count: stats.accepted },
     { value: "rejected", label: "Rejected", count: applications.filter((a) => a.status === "rejected").length },
     { value: "completed", label: "Completed", count: stats.completed },
@@ -504,8 +519,10 @@ export default function CompanyApplicationsPage() {
 
   const statusVariant = (status: ApplicationStatus) => {
     if (status === "accepted") return "success";
-    if (status === "rejected") return "danger";
+    if (status === COMMITMENT_PENDING_STATUS) return "warning";
+    if (status === "rejected" || status === "commitment_expired") return "danger";
     if (status === "completed") return "info";
+    if (status === "withdrawn") return "default";
     return "warning";
   };
 
@@ -746,6 +763,15 @@ export default function CompanyApplicationsPage() {
                   {actionLoading ? "Updating..." : "Accept"}
                 </Button>
               </>
+            )}
+            {selectedApplication?.status === COMMITMENT_PENDING_STATUS && (
+              <Button
+                variant="danger"
+                onClick={() => updateApplicationStatus("rejected")}
+                disabled={actionLoading}
+              >
+                {actionLoading ? "Updating..." : "Withdraw offer"}
+              </Button>
             )}
             {selectedApplication?.status === "accepted" && (
               <Button

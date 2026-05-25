@@ -11,11 +11,13 @@ import { SkillGapLearningPlanCard } from "@/components/students/SkillGapLearning
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { useI18n } from "@/lib/i18n/context";
 import { analyzeSkillGapWithPlan, type SkillGapAnalysis } from "@/lib/skill-match";
+import type { MatchScoreBreakdown } from "@/lib/recommendations/match-score-breakdown";
+import { fetchStudentEnrolledInTraining } from "@/lib/applications/commitment";
 import { createClient } from "@/lib/supabase/client";
 import { formatInternshipDateRange } from "@/lib/internships/dates";
 import type { ApplicationStatus } from "@/lib/types";
-
-const locationLabel: Record<string, string> = { remote: "Remote", onsite: "On-site", hybrid: "Hybrid" };
+import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
+import { formatWorkArrangementLabel } from "@/lib/recommendations/location-prefs";
 
 export default function InternshipDetailsPage() {
   const { t } = useI18n();
@@ -44,10 +46,13 @@ export default function InternshipDetailsPage() {
   } | null>(null);
   const [companyName, setCompanyName] = useState<string>("Company");
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+  const [companyOfficeLocation, setCompanyOfficeLocation] = useState<string | null>(null);
   const [existingApplicationStatus, setExistingApplicationStatus] = useState<ApplicationStatus | null>(null);
+  const [isEnrolledInTraining, setIsEnrolledInTraining] = useState(false);
   const [isStudentViewer, setIsStudentViewer] = useState(false);
   const [skillGapLoading, setSkillGapLoading] = useState(false);
   const [skillGapAnalysis, setSkillGapAnalysis] = useState<SkillGapAnalysis | null>(null);
+  const [matchBreakdown, setMatchBreakdown] = useState<MatchScoreBreakdown | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -57,6 +62,7 @@ export default function InternshipDetailsPage() {
       setExistingApplicationStatus(null);
       setIsStudentViewer(false);
       setSkillGapAnalysis(null);
+      setMatchBreakdown(null);
       setSkillGapLoading(false);
       const { data: pos } = await supabase
         .from("internship_positions")
@@ -74,11 +80,12 @@ export default function InternshipDetailsPage() {
 
       const { data: company } = await supabase
         .from("companies")
-        .select("company_name, logo_url")
+        .select("company_name, logo_url, location")
         .eq("id", pos.company_id)
         .single();
       setCompanyName(company?.company_name ?? "Company");
       setCompanyLogoUrl(company?.logo_url ?? null);
+      setCompanyOfficeLocation(company?.location ?? null);
 
       const {
         data: { user },
@@ -102,22 +109,28 @@ export default function InternshipDetailsPage() {
               .eq("position_id", pos.id)
               .maybeSingle();
             if (appRow?.status) setExistingApplicationStatus(appRow.status as ApplicationStatus);
+            setIsEnrolledInTraining(await fetchStudentEnrolledInTraining(supabase, student.id));
 
             const { data: additional } = await supabase
               .from("student_additional_info")
-              .select("technical_skills, taken_courses, gpa")
+              .select("technical_skills, soft_skills, taken_courses, custom_courses, preferred_field, gpa")
               .eq("user_id", user.id)
               .maybeSingle();
 
+            const studentSources = {
+              skills: student.skills,
+              major: student.major,
+              department: student.department,
+              technical_skills: additional?.technical_skills ?? [],
+              soft_skills: additional?.soft_skills ?? [],
+              taken_courses: additional?.taken_courses ?? [],
+              custom_courses: additional?.custom_courses ?? [],
+              preferred_field: additional?.preferred_field ?? null,
+            };
+
             setSkillGapAnalysis(
               analyzeSkillGapWithPlan(
-                {
-                  skills: student.skills,
-                  major: student.major,
-                  department: student.department,
-                  technical_skills: additional?.technical_skills ?? [],
-                  taken_courses: additional?.taken_courses ?? [],
-                },
+                studentSources,
                 {
                   requirements: pos.requirements,
                   description: pos.description,
@@ -125,6 +138,23 @@ export default function InternshipDetailsPage() {
                 t
               )
             );
+
+            try {
+              const matchRes = await fetch(`/api/recommendations/internships/${pos.id}`, {
+                credentials: "same-origin",
+              });
+              if (matchRes.ok) {
+                const body = (await matchRes.json()) as {
+                  ok?: boolean;
+                  match?: { score_breakdown?: MatchScoreBreakdown };
+                };
+                if (body.ok && body.match?.score_breakdown) {
+                  setMatchBreakdown(body.match.score_breakdown);
+                }
+              }
+            } catch {
+              /* match breakdown is optional */
+            }
           }
           setSkillGapLoading(false);
         }
@@ -177,7 +207,12 @@ export default function InternshipDetailsPage() {
 
     if (!applyResponse.ok || !applyBody.ok) {
       if (applyBody.code === "already_applied" || applyResponse.status === 409) {
-        setError("You already applied to this internship.");
+        setError(
+          applyBody.code === "already_enrolled" || applyBody.code === "already_committed"
+            ? (applyBody.error ??
+                "You are already enrolled in a training opportunity and cannot apply elsewhere.")
+            : "You already applied to this internship."
+        );
       } else {
         setError(applyBody.error ?? "Failed to submit application.");
       }
@@ -198,16 +233,20 @@ export default function InternshipDetailsPage() {
 
   const applicationStatusBadgeVariant = (status: ApplicationStatus): "warning" | "success" | "danger" | "info" => {
     if (status === "accepted") return "success";
-    if (status === "rejected") return "danger";
+    if (status === "accepted_pending_commit") return "warning";
+    if (status === "rejected" || status === "commitment_expired" || status === "withdrawn") return "danger";
     if (status === "completed") return "info";
     return "warning";
   };
 
   const applicationStatusLabel = (status: ApplicationStatus): string => {
     if (status === "pending") return "Applied · Pending review";
+    if (status === "accepted_pending_commit") return "Accepted · Confirm within 3 days";
     if (status === "accepted") return "Applied · Accepted";
     if (status === "rejected") return "Applied · Not selected";
     if (status === "completed") return "Applied · Completed";
+    if (status === "commitment_expired") return "Offer expired";
+    if (status === "withdrawn") return "Withdrawn";
     return "Applied";
   };
 
@@ -244,6 +283,12 @@ export default function InternshipDetailsPage() {
             {error}
           </div>
         )}
+        {isEnrolledInTraining && !existingApplicationStatus ? (
+          <div className="mb-4 rounded-md bg-indigo-50 p-3 text-sm text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-200" role="status">
+            You are already enrolled in a training opportunity. You cannot apply to other internships until
+            that placement is completed.
+          </div>
+        ) : null}
         {success && (
           <div className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800" role="status">
             {success}
@@ -259,22 +304,32 @@ export default function InternshipDetailsPage() {
               </span>
               <span>{companyName}</span>
             </div>
-            <Badge variant="info" className="mt-2">
-              {locationLabel[position.location ?? ""] ?? position.location ?? "On-site"}
-            </Badge>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {formatWorkArrangementLabel(position.location) ? (
+                <WorkArrangementBadge location={position.location} />
+              ) : (
+                <Badge variant="default">Work arrangement not specified</Badge>
+              )}
+            </div>
           </div>
           <div className="flex flex-col items-end gap-2">
             {existingApplicationStatus ? (
               <Badge variant={applicationStatusBadgeVariant(existingApplicationStatus)}>
                 {applicationStatusLabel(existingApplicationStatus)}
               </Badge>
+            ) : isEnrolledInTraining ? (
+              <Badge variant="success">Enrolled in training</Badge>
             ) : null}
             <Button
               variant="primary"
               onClick={() => setApplyOpen(true)}
-              disabled={!position.is_active || Boolean(existingApplicationStatus)}
+              disabled={!position.is_active || Boolean(existingApplicationStatus) || isEnrolledInTraining}
             >
-              {existingApplicationStatus ? "Already applied" : "Apply"}
+              {existingApplicationStatus
+                ? "Already applied"
+                : isEnrolledInTraining
+                  ? "Already enrolled"
+                  : "Apply"}
             </Button>
           </div>
         </div>
@@ -302,20 +357,31 @@ export default function InternshipDetailsPage() {
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-300">{position.additional_notes}</p>
             </section>
           ) : null}
-          <section className="grid gap-4 sm:grid-cols-3">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Work arrangement</span>
+              <div className="mt-1.5">
+                <WorkArrangementBadge location={position.location} />
+                {!formatWorkArrangementLabel(position.location) ? (
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Not specified</p>
+                ) : null}
+              </div>
+            </div>
+            {companyOfficeLocation?.trim() ? (
+              <div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Office / city</span>
+                <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">{companyOfficeLocation}</p>
+              </div>
+            ) : null}
             <div>
               <span className="text-sm text-gray-500 dark:text-gray-400">Schedule</span>
-              <p className="font-medium text-gray-900 dark:text-gray-100">
+              <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">
                 {dateRangeLabel ?? position.duration ?? "Not specified"}
               </p>
             </div>
             <div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Type</span>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{position.type ?? "Not specified"}</p>
-            </div>
-            <div>
               <span className="text-sm text-gray-500 dark:text-gray-400">Posted</span>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{new Date(position.created_at).toLocaleDateString()}</p>
+              <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">{new Date(position.created_at).toLocaleDateString()}</p>
             </div>
           </section>
           <section className="rounded border border-gray-100 bg-gray-50/50 p-4 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800/60">
@@ -329,7 +395,11 @@ export default function InternshipDetailsPage() {
 
         {isStudentViewer && skillGapAnalysis && (
           <div className="mt-6">
-            <SkillGapLearningPlanCard loading={skillGapLoading} analysis={skillGapAnalysis} />
+            <SkillGapLearningPlanCard
+              loading={skillGapLoading}
+              analysis={skillGapAnalysis}
+              breakdown={matchBreakdown}
+            />
           </div>
         )}
 

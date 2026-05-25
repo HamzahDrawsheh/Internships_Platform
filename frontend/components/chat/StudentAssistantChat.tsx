@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { STUDENT_ASSISTANT_OPEN_EVENT } from "@/lib/ai/open-student-assistant";
 
 const LS_OPEN = "internconnect-student-chat-open";
 const LS_WIDE = "internconnect-student-chat-wide";
@@ -147,6 +148,12 @@ export default function StudentAssistantChat() {
     }
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  useEffect(() => {
+    const openPanel = () => setOpen(true);
+    window.addEventListener(STUDENT_ASSISTANT_OPEN_EVENT, openPanel);
+    return () => window.removeEventListener(STUDENT_ASSISTANT_OPEN_EVENT, openPanel);
   }, []);
 
   useEffect(() => {

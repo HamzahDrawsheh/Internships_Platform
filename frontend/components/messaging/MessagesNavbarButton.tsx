@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMessagesDrawer } from "@/context/MessagesDrawerContext";
 import { SidebarIcon } from "@/components/layout/SidebarIcon";
+import { NAV_ICON_BUTTON_CLASS } from "@/components/layout/navControlStyles";
 import { useI18n } from "@/lib/i18n/context";
 import type { MessagingViewerRole } from "@/lib/messaging";
 import { createClient } from "@/lib/supabase/client";
@@ -49,7 +50,7 @@ export function MessagesNavbarButton({ enabled }: Props) {
     <button
       type="button"
       onClick={openDrawer}
-      className="relative inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+      className={`relative ${NAV_ICON_BUTTON_CLASS}`}
       title={t("nav.messages")}
       aria-label={`${t("nav.messages")} — chat with people`}
     >

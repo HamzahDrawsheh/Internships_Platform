@@ -10,6 +10,10 @@ const COMPANY_TO_STUDENT_TYPES = new Set<NotificationRowType>([
   "application_rejected",
   "training_completed",
   "application_expired",
+  "commitment_required",
+  "commitment_confirmed",
+  "commitment_expired",
+  "application_withdrawn",
 ]);
 
 const STUDENT_TO_COMPANY_TYPES = new Set<NotificationRowType>([

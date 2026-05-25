@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/context";
+import { NAV_ICON_BUTTON_SQUARE_CLASS } from "@/components/layout/navControlStyles";
 
 export const NAVBAR_SIDEBAR_TOGGLE_SLOT_ID = "navbar-sidebar-toggle-slot";
 
@@ -18,7 +19,7 @@ function ToggleButton({ open, onToggle }: Props) {
     <button
       type="button"
       onClick={onToggle}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+      className={NAV_ICON_BUTTON_SQUARE_CLASS}
       aria-expanded={open}
       aria-controls="role-sidebar"
       aria-label={open ? t("nav.closeMenu") : t("nav.menu")}

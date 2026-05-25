@@ -106,8 +106,14 @@ export function DashboardPageSkeleton({
   return (
     <div className={`space-y-6 ${className}`} role="status" aria-label="Loading page">
       {showWelcome ? <WelcomeBannerSkeleton /> : null}
-      {showWidget ? <SkeletonBlock className="h-20 rounded-2xl" /> : null}
-      <StatCardsSkeleton count={statCount} />
+      {showWidget ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <SkeletonBlock className="h-52 rounded-2xl" />
+          <SkeletonBlock className="h-52 rounded-2xl" />
+          <SkeletonBlock className="h-52 rounded-2xl" />
+        </div>
+      ) : null}
+      {statCount > 0 ? <StatCardsSkeleton count={statCount} /> : null}
       {showTrack ? <TrackCardSkeleton /> : null}
       {showTable ? <TableSectionSkeleton rows={tableRows} /> : null}
     </div>

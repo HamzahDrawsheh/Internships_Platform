@@ -10,7 +10,11 @@ import { Badge, Button, Input, Modal, Select, Table, EmptyState } from "@/compon
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
-import { computeTrainingEndDateIso, resolveDurationWeeks } from "@/lib/training-end-date";
+import {
+  buildCompanyStatusPatch,
+  canCompanyTransitionStatus,
+  COMMITMENT_PENDING_STATUS,
+} from "@/lib/applications/commitment";
 import type { ApplicationStatus } from "@/lib/types";
 
 export default function ApplicantsPage() {
@@ -251,8 +255,10 @@ export default function ApplicantsPage() {
 
   const statusVariant = (status: ApplicationStatus) => {
     if (status === "accepted") return "success";
-    if (status === "rejected") return "danger";
+    if (status === COMMITMENT_PENDING_STATUS) return "warning";
+    if (status === "rejected" || status === "commitment_expired") return "danger";
     if (status === "completed") return "info";
+    if (status === "withdrawn") return "default";
     return "warning";
   };
 
@@ -335,31 +341,30 @@ export default function ApplicantsPage() {
       return;
     }
 
-    const canTransition =
-      (appRow.status === "pending" && (status === "accepted" || status === "rejected")) ||
-      (appRow.status === "accepted" && status === "completed");
-    if (!canTransition) {
+    if (!canCompanyTransitionStatus(appRow.status, status)) {
       setActionMessage("Invalid status transition for this application.");
       setActionLoading(false);
       return;
     }
 
-    const scheduleWeeks = ownedPosition
-      ? resolveDurationWeeks({
-          duration_weeks: ownedPosition.duration_weeks as number | null | undefined,
-          duration: ownedPosition.duration as string | null | undefined,
-        })
-      : null;
-
-    const applicationPatch: Record<string, unknown> = { status };
     if (status === "accepted") {
-      applicationPatch.accepted_at = new Date().toISOString();
-      applicationPatch.training_end_date =
-        scheduleWeeks != null ? computeTrainingEndDateIso(scheduleWeeks) : null;
-    } else if (status === "rejected") {
-      applicationPatch.accepted_at = null;
-      applicationPatch.training_end_date = null;
+      const { data: committedApps, error: committedError } = await supabase
+        .from("applications")
+        .select("id")
+        .eq("student_id", appRow.student_id)
+        .eq("status", "accepted")
+        .limit(1);
+      if (committedError) {
+        console.error("company applicants committed check error:", committedError);
+      }
+      if (committedApps?.length) {
+        setActionMessage("This student has already committed to another internship.");
+        setActionLoading(false);
+        return;
+      }
     }
+
+    const applicationPatch = buildCompanyStatusPatch(status, null);
 
     const { error } = await supabase.from("applications").update(applicationPatch).eq("id", applicationId);
     if (error) {
@@ -384,13 +389,13 @@ export default function ApplicantsPage() {
       const internshipTitle = row?.internship_title ?? title ?? "Internship";
       const message =
         status === "accepted"
-          ? `🎉 Your application for ${internshipTitle} at ${companyName} has been accepted.`
+          ? `🎉 Your application for ${internshipTitle} at ${companyName} was accepted. Confirm your commitment within 3 days on My Applications — or the offer expires.`
           : status === "rejected"
             ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
             : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
       const titleText =
         status === "accepted"
-          ? "Application accepted"
+          ? "Confirm your internship commitment"
           : status === "rejected"
             ? "Application rejected"
             : "Internship completed";
@@ -398,7 +403,7 @@ export default function ApplicantsPage() {
         status === "completed"
           ? "training_completed"
           : status === "accepted"
-            ? "accepted"
+            ? "commitment_required"
             : status === "rejected"
               ? "rejected"
               : "info";
@@ -418,8 +423,15 @@ export default function ApplicantsPage() {
       }
     }
 
-    setRows((prev) => prev.map((row) => (row.id === applicationId ? { ...row, status } : row)));
-    setActionMessage(`Application marked as ${status}.`);
+    const storedStatus = status === "accepted" ? COMMITMENT_PENDING_STATUS : status;
+    setRows((prev) =>
+      prev.map((row) => (row.id === applicationId ? { ...row, status: storedStatus } : row))
+    );
+    setActionMessage(
+      status === "accepted"
+        ? "Offer sent — awaiting student confirmation (3 days)."
+        : `Application marked as ${status}.`
+    );
     setActionLoading(false);
   };
 
@@ -541,6 +553,15 @@ export default function ApplicantsPage() {
                         </Button>
                       </>
                     )}
+                    {app.status === COMMITMENT_PENDING_STATUS && (
+                      <Button
+                        variant="danger"
+                        onClick={() => updateStatus(app.id, "rejected")}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? "Updating..." : "Withdraw offer"}
+                      </Button>
+                    )}
                     {app.status === "accepted" && (
                       <Button
                         variant="secondary"
@@ -589,6 +610,15 @@ export default function ApplicantsPage() {
                     {actionLoading ? "Updating..." : "Accept"}
                   </Button>
                 </>
+              )}
+              {selected?.status === COMMITMENT_PENDING_STATUS && (
+                <Button
+                  variant="danger"
+                  onClick={() => selected && updateStatus(selected.id, "rejected")}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? "Updating..." : "Withdraw offer"}
+                </Button>
               )}
               {selected?.status === "accepted" && (
                 <Button

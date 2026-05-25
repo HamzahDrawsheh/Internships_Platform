@@ -7,11 +7,22 @@ import { CardGridSkeleton } from "@/components/loading";
 import { Input, Select, Button, EmptyState, SearchBar } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
+import { invokeExpireStaleApplicationCommitments } from "@/lib/expire-commitment-deadlines";
 import { useI18n } from "@/lib/i18n/context";
-import { formatMissingSkillsCount } from "@/lib/skill-match";
+import { fmt } from "@/lib/i18n/format";
+import { formatMissingSkillsCount, type SkillGapAnalysis } from "@/lib/skill-match";
+import type { MatchScoreBreakdown } from "@/lib/recommendations/match-score-breakdown";
+import {
+  JORDAN_CITY_OPTIONS,
+  loadStoredLocationPrefs,
+  resolveEffectiveLocationPrefs,
+  saveStoredLocationPrefs,
+  type WorkArrangement,
+} from "@/lib/recommendations/location-prefs";
 import { createClient } from "@/lib/supabase/client";
 import type { ApplicationStatus } from "@/lib/types";
 import { InternshipCard } from "@/components/internships/InternshipCard";
+import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
 
 /** When `"true"`, recommendations load via `/api/recommendations/internships` only (no `supabase.rpc`). Safe for staging before DB RPC exists. */
 function internshipRecommendationsApiOnly(): boolean {
@@ -26,12 +37,10 @@ type RecommendationMatchInsights = {
   tips: string[];
 };
 
-type RecommendationSkillGap = {
-  matchedSkills: string[];
-  missingSkills: string[];
-  missingSkillsCount: number;
-  hasDetectableInternshipSkills: boolean;
-};
+type RecommendationSkillGap = Pick<
+  SkillGapAnalysis,
+  "matchedSkills" | "missingSkills" | "missingSkillsCount" | "hasDetectableInternshipSkills"
+>;
 
 type RecommendedInternship = {
   internship_id: string;
@@ -39,25 +48,23 @@ type RecommendedInternship = {
   company_name: string;
   similarity_score: number;
   match_percentage: number;
+  recommendation_score?: number;
+  listing_work_type?: WorkArrangement | null;
+  listing_location?: string | null;
+  location_city_match?: boolean;
+  work_type_match?: boolean;
   match_insights?: RecommendationMatchInsights;
   skill_gap?: RecommendationSkillGap;
+  score_breakdown?: MatchScoreBreakdown;
 };
 
-const locationOptions: SelectOption[] = [
-  { value: "", label: "All locations" },
-  { value: "remote", label: "Remote" },
-  { value: "onsite", label: "On-site" },
-  { value: "hybrid", label: "Hybrid" },
-];
-
-const skillOptions: SelectOption[] = [
-  { value: "", label: "Any skill" },
-  { value: "Python", label: "Python" },
-  { value: "Machine Learning", label: "Machine Learning" },
-  { value: "SQL", label: "SQL" },
-  { value: "NLP", label: "NLP" },
-  { value: "Data Visualization", label: "Data Visualization" },
-];
+type RecommendedMessageKey =
+  | "recSignIn"
+  | "recCompleteOnboarding"
+  | "recPreparing"
+  | "recLoadFailed"
+  | "recNoPrefsMatch"
+  | "recNoneAvailable";
 
 export default function BrowseInternshipsPage() {
   const { t } = useI18n();
@@ -69,6 +76,9 @@ export default function BrowseInternshipsPage() {
   const [companyLevel, setCompanyLevel] = useState<"" | "white" | "gray" | "black">("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [minMatchPct, setMinMatchPct] = useState(0);
+  const [recWorkType, setRecWorkType] = useState<WorkArrangement | "">("");
+  const [recCity, setRecCity] = useState("");
+  const [recPrefsHydrated, setRecPrefsHydrated] = useState(false);
   const [openDrilldown, setOpenDrilldown] = useState<
     "location" | "skill" | "posted" | "company" | "companyLevel" | "match" | null
   >(null);
@@ -90,10 +100,10 @@ export default function BrowseInternshipsPage() {
   >([]);
   const [recommended, setRecommended] = useState<RecommendedInternship[]>([]);
   const [recommendedLoading, setRecommendedLoading] = useState(true);
-  const [recommendedMessage, setRecommendedMessage] = useState<string | null>(null);
-  const [companyOptions, setCompanyOptions] = useState<SelectOption[]>([
-    { value: "", label: "All companies" },
-  ]);
+  const [recommendedMessageKey, setRecommendedMessageKey] = useState<RecommendedMessageKey | null>(
+    null
+  );
+  const [companyOptions, setCompanyOptions] = useState<SelectOption[]>([{ value: "", label: "" }]);
   /** Map internship position id → application status for signed-in student */
   const [studentApplicationByPositionId, setStudentApplicationByPositionId] = useState<
     Record<string, ApplicationStatus>
@@ -115,6 +125,57 @@ export default function BrowseInternshipsPage() {
   useEffect(() => {
     setPage(0);
   }, [search, locationType, skill, postedBefore, companyId, companyLevel, sort]);
+
+  useEffect(() => {
+    const stored = loadStoredLocationPrefs();
+    setRecWorkType(stored.workType);
+    setRecCity(stored.city);
+
+    const supabase = createClient();
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setRecPrefsHydrated(true);
+        return;
+      }
+
+      const { data: additional } = await supabase
+        .from("student_additional_info")
+        .select("preferred_work_type, preferred_location")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const profileWork = additional?.preferred_work_type?.trim().toLowerCase() ?? "";
+      const profileCityRaw = additional?.preferred_location?.trim() ?? "";
+
+      setRecWorkType((prev) => {
+        if (prev) return prev;
+        if (profileWork === "remote" || profileWork === "onsite" || profileWork === "hybrid") {
+          return profileWork;
+        }
+        return prev;
+      });
+
+      setRecCity((prev) => {
+        if (prev) return prev;
+        if (!profileCityRaw) return prev;
+        const normalized = profileCityRaw.toLowerCase();
+        const match = JORDAN_CITY_OPTIONS.find(
+          (c) => c.value && (c.value === normalized || c.label.toLowerCase() === normalized)
+        );
+        return match?.value ?? normalized;
+      });
+
+      setRecPrefsHydrated(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!recPrefsHydrated) return;
+    saveStoredLocationPrefs({ workType: recWorkType, city: recCity });
+  }, [recWorkType, recCity, recPrefsHydrated]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -141,6 +202,7 @@ export default function BrowseInternshipsPage() {
       }
 
       await invokeAutoCompleteExpiredTrainings(supabase);
+      await invokeExpireStaleApplicationCommitments(supabase);
 
       const { data: apps } = await supabase
         .from("applications")
@@ -166,13 +228,32 @@ export default function BrowseInternshipsPage() {
   }, []);
 
   useEffect(() => {
-    const supabase = createClient();
+    if (!recPrefsHydrated) return;
 
-    const load = async () => {
-      setLoading(true);
+    const supabase = createClient();
+    const limit = 6;
+    const effectivePrefs = resolveEffectiveLocationPrefs(recWorkType, recCity, locationType);
+    const hasLocationPrefs = Boolean(effectivePrefs.workType || effectivePrefs.city);
+
+    type RecRow = {
+      internship_id: string;
+      title: string;
+      company_name: string;
+      similarity_score: unknown;
+      match_percentage: unknown;
+      recommendation_score?: unknown;
+      listing_work_type?: unknown;
+      listing_location?: unknown;
+      location_city_match?: unknown;
+      work_type_match?: unknown;
+      match_insights?: RecommendationMatchInsights;
+      skill_gap?: RecommendationSkillGap & Partial<SkillGapAnalysis>;
+      score_breakdown?: MatchScoreBreakdown;
+    };
+
+    const loadRecommendations = async () => {
       setRecommendedLoading(true);
-      setRecommendedMessage(null);
-      if (page === 0) setHasMore(true);
+      setRecommendedMessageKey(null);
 
       const {
         data: { user },
@@ -181,104 +262,132 @@ export default function BrowseInternshipsPage() {
       if (!user) {
         setRecommended([]);
         setRecommendedLoading(false);
-        setRecommendedMessage("Sign in as a student to see AI-powered recommendations.");
+        setRecommendedMessageKey("recSignIn");
+        return;
+      }
+
+      const { data: studentRow } = await supabase
+        .from("students")
+        .select("id, embedding")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!studentRow) {
+        setRecommended([]);
+        setRecommendedLoading(false);
+        setRecommendedMessageKey("recCompleteOnboarding");
+        return;
+      }
+
+      if (!studentRow.embedding) {
+        setRecommended([]);
+        setRecommendedLoading(false);
+        setRecommendedMessageKey("recPreparing");
+        return;
+      }
+
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (effectivePrefs.workType) params.set("workType", effectivePrefs.workType);
+      if (effectivePrefs.city) params.set("city", effectivePrefs.city);
+
+      const fetchRecommendationsFromApi = async (): Promise<RecRow[] | null> => {
+        const res = await fetch(`/api/recommendations/internships?${params.toString()}`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!res.ok) return null;
+        const body = (await res.json()) as { ok?: boolean; recommendations?: RecRow[] };
+        if (body.ok && Array.isArray(body.recommendations)) return body.recommendations;
+        return null;
+      };
+
+      let rawRows: RecRow[] = [];
+      let hardFailure = false;
+
+      const apiRows = await fetchRecommendationsFromApi();
+      if (apiRows !== null) {
+        rawRows = apiRows;
+      } else if (internshipRecommendationsApiOnly() || hasLocationPrefs) {
+        hardFailure = true;
       } else {
-        const { data: studentRow } = await supabase
-          .from("students")
-          .select("id, embedding")
-          .eq("user_id", user.id)
-          .single();
-
-        if (!studentRow) {
-          setRecommended([]);
-          setRecommendedLoading(false);
-          setRecommendedMessage("Complete your student onboarding to unlock recommendations.");
-        } else if (!studentRow.embedding) {
-          setRecommended([]);
-          setRecommendedLoading(false);
-          setRecommendedMessage(
-            "We are preparing your recommendations. Please complete your profile details and try again soon."
-          );
-        } else {
-          const limit = 6;
-
-          /** Raw row from API (may include match_insights) or RPC (usually omits it). */
-          type RecRow = {
-            internship_id: string;
-            title: string;
-            company_name: string;
-            similarity_score: unknown;
-            match_percentage: unknown;
-            match_insights?: RecommendationMatchInsights;
-            skill_gap?: RecommendationSkillGap;
-          };
-
-          let rawRows: RecRow[] = [];
-          let hardFailure = false;
-
-          const fetchRecommendationsFromApi = async (): Promise<RecRow[] | null> => {
-            const res = await fetch(`/api/recommendations/internships?limit=${limit}`, {
-              credentials: "same-origin",
-            });
-            if (!res.ok) {
-              return null;
-            }
-            const body = (await res.json()) as { ok?: boolean; recommendations?: RecRow[] };
-            if (body.ok && Array.isArray(body.recommendations)) {
-              return body.recommendations;
-            }
-            return null;
-          };
-
-          // Prefer HTTP API first so match_insights is populated; RPC remains fallback only.
-          const apiRows = await fetchRecommendationsFromApi();
-          if (apiRows !== null) {
-            rawRows = apiRows;
-          } else if (internshipRecommendationsApiOnly()) {
-            hardFailure = true;
-          } else {
-            const rpcResult = await supabase.rpc("get_student_recommended_internships", {
-              p_student_id: studentRow.id,
-              p_limit: limit,
-            });
-
-            rawRows = Array.isArray(rpcResult.data) ? (rpcResult.data as RecRow[]) : [];
-
-            if (rpcResult.error) {
-              console.warn("[internships] RPC recommendations failed, retrying API:", rpcResult.error.message);
-              hardFailure = true;
-              const retryApi = await fetchRecommendationsFromApi();
-              if (retryApi !== null) {
-                rawRows = retryApi;
-                hardFailure = false;
-              }
-            }
+        const rpcResult = await supabase.rpc("get_student_recommended_internships", {
+          p_student_id: studentRow.id,
+          p_limit: limit,
+        });
+        rawRows = Array.isArray(rpcResult.data) ? (rpcResult.data as RecRow[]) : [];
+        if (rpcResult.error) {
+          console.warn("[internships] RPC recommendations failed, retrying API:", rpcResult.error.message);
+          hardFailure = true;
+          const retryApi = await fetchRecommendationsFromApi();
+          if (retryApi !== null) {
+            rawRows = retryApi;
+            hardFailure = false;
           }
-
-          setRecommended(
-            rawRows.map((row) => ({
-              internship_id: row.internship_id,
-              title: row.title,
-              company_name: row.company_name,
-              similarity_score: Number(row.similarity_score ?? 0),
-              match_percentage: Number(row.match_percentage ?? 0),
-              ...(row.match_insights != null ? { match_insights: row.match_insights } : {}),
-              ...(row.skill_gap != null ? { skill_gap: row.skill_gap } : {}),
-            }))
-          );
-
-          if (rawRows.length === 0) {
-            setRecommendedMessage(
-              hardFailure
-                ? "Unable to load recommendations right now. Please try again later."
-                : "No recommendations available yet. New matches will appear as internships are posted."
-            );
-          } else {
-            setRecommendedMessage(null);
-          }
-          setRecommendedLoading(false);
         }
       }
+
+      setRecommended(
+        rawRows.map((row) => ({
+          internship_id: row.internship_id,
+          title: row.title,
+          company_name: row.company_name,
+          similarity_score: Number(row.similarity_score ?? 0),
+          match_percentage: Number(row.match_percentage ?? 0),
+          ...(row.recommendation_score != null
+            ? { recommendation_score: Number(row.recommendation_score) }
+            : {}),
+          ...(row.listing_work_type === "remote" ||
+          row.listing_work_type === "onsite" ||
+          row.listing_work_type === "hybrid"
+            ? { listing_work_type: row.listing_work_type as WorkArrangement }
+            : {}),
+          ...(row.listing_location != null
+            ? { listing_location: String(row.listing_location) }
+            : {}),
+          ...(row.location_city_match != null
+            ? { location_city_match: Boolean(row.location_city_match) }
+            : {}),
+          ...(row.work_type_match != null ? { work_type_match: Boolean(row.work_type_match) } : {}),
+          ...(row.match_insights != null ? { match_insights: row.match_insights } : {}),
+          ...(row.skill_gap != null
+            ? {
+                skill_gap: {
+                  matchedSkills: row.skill_gap.matchedSkills ?? [],
+                  missingSkills: row.skill_gap.missingSkills ?? [],
+                  missingSkillsCount: row.skill_gap.missingSkillsCount ?? 0,
+                  hasDetectableInternshipSkills: row.skill_gap.hasDetectableInternshipSkills ?? false,
+                },
+              }
+            : {}),
+          ...(row.score_breakdown != null ? { score_breakdown: row.score_breakdown } : {}),
+        }))
+      );
+
+      if (rawRows.length === 0) {
+        setRecommendedMessageKey(
+          hardFailure ? "recLoadFailed" : hasLocationPrefs ? "recNoPrefsMatch" : "recNoneAvailable"
+        );
+      } else {
+        setRecommendedMessageKey(null);
+      }
+      setRecommendedLoading(false);
+    };
+
+    void loadRecommendations();
+  }, [recWorkType, recCity, locationType, recPrefsHydrated]);
+
+  const effectiveRecPrefs = useMemo(
+    () => resolveEffectiveLocationPrefs(recWorkType, recCity, locationType),
+    [recWorkType, recCity, locationType]
+  );
+  const hasActiveRecPrefs = Boolean(effectiveRecPrefs.workType || effectiveRecPrefs.city);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    const load = async () => {
+      setLoading(true);
+      if (page === 0) setHasMore(true);
 
       let query = supabase
         .from("internship_positions")
@@ -356,9 +465,9 @@ export default function BrowseInternshipsPage() {
       // Build company options from current results for a lightweight drill-down.
       const merged = new Map<string, string>();
       for (const r of page === 0 ? mapped : [...rows, ...mapped]) {
-        merged.set(r.company_id, r.company_name ?? "Company");
+        merged.set(r.company_id, r.company_name ?? "");
       }
-      const opts: SelectOption[] = [{ value: "", label: "All companies" }];
+      const opts: SelectOption[] = [{ value: "", label: "" }];
       for (const [id, name] of [...merged.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
         opts.push({ value: id, label: name });
       }
@@ -375,7 +484,7 @@ export default function BrowseInternshipsPage() {
       rows.map((row) => ({
         id: row.id,
         title: row.title,
-        companyName: row.company_name ?? "Company",
+        companyName: row.company_name ?? t("browse.companyFallback"),
         companyLogoUrl: row.company_logo_url ?? undefined,
         locationType: row.location ?? undefined,
         skills: row.requirements
@@ -387,13 +496,36 @@ export default function BrowseInternshipsPage() {
         deadline: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
         applicationStatus: studentApplicationByPositionId[row.id] ?? null,
       })),
-    [rows, studentApplicationByPositionId]
+    [rows, studentApplicationByPositionId, t]
   );
+
+  const recommendedApplicationLabel = (status: ApplicationStatus): string => {
+    switch (status) {
+      case "pending":
+        return t("browse.appAppliedPending");
+      case "accepted_pending_commit":
+        return t("browse.appConfirmRequired");
+      case "accepted":
+        return t("browse.appAppliedAccepted");
+      case "rejected":
+        return t("browse.appAppliedRejected");
+      case "completed":
+        return t("browse.appAppliedCompleted");
+      case "commitment_expired":
+        return t("browse.appOfferExpired");
+      case "withdrawn":
+        return t("browse.appWithdrawn");
+      default:
+        return t("browse.appApplied");
+    }
+  };
 
   const recommendedApplicationBadgeClass = (status: ApplicationStatus): string => {
     switch (status) {
       case "pending":
         return "bg-amber-100 text-amber-900 dark:bg-amber-500/25 dark:text-amber-200";
+      case "accepted_pending_commit":
+        return "bg-orange-100 text-orange-900 dark:bg-orange-500/25 dark:text-orange-200";
       case "accepted":
         return "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/25 dark:text-emerald-200";
       case "rejected":
@@ -402,21 +534,6 @@ export default function BrowseInternshipsPage() {
         return "bg-blue-100 text-blue-900 dark:bg-blue-500/25 dark:text-blue-200";
       default:
         return "bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200";
-    }
-  };
-
-  const recommendedApplicationLabel = (status: ApplicationStatus): string => {
-    switch (status) {
-      case "pending":
-        return "Applied · Pending";
-      case "accepted":
-        return "Applied · Accepted";
-      case "rejected":
-        return "Applied · Rejected";
-      case "completed":
-        return "Applied · Completed";
-      default:
-        return "Applied";
     }
   };
 
@@ -494,6 +611,86 @@ export default function BrowseInternshipsPage() {
   const drilldownPanelClass =
     "absolute left-0 top-[calc(100%+8px)] z-20 w-[min(320px,90vw)] rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-xl shadow-slate-200/40 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-black/40";
 
+  const recWorkTypeOptions: SelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("browse.recWorkTypeAny") },
+      { value: "remote", label: t("browse.workRemote") },
+      { value: "onsite", label: t("browse.workOnsite") },
+      { value: "hybrid", label: t("browse.workHybrid") },
+    ],
+    [t]
+  );
+
+  const locationOptions: SelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("browse.allLocations") },
+      { value: "remote", label: t("browse.workRemote") },
+      { value: "onsite", label: t("browse.workOnsite") },
+      { value: "hybrid", label: t("browse.workHybrid") },
+    ],
+    [t]
+  );
+
+  const skillOptions: SelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("browse.anySkill") },
+      { value: "Python", label: "Python" },
+      { value: "Machine Learning", label: "Machine Learning" },
+      { value: "SQL", label: "SQL" },
+      { value: "NLP", label: "NLP" },
+      { value: "Data Visualization", label: "Data Visualization" },
+    ],
+    [t]
+  );
+
+  const companyLevelOptions: SelectOption[] = useMemo(
+    () => [
+      { value: "", label: t("browse.companyLevelAny") },
+      { value: "white", label: t("browse.levelWhite") },
+      { value: "gray", label: t("browse.levelGray") },
+      { value: "black", label: t("browse.levelBlack") },
+    ],
+    [t]
+  );
+
+  const displayCompanyOptions: SelectOption[] = useMemo(
+    () =>
+      companyOptions.map((opt) =>
+        opt.value === "" ? { ...opt, label: t("browse.allCompanies") } : opt
+      ),
+    [companyOptions, t]
+  );
+
+  const recCityOptions: SelectOption[] = useMemo(
+    () =>
+      JORDAN_CITY_OPTIONS.map((c) => ({
+        value: c.value,
+        label: c.value ? t(`browse.cities.${c.value}`) : t("browse.anyCity"),
+      })),
+    [t]
+  );
+
+  const workTypeLabel = (workType: WorkArrangement) => {
+    switch (workType) {
+      case "remote":
+        return t("browse.workRemote");
+      case "onsite":
+        return t("browse.workOnsite");
+      case "hybrid":
+        return t("browse.workHybrid");
+    }
+  };
+
+  const cityLabel = (cityValue: string) =>
+    cityValue ? t(`browse.cities.${cityValue}`) : "";
+
+  const recommendedEmptyMessage =
+    recommendedMessageKey != null
+      ? t(`browse.${recommendedMessageKey}`)
+      : minMatchPct > 0
+        ? t("browse.recMinFilter")
+        : t("browse.recNoneYet");
+
   const matchScoreRingClass = (pct: number) => {
     if (pct >= 80) return "from-emerald-400 to-teal-500";
     if (pct >= 60) return "from-violet-400 to-fuchsia-500";
@@ -512,26 +709,26 @@ export default function BrowseInternshipsPage() {
               <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
-              AI-powered matching
+              {t("browse.aiPoweredMatching")}
             </span>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">Browse Internships</h1>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">{t("browse.internshipsTitle")}</h1>
             <p className="mt-3 text-base text-violet-100/90 sm:text-lg">
-              Discover roles tailored to your skills — filter by location, tech stack, company reputation, and more.
+              {t("browse.heroSubtitle")}
             </p>
           </div>
           {!loading && page === 0 ? (
             <div className="mt-8 flex flex-wrap gap-3">
               <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
                 <p className="text-2xl font-bold tabular-nums text-white">{cards.length}{hasMore ? "+" : ""}</p>
-                <p className="text-xs font-medium text-violet-100/80">Open roles</p>
+                <p className="text-xs font-medium text-violet-100/80">{t("browse.openRoles")}</p>
               </div>
               <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
                 <p className="text-2xl font-bold tabular-nums text-white">{filteredRecommended.length}</p>
-                <p className="text-xs font-medium text-violet-100/80">Recommended for you</p>
+                <p className="text-xs font-medium text-violet-100/80">{t("browse.recommendedForYou")}</p>
               </div>
               <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
                 <p className="text-2xl font-bold tabular-nums text-white">{companyOptions.length - 1}</p>
-                <p className="text-xs font-medium text-violet-100/80">Companies hiring</p>
+                <p className="text-xs font-medium text-violet-100/80">{t("browse.companiesHiring")}</p>
               </div>
             </div>
           ) : null}
@@ -545,15 +742,15 @@ export default function BrowseInternshipsPage() {
               <SearchBar
                 value={search}
                 onChange={setSearch}
-                placeholder="Search by title, company, or skills…"
+                placeholder={t("browse.searchPlaceholder")}
               />
             </div>
             <div className="w-full lg:w-56">
               <Select
-                label="Sort by"
+                label={t("browse.sortBy")}
                 options={[
-                  { value: "newest", label: "Newest first" },
-                  { value: "oldest", label: "Oldest first" },
+                  { value: "newest", label: t("browse.sortNewest") },
+                  { value: "oldest", label: t("browse.sortOldest") },
                 ]}
                 value={sort}
                 onChange={(e) =>
@@ -564,7 +761,7 @@ export default function BrowseInternshipsPage() {
           </div>
 
           <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Smart filters
+            {t("browse.smartFilters")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <div className="relative">
@@ -576,12 +773,12 @@ export default function BrowseInternshipsPage() {
                 {filterIsActive.location ? (
                   <span className={`h-2 w-2 rounded-full ${filterChipStyles.location.dot}`} />
                 ) : null}
-                Location
+                {t("browse.filterLocation")}
               </button>
               {openDrilldown === "location" ? (
                 <div className={drilldownPanelClass}>
                   <Select
-                    label="Location type"
+                    label={t("browse.filterLocationType")}
                     options={locationOptions}
                     value={locationType}
                     onChange={(e) => setLocationType(e.target.value)}
@@ -599,12 +796,12 @@ export default function BrowseInternshipsPage() {
                 {filterIsActive.skill ? (
                   <span className={`h-2 w-2 rounded-full ${filterChipStyles.skill.dot}`} />
                 ) : null}
-                Skill
+                {t("browse.filterSkill")}
               </button>
               {openDrilldown === "skill" ? (
                 <div className={drilldownPanelClass}>
                   <Select
-                    label="Skill"
+                    label={t("browse.filterSkill")}
                     options={skillOptions}
                     value={skill}
                     onChange={(e) => setSkill(e.target.value)}
@@ -622,18 +819,18 @@ export default function BrowseInternshipsPage() {
                 {filterIsActive.posted ? (
                   <span className={`h-2 w-2 rounded-full ${filterChipStyles.posted.dot}`} />
                 ) : null}
-                Posted before
+                {t("browse.filterPostedBefore")}
               </button>
               {openDrilldown === "posted" ? (
                 <div className={drilldownPanelClass}>
                   <Input
-                    label="Posted before"
+                    label={t("browse.filterPostedBefore")}
                     type="date"
                     value={postedBefore}
                     onChange={(e) => setPostedBefore(e.target.value)}
                   />
                   <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                    Note: this filters by posting date (not a deadline).
+                    {t("browse.postedBeforeNote")}
                   </p>
                 </div>
               ) : null}
@@ -648,13 +845,13 @@ export default function BrowseInternshipsPage() {
                 {filterIsActive.company ? (
                   <span className={`h-2 w-2 rounded-full ${filterChipStyles.company.dot}`} />
                 ) : null}
-                Company
+                {t("browse.filterCompany")}
               </button>
               {openDrilldown === "company" ? (
                 <div className={drilldownPanelClass}>
                   <Select
-                    label="Company"
-                    options={companyOptions}
+                    label={t("browse.filterCompany")}
+                    options={displayCompanyOptions}
                     value={companyId}
                     onChange={(e) => setCompanyId(e.target.value)}
                   />
@@ -671,25 +868,20 @@ export default function BrowseInternshipsPage() {
                 {filterIsActive.companyLevel ? (
                   <span className={`h-2 w-2 rounded-full ${filterChipStyles.companyLevel.dot}`} />
                 ) : null}
-                Company level
+                {t("browse.filterCompanyLevel")}
               </button>
               {openDrilldown === "companyLevel" ? (
                 <div className={drilldownPanelClass}>
                   <Select
-                    label="Company level"
-                    options={[
-                      { value: "", label: "Any level" },
-                      { value: "white", label: "White" },
-                      { value: "gray", label: "Gray" },
-                      { value: "black", label: "Black" },
-                    ]}
+                    label={t("browse.filterCompanyLevel")}
+                    options={companyLevelOptions}
                     value={companyLevel}
                     onChange={(e) =>
                       setCompanyLevel((e.target.value as "" | "white" | "gray" | "black") || "")
                     }
                   />
                   <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                    Company level comes from aggregated student training evaluations.
+                    {t("browse.companyLevelHint")}
                   </p>
                 </div>
               ) : null}
@@ -704,12 +896,13 @@ export default function BrowseInternshipsPage() {
                 {filterIsActive.match ? (
                   <span className={`h-2 w-2 rounded-full ${filterChipStyles.match.dot}`} />
                 ) : null}
-                Min match{minMatchPct > 0 ? ` · ${minMatchPct}%` : ""}
+                {t("browse.minMatch")}
+                {minMatchPct > 0 ? ` · ${minMatchPct}%` : ""}
               </button>
               {openDrilldown === "match" ? (
                 <div className={drilldownPanelClass}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Minimum match (recommendations)
+                    {t("browse.minMatchLabel")}
                   </label>
                   <div className="mt-2 flex items-center gap-3">
                     <input
@@ -720,14 +913,14 @@ export default function BrowseInternshipsPage() {
                       value={minMatchPct}
                       onChange={(e) => setMinMatchPct(Number(e.target.value))}
                       className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-fuchsia-200 via-violet-300 to-indigo-300 accent-violet-600 dark:from-fuchsia-900/50 dark:via-violet-800/50 dark:to-indigo-800/50"
-                      aria-label="Minimum match percentage"
+                      aria-label={t("browse.minMatchAria")}
                     />
                     <span className="w-12 text-right text-sm font-semibold text-gray-700 dark:text-gray-200">
                       {minMatchPct}%
                     </span>
                   </div>
                   <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                    This only filters the recommended section (match % isn’t available for all listings).
+                    {t("browse.minMatchHint")}
                   </p>
                 </div>
               ) : null}
@@ -737,8 +930,11 @@ export default function BrowseInternshipsPage() {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm dark:border-slate-800">
             <p className="text-slate-600 dark:text-slate-400">
               {loading && page === 0
-                ? "Loading internships…"
-                : `${cards.length} internship${cards.length === 1 ? "" : "s"} shown${hasMore ? "+" : ""}`}
+                ? t("browse.loadingInternships")
+                : fmt(t("browse.internshipsShown"), {
+                    count: cards.length,
+                    plus: hasMore ? "+" : "",
+                  })}
             </p>
             {hasActiveFilters ? (
               <button
@@ -746,7 +942,7 @@ export default function BrowseInternshipsPage() {
                 onClick={clearFilters}
                 className="font-medium text-violet-700 transition-colors hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200"
               >
-                Clear filters
+                {t("browse.clearFilters")}
               </button>
             ) : null}
           </div>
@@ -762,17 +958,56 @@ export default function BrowseInternshipsPage() {
                   </svg>
                 </span>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Recommended for you</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{t("browse.recommendedTitle")}</h2>
                   <p className="text-sm text-slate-600 dark:text-slate-300">
-                    Matched to your profile, skills, and preferences
+                    {t("browse.recommendedSubtitle")}
                   </p>
                 </div>
               </div>
             </div>
             {filteredRecommended.length > 0 ? (
               <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-500/20 dark:text-violet-200">
-                {filteredRecommended.length} pick{filteredRecommended.length === 1 ? "" : "s"}
+                {filteredRecommended.length === 1
+                  ? fmt(t("browse.picksOne"), { count: filteredRecommended.length })
+                  : fmt(t("browse.picksMany"), { count: filteredRecommended.length })}
               </span>
+            ) : null}
+          </div>
+
+          <div className="relative mt-5 rounded-xl border border-violet-200/70 bg-white/80 p-4 dark:border-violet-500/25 dark:bg-slate-900/60">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{t("browse.recPrefsTitle")}</p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t("browse.recPrefsHint")}</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Select
+                label={t("browse.recWorkType")}
+                options={recWorkTypeOptions}
+                value={recWorkType}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setRecWorkType(
+                    next === "remote" || next === "onsite" || next === "hybrid" ? next : ""
+                  );
+                  if (next === "remote") setRecCity("");
+                }}
+              />
+              <Select
+                label={t("browse.recCity")}
+                options={recCityOptions}
+                value={recCity}
+                onChange={(e) => setRecCity(e.target.value)}
+              />
+            </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t("browse.recCityHint")}</p>
+            {hasActiveRecPrefs ? (
+              <p className="mt-2 text-xs font-medium text-violet-700 dark:text-violet-300">
+                {t("browse.recPrefsActive")}{" "}
+                {[
+                  effectiveRecPrefs.workType ? workTypeLabel(effectiveRecPrefs.workType) : null,
+                  effectiveRecPrefs.city ? cityLabel(effectiveRecPrefs.city) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
             ) : null}
           </div>
 
@@ -780,17 +1015,19 @@ export default function BrowseInternshipsPage() {
             <CardGridSkeleton count={2} variant="internship" columns="sm:grid-cols-2" className="relative mt-5" />
           ) : filteredRecommended.length === 0 ? (
             <div className="relative mt-5 rounded-xl border border-dashed border-violet-300/60 bg-white/70 px-4 py-6 text-sm text-slate-600 dark:border-violet-500/30 dark:bg-slate-900/50 dark:text-slate-300">
-              {recommendedMessage ??
-                (minMatchPct > 0
-                  ? "No recommendations match your minimum match filter."
-                  : "No recommendations available yet.")}
+              {recommendedEmptyMessage}
             </div>
           ) : (
             <div className="relative mt-5 grid gap-4 sm:grid-cols-2">
               {filteredRecommended.map((item) => {
                 const appStatus = studentApplicationByPositionId[item.internship_id];
-                const matchPct = Math.max(0, Math.min(100, Math.round(item.match_percentage)));
-                const ringClass = matchScoreRingClass(matchPct);
+                const skillPct = Math.max(0, Math.min(100, Math.round(item.match_percentage)));
+                const fitPct = Math.max(
+                  0,
+                  Math.min(100, Math.round(item.recommendation_score ?? item.match_percentage))
+                );
+                const displayPct = hasActiveRecPrefs ? fitPct : skillPct;
+                const ringClass = matchScoreRingClass(displayPct);
                 return (
                   <div
                     key={item.internship_id}
@@ -808,15 +1045,36 @@ export default function BrowseInternshipsPage() {
                       </div>
                       <div
                         className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-full bg-gradient-to-br ${ringClass} p-0.5 shadow-md`}
-                        title={`${matchPct}% profile match`}
+                        title={
+                          hasActiveRecPrefs
+                            ? fmt(t("browse.recFitTooltip"), { fit: fitPct, skill: skillPct })
+                            : fmt(t("browse.recMatchTooltip"), { skill: skillPct })
+                        }
                       >
                         <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white dark:bg-slate-900">
-                          <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">{matchPct}%</span>
+                          <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">
+                            {displayPct}%
+                          </span>
                           <span className="text-[9px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            match
+                            {hasActiveRecPrefs ? t("browse.recFitScore") : t("browse.recMatchLabel")}
                           </span>
                         </div>
                       </div>
+                    </div>
+
+                    {hasActiveRecPrefs ? (
+                      <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                        {t("browse.recSkillsMatch")}: {skillPct}%
+                        {item.work_type_match ? ` · ${t("browse.recWorkTypeMatch")}` : ""}
+                        {item.location_city_match ? ` · ${t("browse.recLocationMatch")}` : ""}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <WorkArrangementBadge
+                        location={item.listing_work_type ?? item.listing_location}
+                        size="sm"
+                      />
                     </div>
 
                     {(appStatus || item.skill_gap?.hasDetectableInternshipSkills) ? (
@@ -867,27 +1125,62 @@ export default function BrowseInternshipsPage() {
                     ) : null}
                     {(() => {
                       const mi = item.match_insights;
+                      const bd = item.score_breakdown;
                       const summaryFirst = mi?.summary_lines?.[0]?.trim() ?? "";
                       const matchedShow = (
                         item.skill_gap?.matchedSkills ??
+                        bd?.matched_skills ??
                         mi?.matched_skills ??
                         []
                       ).slice(0, 3);
-                      const gapsShow = (item.skill_gap?.missingSkills ?? []).slice(0, 2);
+                      const gapsShow = (
+                        item.skill_gap?.missingSkills ??
+                        bd?.missing_skills ??
+                        []
+                      ).slice(0, 3);
                       const hasInsightsBlock =
-                        mi != null &&
-                        (summaryFirst.length > 0 || matchedShow.length > 0 || gapsShow.length > 0);
+                        bd != null ||
+                        (mi != null &&
+                          (summaryFirst.length > 0 || matchedShow.length > 0 || gapsShow.length > 0));
                       if (!hasInsightsBlock) return null;
                       return (
                         <div className="mt-3 rounded-xl bg-violet-50/80 p-3 dark:bg-violet-500/10">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
-                            AI match insights
+                            {t("skillMatch.scoreBreakdown")}
                           </p>
-                          {summaryFirst.length > 0 && (
+                          {bd ? (
+                            <ul className="mt-1.5 space-y-1 text-[11px] leading-snug text-slate-700 dark:text-slate-300">
+                              <li>
+                                {fmt(t("skillMatch.semanticFactor"), { pct: bd.semantic_match_pct })}
+                              </li>
+                              {bd.skill_overlap_pct != null && (
+                                <li>
+                                  {fmt(t("skillMatch.skillOverlapFactor"), {
+                                    matched: bd.matched_skill_count,
+                                    total: bd.total_required_skills,
+                                    pct: bd.skill_overlap_pct,
+                                  })}
+                                </li>
+                              )}
+                            </ul>
+                          ) : summaryFirst.length > 0 ? (
                             <p className="mt-1 text-[11px] leading-snug text-slate-700 dark:text-slate-300">
                               {summaryFirst}
                             </p>
+                          ) : null}
+                          {bd && bd.improvement_priorities.length > 0 && (
+                            <p className="mt-2 text-[10px] text-slate-600 dark:text-slate-400">
+                              {t("skillMatch.howToImprove")}:{" "}
+                              {bd.improvement_priorities.slice(0, 2).join(" · ")}
+                            </p>
                           )}
+                          {bd &&
+                            bd.improvement_priorities.length === 0 &&
+                            bd.improvement_fallback && (
+                              <p className="mt-2 text-[10px] text-slate-600 dark:text-slate-400">
+                                {t(`skillMatch.improveFallback.${bd.improvement_fallback}`)}
+                              </p>
+                            )}
                           {matchedShow.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1">
                               {matchedShow.map((s) => (
@@ -919,7 +1212,7 @@ export default function BrowseInternshipsPage() {
                       href={`/internships/${item.internship_id}`}
                       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-violet-300/40 transition-all hover:from-violet-700 hover:to-fuchsia-700 hover:shadow-lg dark:shadow-violet-900/40"
                     >
-                      View internship
+                      {t("browse.viewInternship")}
                       <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path
                           fillRule="evenodd"
@@ -937,14 +1230,14 @@ export default function BrowseInternshipsPage() {
 
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">All internships</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">{t("browse.allInternships")}</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              {loading && page === 0 ? "Loading listings…" : "Browse every open role on the platform"}
+              {loading && page === 0 ? t("browse.loadingListings") : t("browse.browseAllSubtitle")}
             </p>
           </div>
           {!loading || page > 0 ? (
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-              {cards.length} shown{hasMore ? "+" : ""}
+              {fmt(t("browse.shownBadge"), { count: cards.length, plus: hasMore ? "+" : "" })}
             </span>
           ) : null}
         </div>
@@ -953,9 +1246,9 @@ export default function BrowseInternshipsPage() {
             <CardGridSkeleton variant="internship" columns="sm:grid-cols-2" />
           ) : cards.length === 0 ? (
             <EmptyState
-              title="No internships found."
-              description="Try changing your filters."
-              actionLabel="Clear filters"
+              title={t("browse.noInternships")}
+              description={t("browse.tryFilters")}
+              actionLabel={t("browse.clearFilters")}
               onAction={clearFilters}
             />
           ) : (
@@ -983,11 +1276,11 @@ export default function BrowseInternshipsPage() {
                     disabled={loading}
                     className="min-w-44 rounded-full border-violet-200 bg-white px-6 shadow-sm hover:border-violet-300 hover:bg-violet-50 dark:border-violet-500/30 dark:bg-slate-900 dark:hover:bg-violet-500/10"
                   >
-                    {loading ? "Loading..." : "Load more internships"}
+                    {loading ? t("browse.loadingMore") : t("browse.loadMore")}
                   </Button>
                 ) : (
                   <p className="rounded-full bg-slate-100 px-4 py-2 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                    You’ve reached the end
+                    {t("browse.reachedEnd")}
                   </p>
                 )}
               </div>

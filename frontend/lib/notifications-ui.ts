@@ -21,6 +21,10 @@ export type NotificationRowType =
   | "internship_pending_supervisor"
   | "internship_supervisor_approved"
   | "final_report_required"
+  | "commitment_required"
+  | "commitment_confirmed"
+  | "commitment_expired"
+  | "application_withdrawn"
   | "final_report_submitted";
 
 export type NotificationRow = {
@@ -60,11 +64,35 @@ export function getNotificationTypeStyles(type: NotificationRowType) {
     };
   }
 
-  if (type === "application_expired") {
+  if (type === "application_expired" || type === "commitment_expired") {
     return {
       icon: "⏱️",
       accentClass: "border-l-amber-500",
       titleClass: "text-amber-800 dark:text-amber-300",
+    };
+  }
+
+  if (type === "commitment_required") {
+    return {
+      icon: "⏳",
+      accentClass: "border-l-amber-500",
+      titleClass: "text-amber-800 dark:text-amber-300",
+    };
+  }
+
+  if (type === "commitment_confirmed") {
+    return {
+      icon: "✅",
+      accentClass: "border-l-green-500",
+      titleClass: "text-green-800 dark:text-green-300",
+    };
+  }
+
+  if (type === "application_withdrawn") {
+    return {
+      icon: "↩️",
+      accentClass: "border-l-slate-500",
+      titleClass: "text-slate-800 dark:text-slate-300",
     };
   }
 

@@ -3,7 +3,14 @@
 export type { AcademicDepartment } from "./departments";
 
 export type LocationType = "remote" | "onsite" | "hybrid";
-export type ApplicationStatus = "pending" | "accepted" | "rejected" | "completed";
+export type ApplicationStatus =
+  | "pending"
+  | "accepted_pending_commit"
+  | "accepted"
+  | "rejected"
+  | "completed"
+  | "commitment_expired"
+  | "withdrawn";
 export type InternshipStatus = "active" | "inactive";
 export type ProfileRole = "student" | "company" | "supervisor" | "admin";
 
@@ -33,6 +40,8 @@ export interface Application {
   status: ApplicationStatus;
   message: string | null;
   applied_at: string;
+  commitment_deadline?: string | null;
+  committed_at?: string | null;
   internship_title?: string;
   company_name?: string;
 }

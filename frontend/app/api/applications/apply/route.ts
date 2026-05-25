@@ -117,6 +117,30 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: isEnrolled, error: enrolledError } = await supabase.rpc(
+      "student_has_committed_internship",
+      { p_student_id: student.id }
+    );
+
+    if (enrolledError) {
+      return NextResponse.json(
+        { ok: false, error: formatPostgrestError(enrolledError) },
+        { status: 400 }
+      );
+    }
+
+    if (isEnrolled === true) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "You are already enrolled in a training opportunity. You cannot apply to other internships until that placement is completed.",
+          code: "already_enrolled",
+        },
+        { status: 409 }
+      );
+    }
+
     const { data: insertedApp, error: insertError } = await supabase
       .from("applications")
       .insert({

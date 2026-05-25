@@ -3,20 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
+import { invokeExpireStaleApplicationCommitments } from "@/lib/expire-commitment-deadlines";
+import { normalizeApplicationStatus } from "@/lib/applications/commitment";
 import { createClient } from "@/lib/supabase/client";
 import ApplicationTable from "@/components/applications/ApplicationTable";
+import { ApplicationCommitmentPanel } from "@/components/applications/ApplicationCommitmentPanel";
+import { ApplicationStatsCards } from "@/components/applications/ApplicationStatsCards";
 import EmptyState from "@/components/common/EmptyState";
 import { TableListPageSkeleton } from "@/components/loading";
 import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
 import type { Application, ApplicationStatus } from "@/lib/types";
-
-function normalizeApplicationStatus(raw: unknown): ApplicationStatus {
-  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (s === "pending" || s === "accepted" || s === "rejected" || s === "completed") {
-    return s;
-  }
-  return "pending";
-}
 
 type TrainingEvaluationSummary = {
   overall_rating: number;
@@ -91,6 +87,7 @@ export default function ApplicationsList() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,11 +128,12 @@ export default function ApplicationsList() {
       if (!cancelled) setStudentId(student.id);
 
       await invokeAutoCompleteExpiredTrainings(supabase);
+      await invokeExpireStaleApplicationCommitments(supabase);
       if (cancelled) return;
 
       const { data: appRows, error: appError } = await supabase
         .from("applications")
-        .select("id, student_id, position_id, status, message, applied_at")
+        .select("id, student_id, position_id, status, message, applied_at, commitment_deadline, committed_at")
         .eq("student_id", student.id)
         .order("applied_at", { ascending: false });
 
@@ -173,6 +171,8 @@ export default function ApplicationsList() {
           status: normalizeApplicationStatus(row.status),
           message: row.message,
           applied_at: row.applied_at,
+          commitment_deadline: row.commitment_deadline ?? null,
+          committed_at: row.committed_at ?? null,
           internship_title: pos?.title ?? null,
           company_name: cid ? (companiesById.get(cid) ?? undefined) : undefined,
         };
@@ -250,7 +250,7 @@ export default function ApplicationsList() {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [reloadToken]);
 
   const trainingEvaluationSubmittedByAppId = useMemo(() => {
     const m: Record<string, boolean> = {};
@@ -266,6 +266,11 @@ export default function ApplicationsList() {
   const pendingTrainingEvaluationCount = completedApplications.filter(
     (a) => !trainingEvaluationSubmittedByAppId[a.id]
   ).length;
+
+  const statsTotal = applications.length;
+  const statsPending = applications.filter((a) => a.status === "pending" || a.status === "accepted_pending_commit").length;
+  const statsActive = applications.filter((a) => a.status === "accepted").length;
+  const statsCompleted = completedApplications.length;
 
   const openRateModal = (app: Application) => {
     setSelectedApp(app);
@@ -569,16 +574,30 @@ export default function ApplicationsList() {
   if (loading) return <TableListPageSkeleton showWelcome={false} showFilters={false} />;
   if (applications.length === 0) {
     return (
-      <EmptyState
-        title="No applications yet"
-        description="Apply to internships to see them here."
-        actionLabel="Browse internships"
-        actionHref="/internships"
-      />
+      <>
+        <ApplicationStatsCards
+          total={statsTotal}
+          pending={statsPending}
+          active={statsActive}
+          completed={statsCompleted}
+        />
+        <EmptyState
+          title="No applications yet"
+          description="Apply to internships to see them here."
+          actionLabel="Browse internships"
+          actionHref="/internships"
+        />
+      </>
     );
   }
   return (
     <>
+      <ApplicationStatsCards
+        total={statsTotal}
+        pending={statsPending}
+        active={statsActive}
+        completed={statsCompleted}
+      />
       {error && (
         <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800 transition-colors duration-300 dark:border dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
           {error}
@@ -589,6 +608,10 @@ export default function ApplicationsList() {
           {success}
         </div>
       )}
+      <ApplicationCommitmentPanel
+        applications={applications}
+        onCommitted={() => setReloadToken((n) => n + 1)}
+      />
       {pendingTrainingEvaluationCount > 0 ? (
         <div
           className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 transition-colors duration-300 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-100"

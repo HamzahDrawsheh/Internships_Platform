@@ -70,6 +70,36 @@ const POSTING_STOP_SUBSTRINGS: readonly string[] = [
   "who are passionate",
 ];
 
+/** Exact tokens that must never appear as skill gaps (posting prose fragments). */
+const POSTING_TOKEN_BLOCKLIST = new Set([
+  "nothing",
+  "something",
+  "anything",
+  "everything",
+  "none",
+  "when",
+  "where",
+  "which",
+  "what",
+  "who",
+  "how",
+  "why",
+  "this",
+  "that",
+  "these",
+  "those",
+  "returns",
+  "splits",
+  "caller",
+  "drops",
+  "blob",
+  "may",
+  "can",
+  "will",
+  "must",
+  "should",
+]);
+
 export type TokenizeSkillsOptions = {
   mode?: TokenizeMode;
 };
@@ -92,6 +122,9 @@ function isLikelySkillToken(t: string, mode: TokenizeMode): boolean {
     return false;
   }
   if (/^\d+$/.test(t)) {
+    return false;
+  }
+  if (POSTING_TOKEN_BLOCKLIST.has(t)) {
     return false;
   }
   if (mode === "posting") {
@@ -280,6 +313,8 @@ export function buildMatchInsights(args: BuildMatchInsightsArgs): MatchInsights 
     }
   }
 
+  const meaningfulGaps = gaps.filter((g) => isLikelySkillToken(g, "posting"));
+
   const pct = Math.round(Math.max(0, Math.min(100, Number(args.matchPercentage) || 0)));
   const title = typeof args.internshipTitle === "string" ? args.internshipTitle.trim() : "";
   const summary_lines: string[] = [];
@@ -306,14 +341,14 @@ export function buildMatchInsights(args: BuildMatchInsightsArgs): MatchInsights 
     );
   }
 
-  const tips: string[] = gaps.map(
+  const tips: string[] = meaningfulGaps.map(
     (g) =>
       `Add or surface "${g}" in your profile if it reflects your experience—recruiters filter on explicit keywords.`
   );
 
   return {
     matched_skills,
-    gaps,
+    gaps: meaningfulGaps,
     summary_lines,
     tips,
   };

@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import type { ApplicationStatus } from "@/lib/types";
 import { CompanyLogo } from "@/components/companies/CompanyLogo";
+import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
+import { useI18n } from "@/lib/i18n/context";
 
 function applicationStatusBadgeClasses(status: ApplicationStatus): string {
   switch (status) {
@@ -17,41 +21,12 @@ function applicationStatusBadgeClasses(status: ApplicationStatus): string {
   }
 }
 
-function applicationStatusLabel(status: ApplicationStatus): string {
-  switch (status) {
-    case "pending":
-      return "Applied · Pending";
-    case "accepted":
-      return "Applied · Accepted";
-    case "rejected":
-      return "Applied · Rejected";
-    case "completed":
-      return "Applied · Completed";
-    default:
-      return "Applied";
-  }
-}
-
 const SKILL_CHIP_CLASSES = [
   "bg-violet-100 text-violet-800 ring-violet-200/70 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-500/30",
   "bg-cyan-100 text-cyan-800 ring-cyan-200/70 dark:bg-cyan-500/20 dark:text-cyan-200 dark:ring-cyan-500/30",
   "bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-200/70 dark:bg-fuchsia-500/20 dark:text-fuchsia-200 dark:ring-fuchsia-500/30",
   "bg-indigo-100 text-indigo-800 ring-indigo-200/70 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-500/30",
 ];
-
-function locationBadgeClasses(locationType: string): string {
-  const key = locationType.trim().toLowerCase();
-  if (key.includes("remote")) {
-    return "bg-emerald-100 text-emerald-800 ring-emerald-200/70 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-500/30";
-  }
-  if (key.includes("hybrid")) {
-    return "bg-violet-100 text-violet-800 ring-violet-200/70 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-500/30";
-  }
-  if (key.includes("on-site") || key.includes("onsite")) {
-    return "bg-orange-100 text-orange-800 ring-orange-200/70 dark:bg-orange-500/20 dark:text-orange-200 dark:ring-orange-500/30";
-  }
-  return "bg-sky-100 text-sky-800 ring-sky-200/70 dark:bg-sky-500/20 dark:text-sky-200 dark:ring-sky-500/30";
-}
 
 interface InternshipCardProps {
   id: string;
@@ -74,6 +49,29 @@ export function InternshipCard({
   deadline,
   applicationStatus,
 }: InternshipCardProps) {
+  const { t } = useI18n();
+
+  const applicationStatusLabel = (status: ApplicationStatus): string => {
+    switch (status) {
+      case "pending":
+        return t("browse.appAppliedPending");
+      case "accepted":
+        return t("browse.appAppliedAccepted");
+      case "rejected":
+        return t("browse.appAppliedRejected");
+      case "completed":
+        return t("browse.appAppliedCompleted");
+      case "accepted_pending_commit":
+        return t("browse.appConfirmRequired");
+      case "commitment_expired":
+        return t("browse.appOfferExpired");
+      case "withdrawn":
+        return t("browse.appWithdrawn");
+      default:
+        return t("browse.appApplied");
+    }
+  };
+
   return (
     <Link href={`/internships/${id}`} className="group block h-full">
       <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300/60 hover:shadow-lg hover:shadow-violet-500/10 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-violet-500/40">
@@ -112,20 +110,7 @@ export function InternshipCard({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {locationType ? (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${locationBadgeClasses(locationType)}`}
-              >
-                <svg className="h-3.5 w-3.5 shrink-0 opacity-80" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path
-                    fillRule="evenodd"
-                    d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {locationType}
-              </span>
-            ) : null}
+            <WorkArrangementBadge location={locationType} />
             {skills.slice(0, 3).map((s, i) => (
               <span
                 key={s}
@@ -144,13 +129,14 @@ export function InternshipCard({
           <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
             {deadline ? (
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Posted</span> {deadline}
+                <span className="font-medium text-slate-700 dark:text-slate-300">{t("browse.posted")}</span>{" "}
+                {deadline}
               </p>
             ) : (
               <span />
             )}
             <span className="inline-flex items-center gap-1 text-sm font-medium text-violet-700 transition-transform group-hover:translate-x-0.5 dark:text-violet-300">
-              View role
+              {t("browse.viewRole")}
               <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path
                   fillRule="evenodd"

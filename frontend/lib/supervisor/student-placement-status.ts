@@ -5,7 +5,9 @@ export function deriveStudentPlacementStatus(applications: { status: string }[])
 
   const hasCompleted = applications.some((a) => a.status === "completed");
   const hasAccepted = applications.some((a) => a.status === "accepted");
-  const hasPending = applications.some((a) => a.status === "pending");
+  const hasPending =
+    applications.some((a) => a.status === "pending") ||
+    applications.some((a) => a.status === "accepted_pending_commit");
 
   if (hasCompleted) return "Completed";
   if (hasAccepted) return "Active";
@@ -27,8 +29,8 @@ export function applicationStatusBadgeVariant(
 ): "default" | "success" | "warning" | "danger" | "info" {
   const k = status.trim().toLowerCase();
   if (k === "accepted" || k === "completed") return "success";
-  if (k === "pending") return "warning";
-  if (k === "rejected") return "danger";
+  if (k === "pending" || k === "accepted_pending_commit") return "warning";
+  if (k === "rejected" || k === "withdrawn" || k === "commitment_expired") return "danger";
   return "default";
 }
 

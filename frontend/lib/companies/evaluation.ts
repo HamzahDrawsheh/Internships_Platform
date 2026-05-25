@@ -108,28 +108,72 @@ export function formatOverallScore(summary: CompanyEvaluationSummary): string | 
   return null;
 }
 
-/** Blend embedding similarity with cached company score; penalize new/unrated companies. */
+export type CompanyLevel = "white" | "gray" | "black";
+
+export function deriveCompanyLevel(company: {
+  is_new_company?: boolean | null;
+  evaluation_enabled?: boolean | null;
+  company_score?: number | null;
+  company_level?: CompanyLevel | null;
+} | null | undefined): CompanyLevel | null {
+  if (!company || company.is_new_company !== false || !company.evaluation_enabled) {
+    return null;
+  }
+  if (company.company_level === "white" || company.company_level === "gray" || company.company_level === "black") {
+    return company.company_level;
+  }
+  const score = Number(company.company_score ?? 0);
+  if (!Number.isFinite(score)) return null;
+  if (score >= 0.6) return "white";
+  if (score >= 0.4) return "gray";
+  return "black";
+}
+
+/**
+ * Ranking score from semantic similarity + optional company level (W/G/B).
+ * New or unevaluated companies keep pure cosine similarity — no boost or penalty.
+ */
 export function blendRecommendationScore(
   similarityScore: number,
   company: {
     is_new_company?: boolean | null;
     evaluation_enabled?: boolean | null;
     company_score?: number | null;
+    company_level?: CompanyLevel | null;
   } | null | undefined
-): { rankScore: number; confidence: "high" | "medium" | "low" } {
+): {
+  rankScore: number;
+  confidence: "high" | "medium" | "low";
+  company_level: CompanyLevel | null;
+} {
   const sim = Math.max(0, Math.min(1, similarityScore));
+  const level = deriveCompanyLevel(company);
 
-  if (company?.evaluation_enabled && company.company_score != null) {
-    const score = Math.max(0, Math.min(1, Number(company.company_score)));
-    return {
-      rankScore: sim * (0.7 + 0.3 * score),
-      confidence: score >= 0.6 ? "high" : "medium",
-    };
+  if (level == null) {
+    return { rankScore: sim, confidence: "low", company_level: null };
   }
 
-  if (company?.is_new_company !== false) {
-    return { rankScore: sim * 0.85, confidence: "low" };
+  let multiplier = 1;
+  let confidence: "high" | "medium" | "low" = "medium";
+
+  switch (level) {
+    case "white":
+      multiplier = 1.1;
+      confidence = "high";
+      break;
+    case "gray":
+      multiplier = 1;
+      confidence = "medium";
+      break;
+    case "black":
+      multiplier = 0.9;
+      confidence = "low";
+      break;
   }
 
-  return { rankScore: sim * 0.92, confidence: "medium" };
+  return {
+    rankScore: Math.min(1, sim * multiplier),
+    confidence,
+    company_level: level,
+  };
 }

@@ -6,6 +6,7 @@ import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-
 import { createClient } from "@/lib/supabase/client";
 import type { Application } from "@/lib/types";
 import { StudentInternshipTrackCard } from "@/components/dashboard/StudentInternshipTrackCard";
+import { StudentDashboardWidgetsSection } from "@/components/dashboard/student/StudentDashboardWidgetsSection";
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
 import { DashboardPageSkeleton } from "@/components/loading";
 import { Button, Modal } from "@/components/ui";
@@ -35,6 +36,12 @@ export default function StudentDashboardContent() {
   const [studentMeta, setStudentMeta] = useState<{
     department: string | null;
     cv_path: string | null;
+    major: string | null;
+    technicalSkills: string[];
+    softSkills: string[];
+    takenCourses: string[];
+    customCourses: string[];
+    preferredField: string | null;
   } | null>(null);
 
   const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
@@ -64,7 +71,7 @@ export default function StudentDashboardContent() {
 
       const { data: student } = await supabase
         .from("students")
-        .select("id, department, cv_path")
+        .select("id, department, cv_path, major")
         .eq("user_id", user.id)
         .single();
 
@@ -75,9 +82,28 @@ export default function StudentDashboardContent() {
         return;
       }
 
+      const { data: additional } = await supabase
+        .from("student_additional_info")
+        .select("technical_skills, soft_skills, taken_courses, custom_courses, preferred_field")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       setStudentMeta({
         department: typeof student.department === "string" ? student.department : null,
         cv_path: typeof student.cv_path === "string" ? student.cv_path : null,
+        major: typeof student.major === "string" ? student.major : null,
+        technicalSkills: Array.isArray(additional?.technical_skills)
+          ? (additional.technical_skills as string[])
+          : [],
+        softSkills: Array.isArray(additional?.soft_skills) ? (additional.soft_skills as string[]) : [],
+        takenCourses: Array.isArray(additional?.taken_courses)
+          ? (additional.taken_courses as string[])
+          : [],
+        customCourses: Array.isArray(additional?.custom_courses)
+          ? (additional.custom_courses as string[])
+          : [],
+        preferredField:
+          typeof additional?.preferred_field === "string" ? additional.preferred_field : null,
       });
 
       await invokeAutoCompleteExpiredTrainings(supabase);
@@ -233,7 +259,7 @@ export default function StudentDashboardContent() {
       description: t("dashboard.student.stepCvDesc"),
       complete: hasCv,
       ctaLabel: hasCv ? t("dashboard.student.stepCvCtaDone") : t("dashboard.student.stepCvCtaTodo"),
-      href: "/profile/student",
+      href: "/resume-builder",
     },
     {
       title: t("dashboard.student.stepBrowseTitle"),
@@ -252,31 +278,10 @@ export default function StudentDashboardContent() {
   ];
 
   if (loading) {
-    return <DashboardPageSkeleton showTrack showWidget showTable />;
+    return (
+      <DashboardPageSkeleton showWelcome showWidget showTable tableRows={5} statCount={0} />
+    );
   }
-
-  const stats = [
-    {
-      label: t("dashboard.student.totalApplications"),
-      value: total,
-      cardClass: "bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300",
-    },
-    {
-      label: t("dashboard.student.pending"),
-      value: pending,
-      cardClass: "bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300",
-    },
-    {
-      label: t("dashboard.student.active"),
-      value: active,
-      cardClass: "bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300",
-    },
-    {
-      label: t("dashboard.student.completed"),
-      value: completed,
-      cardClass: "bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300",
-    },
-  ];
 
   const applicationStatusLabel = (status: Application["status"]) => {
     if (status === "pending") return t("dashboard.student.statusPending");
@@ -333,18 +338,31 @@ export default function StudentDashboardContent() {
         }
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((item, idx) => (
-          <article
-            key={item.label}
-            className={`animate-fade-up rounded-2xl p-6 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md ${item.cardClass}`}
-            style={{ animationDelay: `${idx * 80}ms` }}
-          >
-            <p className="text-sm font-medium">{item.label}</p>
-            <p className="mt-4 text-3xl font-bold">{item.value}</p>
-          </article>
-        ))}
-      </section>
+      <StudentDashboardWidgetsSection
+        enrolledInternship={
+          enrolledInternship
+            ? {
+                positionTitle: enrolledInternship.position_title,
+                companyName: enrolledInternship.company_name,
+                startDate: enrolledInternship.start_date,
+                endDate: enrolledInternship.end_date,
+                track: enrolledInternship.track,
+              }
+            : null
+        }
+        reportsDueCount={reportsDueCount}
+        suggestionProps={{
+          hasDepartment,
+          hasCv,
+          hasApplied,
+          technicalSkills: studentMeta?.technicalSkills ?? [],
+          softSkills: studentMeta?.softSkills ?? [],
+          takenCourses: studentMeta?.takenCourses ?? [],
+          customCourses: studentMeta?.customCourses ?? [],
+          preferredField: studentMeta?.preferredField ?? null,
+          major: studentMeta?.major ?? null,
+        }}
+      />
 
       {enrolledInternship ? (
         <StudentInternshipTrackCard

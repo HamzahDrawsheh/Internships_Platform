@@ -14,6 +14,7 @@ import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell
 import { useI18n } from "@/lib/i18n/context";
 import { getRoleDashboardPath } from "@/lib/role-home";
 import { createClient } from "@/lib/supabase/client";
+import { NAV_ICON_BUTTON_CLASS } from "@/components/layout/navControlStyles";
 import type { ProfileRole } from "@/lib/types";
 
 export default function Navbar() {
@@ -95,7 +96,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+              className={NAV_ICON_BUTTON_CLASS}
               aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
             >
               <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
@@ -105,7 +106,7 @@ export default function Navbar() {
             {!isHomePage && isAuthenticated && (
               <Link
                 href={homeHref}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                className={NAV_ICON_BUTTON_CLASS}
                 title={t("nav.home")}
                 aria-label={t("nav.home")}
               >

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { type NotificationRow } from "@/lib/notifications-ui";
 import { NotificationListItem } from "@/components/internship-reports/NotificationListItem";
+import { NAV_BELL_BUTTON_CLASS } from "@/components/layout/navControlStyles";
 
 const PANEL_LIMIT = 12;
 
@@ -149,7 +150,7 @@ export default function NotificationsDropdown({ enabled }: Props) {
             return next;
           })
         }
-        className="relative rounded-xl p-2 text-slate-900 transition-colors duration-300 hover:bg-[#F3E8FF] dark:text-yellow-400 dark:hover:bg-slate-800"
+        className={NAV_BELL_BUTTON_CLASS}
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"

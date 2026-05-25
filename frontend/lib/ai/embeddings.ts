@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatWorkArrangementLabel } from "@/lib/recommendations/location-prefs";
 
 type StudentRow = {
   id: string;
@@ -35,6 +36,7 @@ type InternshipRow = {
   title: string;
   description: string | null;
   requirements: string | null;
+  location: string | null;
 };
 
 type CompanyRow = {
@@ -65,16 +67,19 @@ function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.join(",")}]`;
 }
 
+/**
+ * Match-focused student text for cosine similarity (no PII or job-search preferences).
+ * Name, email, preferred location/work type, and availability add noise to semantic scores.
+ */
 export function buildStudentEmbeddingText(input: {
   profile: ProfileRow | undefined;
   student: StudentRow;
   additional: StudentAdditionalInfoRow | undefined;
 }): string {
-  const { profile, student, additional } = input;
+  void input.profile;
+  const { student, additional } = input;
 
   return [
-    `Student Name: ${asValue(profile?.full_name)}`,
-    `Student Email: ${asValue(profile?.email)}`,
     `Department: ${asValue(student.department)}`,
     `University: ${asValue(student.university)}`,
     `Major: ${asValue(student.major)}`,
@@ -83,24 +88,22 @@ export function buildStudentEmbeddingText(input: {
     `Technical Skills: ${asList(additional?.technical_skills)}`,
     `Soft Skills: ${asList(additional?.soft_skills)}`,
     `Taken Courses: ${asList(additional?.taken_courses)}`,
-    `Preferred Field: ${asValue(additional?.preferred_field)}`,
-    `Preferred Location: ${asValue(additional?.preferred_location)}`,
-    `Preferred Work Type: ${asValue(additional?.preferred_work_type)}`,
-    `Availability: ${asValue(additional?.availability)}`,
     `Custom Courses: ${asList(additional?.custom_courses)}`,
   ].join("\n");
 }
 
+/** Role-focused internship text — title, description, requirements only (no company name noise). */
 export function buildInternshipEmbeddingText(input: {
   internship: InternshipRow;
   company: CompanyRow | undefined;
 }): string {
-  const { internship, company } = input;
+  void input.company;
+  const { internship } = input;
   return [
     `Internship Title: ${asValue(internship.title)}`,
+    `Work Arrangement: ${formatWorkArrangementLabel(internship.location) ?? asValue(internship.location)}`,
     `Description: ${asValue(internship.description)}`,
     `Requirements: ${asValue(internship.requirements)}`,
-    `Company: ${asValue(company?.company_name)}`,
   ].join("\n");
 }
 
@@ -182,7 +185,7 @@ export async function generateInternshipEmbeddingsForAll() {
 
   const { data: internships, error: internshipsError } = await supabase
     .from("internship_positions")
-    .select("id, company_id, title, description, requirements");
+    .select("id, company_id, title, description, requirements, location");
   if (internshipsError) throw internshipsError;
 
   const internshipRows = (internships ?? []) as InternshipRow[];
@@ -286,7 +289,7 @@ export async function generateInternshipEmbeddingByPositionId(positionId: string
 
   const { data: internship, error: internshipError } = await supabase
     .from("internship_positions")
-    .select("id, company_id, title, description, requirements")
+    .select("id, company_id, title, description, requirements, location")
     .eq("id", positionId)
     .maybeSingle();
 
