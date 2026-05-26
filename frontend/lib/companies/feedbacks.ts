@@ -73,6 +73,45 @@ export function parseCompanyStudentFeedbacksRpc(data: unknown): CompanyStudentFe
   return unwrapped.map(parseFeedbackRow).filter((row): row is CompanyStudentFeedback => row != null);
 }
 
+export type TrainingDimensionAvgs = {
+  overall: number;
+  mentorship: number;
+  environment: number;
+  skills: number;
+};
+
+function mean(nums: number[]): number | null {
+  if (nums.length === 0) return null;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+/** Average dimension scores from completed training evaluations (via RPC). */
+export function aggregateTrainingDimensionAvgs(feedbacks: CompanyStudentFeedback[]): {
+  avgs: TrainingDimensionAvgs | null;
+  weakest: keyof TrainingDimensionAvgs | null;
+} {
+  const training = feedbacks.filter((f) => f.source === "training");
+  if (training.length === 0) return { avgs: null, weakest: null };
+
+  const overall = mean(training.map((f) => f.overall_rating));
+  const mentorship = mean(
+    training.map((f) => f.mentorship_rating).filter((n): n is number => n != null),
+  );
+  const environment = mean(
+    training.map((f) => f.environment_rating).filter((n): n is number => n != null),
+  );
+  const skills = mean(training.map((f) => f.skills_rating).filter((n): n is number => n != null));
+
+  if (overall == null || mentorship == null || environment == null || skills == null) {
+    return { avgs: null, weakest: null };
+  }
+
+  const avgs: TrainingDimensionAvgs = { overall, mentorship, environment, skills };
+  const entries = Object.entries(avgs) as [keyof TrainingDimensionAvgs, number][];
+  const weakest = entries.reduce((min, cur) => (cur[1] < min[1] ? cur : min))[0];
+  return { avgs, weakest };
+}
+
 export async function fetchCompanyStudentFeedbacks(
   supabase: SupabaseClient,
   companyId: string

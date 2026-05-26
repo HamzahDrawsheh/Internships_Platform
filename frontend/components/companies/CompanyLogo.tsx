@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { resolveCompanyLogoUrl } from "@/lib/companies/logo";
 
-type CompanyLogoSize = "sm" | "md" | "lg" | "xl" | "hero";
+type CompanyLogoSize = "xs" | "sm" | "md" | "lg" | "xl" | "hero";
 
 const sizeClasses: Record<CompanyLogoSize, string> = {
+  xs: "h-8 w-8 rounded-lg text-xs",
   sm: "h-10 w-10 rounded-xl text-sm",
   md: "h-14 w-14 rounded-xl text-lg",
   lg: "h-16 w-16 rounded-2xl text-xl",

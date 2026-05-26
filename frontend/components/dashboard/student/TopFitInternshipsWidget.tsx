@@ -1,20 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CyclicWidget } from "@/components/dashboard/CyclicWidget";
 import { Button } from "@/components/ui";
+import { useDashboardDataRefresh } from "@/lib/dashboard/student-dashboard-sync";
+import {
+  fetchStudentRecommendations,
+  type DashboardRecommendation,
+} from "@/lib/dashboard/load-student-recommendations";
+import { resolveDisplayMatchPercent } from "@/lib/recommendations/display-match-score";
 import { useI18n } from "@/lib/i18n/context";
-
-type RecItem = {
-  internship_id: string;
-  title: string;
-  company_name: string;
-  match_percentage: number;
-  recommendation_score?: number;
-  listing_work_type?: string | null;
-  listing_location?: string | null;
-};
+import { fmt } from "@/lib/i18n/format";
 
 function fitTierLabel(fit: number, t: (k: string) => string): string {
   if (fit >= 80) return t("dashboard.student.widgets.fitExcellent");
@@ -25,43 +22,43 @@ function fitTierLabel(fit: number, t: (k: string) => string): string {
 
 export function TopFitInternshipsWidget() {
   const { t } = useI18n();
-  const [items, setItems] = useState<RecItem[]>([]);
+  const [items, setItems] = useState<DashboardRecommendation[]>([]);
+  const [hasActivePrefs, setHasActivePrefs] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const { items: next, hasActivePrefs: prefsActive } = await fetchStudentRecommendations(12);
+      setItems(next.slice(0, 3));
+      setHasActivePrefs(prefsActive);
+    } catch {
+      setItems([]);
+      setHasActivePrefs(false);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/recommendations/internships?limit=3", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          if (!cancelled) setItems([]);
-          return;
-        }
-        const body = (await res.json()) as { ok?: boolean; recommendations?: RecItem[] };
-        if (!cancelled && body.ok && Array.isArray(body.recommendations)) {
-          setItems(body.recommendations.slice(0, 3));
-        }
-      } catch {
-        if (!cancelled) setItems([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void load(false);
+  }, [load]);
+
+  useDashboardDataRefresh(useCallback(() => void load(true), [load]));
 
   const slides = useMemo(
     () =>
       items.map((item, idx) => {
-        const fit = Math.round(Number(item.recommendation_score ?? item.match_percentage ?? 0));
-        const tier = fitTierLabel(fit, t);
+        const { display, skill, fit } = resolveDisplayMatchPercent(item, hasActivePrefs);
+        const tier = fitTierLabel(display, t);
         const locationHint = item.listing_location?.trim() || item.listing_work_type?.trim() || null;
+        const matchedSkills =
+          item.match_insights?.matched_skills?.slice(0, 3) ??
+          item.skill_gap?.matchedSkills?.slice(0, 3) ??
+          [];
 
         return {
           id: item.internship_id,
@@ -74,6 +71,11 @@ export function TopFitInternshipsWidget() {
                 <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-[10px] font-semibold text-fuchsia-800 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200">
                   {tier}
                 </span>
+                {refreshing ? (
+                  <span className="text-[10px] font-medium text-violet-600 dark:text-violet-300">
+                    {t("dashboard.student.widgets.updating")}
+                  </span>
+                ) : null}
               </div>
               <h4 className="mt-3 line-clamp-2 text-base font-semibold leading-snug text-gray-900 dark:text-white">
                 {item.title}
@@ -86,15 +88,36 @@ export function TopFitInternshipsWidget() {
               ) : null}
               <div className="mt-4 flex items-end gap-3">
                 <div className="flex h-14 w-14 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-300/40 dark:shadow-violet-900/40">
-                  <span className="text-lg font-bold tabular-nums leading-none">{fit}%</span>
+                  <span className="text-lg font-bold tabular-nums leading-none">{display}%</span>
                   <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-90">
-                    {t("dashboard.student.widgets.fitScore")}
+                    {hasActivePrefs
+                      ? t("dashboard.student.widgets.fitScore")
+                      : t("dashboard.student.widgets.matchScore")}
                   </span>
                 </div>
-                <p className="pb-1 text-xs leading-relaxed text-gray-600 dark:text-slate-400">
-                  {t("dashboard.student.widgets.topFitHint")}
-                </p>
+                <div className="min-w-0 flex-1 pb-1">
+                  {hasActivePrefs ? (
+                    <p className="text-[10px] leading-relaxed text-gray-500 dark:text-slate-400">
+                      {fmt(t("dashboard.student.widgets.skillsMatchLine"), { skill, fit })}
+                    </p>
+                  ) : null}
+                  <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-400">
+                    {t("dashboard.student.widgets.topFitHint")}
+                  </p>
+                </div>
               </div>
+              {matchedSkills.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {matchedSkills.map((skillName) => (
+                    <span
+                      key={skillName}
+                      className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200"
+                    >
+                      {skillName}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <div className="mt-auto flex gap-2 pt-4">
                 <Link href={`/internships/${item.internship_id}`} className="flex-1">
                   <Button variant="primary" className="w-full rounded-xl">
@@ -111,7 +134,7 @@ export function TopFitInternshipsWidget() {
           ),
         };
       }),
-    [items, t]
+    [items, t, hasActivePrefs, refreshing],
   );
 
   return (

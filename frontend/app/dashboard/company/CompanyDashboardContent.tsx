@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { StatCardsSkeleton, TableSectionSkeleton, TrackCardSkeleton } from "@/components/loading";
+import { StatCardsSkeleton, TableSectionSkeleton } from "@/components/loading";
 import { Table, Badge } from "@/components/ui";
 import { CompanyAiFeedbackSummary } from "@/components/companies/CompanyAiFeedbackSummary";
+import { CompanyDashboardWidgetsSection } from "@/components/dashboard/company/CompanyDashboardWidgetsSection";
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
-import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
-import { RoleOverviewTrackCard } from "@/components/dashboard/RoleOverviewTrackCard";
 import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
 import type { MonthlyReportRow } from "@/lib/internship-reports/types";
 
@@ -216,8 +215,6 @@ export default function CompanyDashboardContent({ onSummary }: Props) {
   if (loading) {
     return (
       <div className="mt-8 space-y-6">
-        <StatCardsSkeleton />
-        <TrackCardSkeleton />
         <TableSectionSkeleton />
       </div>
     );
@@ -225,56 +222,13 @@ export default function CompanyDashboardContent({ onSummary }: Props) {
 
   return (
     <div className="mt-8 space-y-8">
+      <CompanyDashboardWidgetsSection />
+
       <DashboardReportWidget
         count={pendingEvalCount}
         href="/company/internship-reports"
         label={pendingEvalCount === 1 ? "evaluation pending" : "evaluations pending"}
       />
-
-      <DashboardStatGrid>
-        <DashboardStatCard
-          label="Total applications"
-          value={applicationCount}
-          cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
-          delayMs={0}
-        />
-        <DashboardStatCard
-          label="Pending"
-          value={pendingCount}
-          cardClass="bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300"
-          delayMs={80}
-          href={pendingCount > 0 ? "/company/applications" : undefined}
-        />
-        <DashboardStatCard
-          label="Active"
-          value={activeCount}
-          cardClass="bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300"
-          delayMs={160}
-        />
-        <DashboardStatCard
-          label="Completed"
-          value={completedCount}
-          cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
-          delayMs={240}
-        />
-      </DashboardStatGrid>
-
-      {traineeOverview && (traineeOverview.activeTrainees > 0 || traineeOverview.totalReports > 0) ? (
-        <RoleOverviewTrackCard
-          title="Trainee programs"
-          subtitle={`${internshipCount} listing${internshipCount === 1 ? "" : "s"} · ${traineeOverview.activeTrainees} active trainee${traineeOverview.activeTrainees === 1 ? "" : "s"}`}
-          overallPercent={traineeOverview.overallPercent}
-          completedLabel={`${traineeOverview.approvedReports}/${traineeOverview.totalReports} reports`}
-          remainingLabel={
-            traineeOverview.totalReports > traineeOverview.approvedReports
-              ? `${traineeOverview.totalReports - traineeOverview.approvedReports} reports left`
-              : "On track"
-          }
-          hint={traineeOverview.hint}
-          href="/company/internship-reports"
-          linkLabel="Open trainee reports →"
-        />
-      ) : null}
 
       {companyRecordId ? <CompanyAiFeedbackSummary companyId={companyRecordId} /> : null}
 

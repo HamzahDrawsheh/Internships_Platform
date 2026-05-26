@@ -196,6 +196,8 @@ export const cvBuilderAr = {
   saving: "جاري الحفظ…",
   livePreview: "معاينة مباشرة",
   previewName: "اسمك",
+  coursework: "مقررات ذات صلة",
+  department: "القسم",
   phCity: "مثال: عمان",
   phSummary: "2–4 جمل عن خلفيتك وأهدافك.",
   phEducation: "الشهادات، المقررات، المعدل، إلخ.",

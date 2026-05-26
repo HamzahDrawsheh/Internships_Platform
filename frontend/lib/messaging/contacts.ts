@@ -29,14 +29,14 @@ export async function saveMessagingContact(
 
 export async function saveMutualContacts(
   supabase: SupabaseClient,
-  userA: string,
-  userB: string,
+  viewerUserId: string,
+  peerUserId: string,
   kind: DmConversationKind,
-  labelForA?: string,
-  labelForB?: string,
+  _reciprocalLabel?: string,
+  peerLabel?: string,
 ) {
-  await saveMessagingContact(supabase, userA, userB, kind, labelForB);
-  await saveMessagingContact(supabase, userB, userA, kind, labelForA);
+  // Only the signed-in user may write their own dm_contacts row (RLS).
+  await saveMessagingContact(supabase, viewerUserId, peerUserId, kind, peerLabel);
 }
 
 export async function fetchSavedContacts(supabase: SupabaseClient, ownerUserId: string): Promise<MessagingContact[]> {

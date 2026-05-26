@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
-import { CardGridSkeleton } from "@/components/loading";
+import { CardGridSkeleton, StatCardsSkeleton } from "@/components/loading";
+import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
+import { notifyCompanyDashboardUpdated } from "@/lib/dashboard/company-dashboard-sync";
 import { Badge, Button, EmptyState, Input, Modal, Select } from "@/components/ui";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
@@ -448,6 +450,7 @@ export default function CompanyApplicationsPage() {
             : application
         )
       );
+      notifyCompanyDashboardUpdated();
     } finally {
       setActionLoading(false);
     }
@@ -531,33 +534,48 @@ export default function CompanyApplicationsPage() {
       <Container>
         <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-lg dark:border-indigo-500/20">
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
-          <div className="relative p-6 sm:p-8">
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">Applications</h1>
-            <p className="mt-2 max-w-xl text-sm text-indigo-100/90">
-              Review student applications, open CVs, and accept or reject candidates.
-            </p>
-            {!loading && applications.length > 0 ? (
-              <div className="mt-5 flex flex-wrap gap-3">
-                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                  <p className="text-xl font-bold tabular-nums text-white">{stats.total}</p>
-                  <p className="text-xs font-medium text-indigo-100/80">Total</p>
-                </div>
-                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                  <p className="text-xl font-bold tabular-nums text-white">{stats.pending}</p>
-                  <p className="text-xs font-medium text-indigo-100/80">Pending</p>
-                </div>
-                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                  <p className="text-xl font-bold tabular-nums text-white">{stats.accepted}</p>
-                  <p className="text-xs font-medium text-indigo-100/80">Accepted</p>
-                </div>
-                <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                  <p className="text-xl font-bold tabular-nums text-white">{stats.withCv}</p>
-                  <p className="text-xs font-medium text-indigo-100/80">With CV</p>
-                </div>
-              </div>
-            ) : null}
+          <div className="relative px-5 py-5 sm:px-6 sm:py-7">
+            <div className="max-w-xl">
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">Applications</h1>
+              <p className="mt-2 text-sm text-indigo-100/90 sm:text-base">
+                Review student applications, open CVs, and accept or reject candidates.
+              </p>
+            </div>
           </div>
         </section>
+
+        {!loading ? (
+          <div className="mt-6">
+            <DashboardStatGrid>
+              <DashboardStatCard
+                label="Total applications"
+                value={stats.total}
+                cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
+                delayMs={0}
+              />
+              <DashboardStatCard
+                label="Pending"
+                value={stats.pending}
+                cardClass="bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300"
+                delayMs={80}
+              />
+              <DashboardStatCard
+                label="Active"
+                value={stats.accepted}
+                cardClass="bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300"
+                delayMs={160}
+              />
+              <DashboardStatCard
+                label="Completed"
+                value={stats.completed}
+                cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
+                delayMs={240}
+              />
+            </DashboardStatGrid>
+          </div>
+        ) : (
+          <StatCardsSkeleton />
+        )}
 
         {loading ? (
           <CardGridSkeleton count={4} variant="internship" columns="sm:grid-cols-2" className="mt-6" />

@@ -25,6 +25,7 @@ type EnrolledInternship = {
   end_date: string;
   position_title: string;
   company_name: string;
+  company_logo_url: string | null;
   track: ReturnType<typeof buildInternshipTrackSummary>;
 };
 
@@ -140,10 +141,13 @@ export default function StudentDashboardContent() {
 
           const { data: app } = await supabase
             .from("applications")
-            .select("position_id, internship_positions(title, companies(company_name))")
+            .select("position_id, internship_positions(title, companies(company_name, logo_url))")
             .eq("id", primary.application_id)
             .maybeSingle();
-          const pos = app?.internship_positions as { title?: string; companies?: { company_name?: string } } | null;
+          const pos = app?.internship_positions as {
+            title?: string;
+            companies?: { company_name?: string; logo_url?: string | null };
+          } | null;
 
           const { data: reps } = await supabase
             .from("internship_monthly_reports")
@@ -159,6 +163,7 @@ export default function StudentDashboardContent() {
             end_date: primary.end_date,
             position_title: pos?.title ?? "Internship",
             company_name: pos?.companies?.company_name ?? "Company",
+            company_logo_url: pos?.companies?.logo_url ?? null,
             track: buildInternshipTrackSummary(
               reports,
               primary.start_date,
@@ -342,6 +347,8 @@ export default function StudentDashboardContent() {
         enrolledInternship={
           enrolledInternship
             ? {
+                internshipId: enrolledInternship.id,
+                internshipStatus: enrolledInternship.status,
                 positionTitle: enrolledInternship.position_title,
                 companyName: enrolledInternship.company_name,
                 startDate: enrolledInternship.start_date,
@@ -368,6 +375,7 @@ export default function StudentDashboardContent() {
         <StudentInternshipTrackCard
           positionTitle={enrolledInternship.position_title}
           companyName={enrolledInternship.company_name}
+          companyLogoUrl={enrolledInternship.company_logo_url}
           startDate={enrolledInternship.start_date}
           endDate={enrolledInternship.end_date}
           track={enrolledInternship.track}

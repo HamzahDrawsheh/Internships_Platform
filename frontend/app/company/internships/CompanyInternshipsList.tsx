@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import EmptyState from "@/components/common/EmptyState";
 import { CardGridSkeleton } from "@/components/loading";
 import { Modal, Button, Badge } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/context";
 
 type FilterKey = "all" | "active" | "paused";
 
@@ -27,6 +28,8 @@ function formatPostedDate(iso?: string): string {
 }
 
 export default function CompanyInternshipsList() {
+  const { t } = useI18n();
+  const H = "dashboard.company.internships";
   const [listings, setListings] = useState<ListingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -189,7 +192,7 @@ export default function CompanyInternshipsList() {
   if (loading) {
     return (
       <>
-        <div className="h-36 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        <div className="h-28 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
         <CardGridSkeleton count={3} variant="internship" columns="sm:grid-cols-2" className="mt-6" />
       </>
     );
@@ -198,17 +201,20 @@ export default function CompanyInternshipsList() {
   if (listings.length === 0) {
     return (
       <>
-        <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-6 py-8 shadow-lg dark:border-indigo-500/20">
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">My Internship Posts</h1>
-          <p className="mt-2 max-w-xl text-sm text-indigo-100/90">
-            Create listings, track applicants, and manage active roles from one place.
-          </p>
-          <Link
-            href="/company/internships/new"
-            className="mt-5 inline-flex items-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50"
-          >
-            Create internship
-          </Link>
+        <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-lg dark:border-indigo-500/20">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
+          <div className="relative px-5 py-5 sm:px-6 sm:py-7">
+            <div className="max-w-xl">
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">{t(`${H}.title`)}</h1>
+              <p className="mt-2 text-sm text-indigo-100/90 sm:text-base">{t(`${H}.heroSubtitleEmpty`)}</p>
+              <Link
+                href="/company/internships/new"
+                className="mt-4 inline-flex items-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50"
+              >
+                {t(`${H}.createInternship`)}
+              </Link>
+            </div>
+          </div>
         </section>
         <div className="mt-6">
           <EmptyState
@@ -226,33 +232,35 @@ export default function CompanyInternshipsList() {
     <>
       <section className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-lg dark:border-indigo-500/20">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
-        <div className="relative flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
-          <div>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">My Internship Posts</h1>
-            <p className="mt-2 max-w-xl text-sm text-indigo-100/90">
-              Edit listings, pause roles, and review applicants for each post.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                <p className="text-xl font-bold tabular-nums text-white">{stats.total}</p>
-                <p className="text-xs font-medium text-indigo-100/80">Total posts</p>
-              </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                <p className="text-xl font-bold tabular-nums text-white">{stats.active}</p>
-                <p className="text-xs font-medium text-indigo-100/80">Active</p>
-              </div>
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                <p className="text-xl font-bold tabular-nums text-white">{stats.applicants}</p>
-                <p className="text-xs font-medium text-indigo-100/80">Applicants</p>
+        <div className="relative px-5 py-5 sm:px-6 sm:py-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-stretch sm:justify-between sm:gap-6">
+            <div className="max-w-xl sm:flex sm:flex-col sm:justify-center">
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">{t(`${H}.title`)}</h1>
+              <p className="mt-2 text-sm text-indigo-100/90 sm:text-base">{t(`${H}.heroSubtitle`)}</p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-4 sm:items-end sm:justify-center">
+              <Link
+                href="/company/internships/new"
+                className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50"
+              >
+                + {t(`${H}.createInternship`)}
+              </Link>
+              <div className="flex flex-wrap gap-3 sm:flex-nowrap sm:justify-end sm:self-stretch">
+                <div className="flex min-w-[6.75rem] flex-1 flex-col justify-center rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-sm sm:min-w-[7.5rem]">
+                  <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{stats.total}</p>
+                  <p className="mt-1 text-sm font-medium leading-snug text-indigo-100/80">{t(`${H}.statsTotalPosts`)}</p>
+                </div>
+                <div className="flex min-w-[6.75rem] flex-1 flex-col justify-center rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-sm sm:min-w-[7.5rem]">
+                  <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{stats.active}</p>
+                  <p className="mt-1 text-sm font-medium leading-snug text-indigo-100/80">{t(`${H}.statsActive`)}</p>
+                </div>
+                <div className="flex min-w-[6.75rem] flex-1 flex-col justify-center rounded-2xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-sm sm:min-w-[7.5rem]">
+                  <p className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{stats.applicants}</p>
+                  <p className="mt-1 text-sm font-medium leading-snug text-indigo-100/80">{t(`${H}.statsApplicants`)}</p>
+                </div>
               </div>
             </div>
           </div>
-          <Link
-            href="/company/internships/new"
-            className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50"
-          >
-            + Create internship
-          </Link>
         </div>
       </section>
 

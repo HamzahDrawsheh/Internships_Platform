@@ -22,85 +22,164 @@ function hasToken(tokens: string[], ...needles: string[]): boolean {
   return needles.some((n) => tokens.some((t) => t.includes(n)));
 }
 
-function inferCareerDirection(
-  tokens: string[],
-  preferredField: string | null,
-  major: string | null
-): { title: string; reasons: string[] } {
-  const pref = preferredField?.trim() || major?.trim() || "";
-
-  if (hasToken(tokens, "machine learning", "ml", "deep learning", "tensorflow", "pytorch")) {
-    return {
-      title: "Machine Learning Engineer",
-      reasons: [
-        "Machine learning skills on your profile",
-        hasToken(tokens, "python") ? "Python activity" : "Technical coursework",
-        pref ? `Interest in ${pref}` : "Strong fit for AI-focused internships",
-      ],
-    };
-  }
-
-  if (
-    hasToken(tokens, "react", "next.js", "javascript", "typescript", "frontend", "html", "css")
-  ) {
-    return {
-      title: "Frontend Developer",
-      reasons: [
-        "Web development skills listed",
-        hasToken(tokens, "ui", "ux", "figma") ? "UI/UX awareness" : "Modern stack experience",
-        pref ? `Aligned with ${pref}` : "High demand in internship listings",
-      ],
-    };
-  }
-
-  if (
-    hasToken(tokens, "data visualization", "tableau", "power bi", "excel") ||
-    (hasToken(tokens, "python", "sql") && hasToken(tokens, "data"))
-  ) {
-    return {
-      title: "Data Analyst",
-      reasons: [
-        hasToken(tokens, "visualization", "tableau", "power bi")
-          ? "Strong visualization skills"
-          : "Data & analytics skills",
-        hasToken(tokens, "python") ? "Python activity" : "Structured analysis background",
-        pref ? `Internship preferences (${pref})` : "Matches common analyst roles",
-      ],
-    };
-  }
-
-  if (hasToken(tokens, "java", "spring", "backend", "node", "api", "postgresql", "supabase")) {
-    return {
-      title: "Backend / Software Engineer",
-      reasons: [
-        "Backend or systems skills detected",
-        hasToken(tokens, "sql", "database") ? "Database experience" : "Software fundamentals",
-        pref ? `Career interest: ${pref}` : "Broad engineering internship options",
-      ],
-    };
-  }
-
-  return {
-    title: pref || major || "Technology & Business",
-    reasons: [
-      pref ? `Your preferred field: ${pref}` : "Complete your profile for sharper matches",
-      tokens.length > 0 ? `${tokens.length}+ skills/courses detected` : "Add skills to unlock direction",
-      "Browse internships to explore roles",
-    ],
-  };
+function topSkillTokens(tokens: string[], limit = 3): string[] {
+  return [...new Set(tokens)].slice(0, limit);
 }
 
-/** Keep the three most relevant slides; tie-break with a stable daily shuffle. */
-export function pickTopSuggestionSlides(slides: SuggestionSlide[]): SuggestionSlide[] {
+type CareerMatch = {
+  id: string;
+  score: number;
+  title: string;
+  reasons: string[];
+};
+
+function scoreCareerCandidates(
+  tokens: string[],
+  input: {
+    preferredField: string | null;
+    major: string | null;
+    preferredWorkType: string | null;
+    preferredLocation: string | null;
+    labels: Record<string, string>;
+  },
+): CareerMatch[] {
+  const pref = input.preferredField?.trim() || input.major?.trim() || "";
+  const candidates: CareerMatch[] = [];
+
+  const push = (id: string, score: number, title: string, reasons: string[]) => {
+    candidates.push({ id, score, title, reasons });
+  };
+
+  if (hasToken(tokens, "machine learning", "ml", "deep learning", "tensorflow", "pytorch", "nlp")) {
+    push("ml", 90, input.labels.careerMlTitle, [
+      input.labels.careerMlReason1,
+      hasToken(tokens, "python") ? input.labels.careerMlReasonPython : input.labels.careerMlReasonCoursework,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerMlReasonDemand,
+    ]);
+  }
+
+  if (hasToken(tokens, "react", "next.js", "javascript", "typescript", "frontend", "html", "css", "vue", "angular")) {
+    push("frontend", 88, input.labels.careerFrontendTitle, [
+      input.labels.careerFrontendReason1,
+      hasToken(tokens, "ui", "ux", "figma") ? input.labels.careerFrontendReasonUi : input.labels.careerFrontendReasonStack,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerFrontendReasonDemand,
+    ]);
+  }
+
+  if (
+    hasToken(tokens, "data visualization", "tableau", "power bi", "excel", "analytics") ||
+    (hasToken(tokens, "python", "sql") && hasToken(tokens, "data"))
+  ) {
+    push("analyst", 86, input.labels.careerAnalystTitle, [
+      hasToken(tokens, "visualization", "tableau", "power bi")
+        ? input.labels.careerAnalystReasonViz
+        : input.labels.careerAnalystReasonData,
+      hasToken(tokens, "python") ? input.labels.careerAnalystReasonPython : input.labels.careerAnalystReasonStructured,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerAnalystReasonRoles,
+    ]);
+  }
+
+  if (hasToken(tokens, "java", "spring", "backend", "node", "api", "postgresql", "supabase", "django", "flask")) {
+    push("backend", 84, input.labels.careerBackendTitle, [
+      input.labels.careerBackendReason1,
+      hasToken(tokens, "sql", "database") ? input.labels.careerBackendReasonDb : input.labels.careerBackendReasonFundamentals,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerBackendReasonOptions,
+    ]);
+  }
+
+  if (hasToken(tokens, "mobile", "android", "ios", "swift", "kotlin", "flutter", "react native")) {
+    push("mobile", 82, input.labels.careerMobileTitle, [
+      input.labels.careerMobileReason1,
+      input.labels.careerMobileReason2,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerMobileReasonDemand,
+    ]);
+  }
+
+  if (hasToken(tokens, "devops", "docker", "kubernetes", "aws", "azure", "ci/cd", "terraform")) {
+    push("devops", 80, input.labels.careerDevopsTitle, [
+      input.labels.careerDevopsReason1,
+      input.labels.careerDevopsReason2,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerDevopsReasonCloud,
+    ]);
+  }
+
+  if (hasToken(tokens, "security", "cyber", "penetration", "network")) {
+    push("security", 78, input.labels.careerSecurityTitle, [
+      input.labels.careerSecurityReason1,
+      input.labels.careerSecurityReason2,
+      pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerSecurityReasonDemand,
+    ]);
+  }
+
+  if (pref) {
+    push("preferred", 75, pref, [
+      input.labels.careerPreferredReason1.replace("{{field}}", pref),
+      tokens.length > 0
+        ? input.labels.careerPreferredReasonSkills.replace("{{skills}}", topSkillTokens(tokens).join(", "))
+        : input.labels.careerPreferredReasonAddSkills,
+      input.preferredWorkType?.trim()
+        ? input.labels.careerPreferredReasonWork.replace("{{work}}", input.preferredWorkType.trim())
+        : input.labels.careerPreferredReasonBrowse,
+    ]);
+  }
+
+  push("general", 60, pref || input.major?.trim() || input.labels.careerGeneralTitle, [
+    pref ? input.labels.careerReasonPref.replace("{{field}}", pref) : input.labels.careerGeneralReasonProfile,
+    tokens.length > 0
+      ? input.labels.careerGeneralReasonCount.replace("{{count}}", String(tokens.length))
+      : input.labels.careerGeneralReasonAddSkills,
+    input.labels.careerGeneralReasonBrowse,
+  ]);
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates;
+}
+
+function profileFingerprint(input: {
+  technicalSkills: string[];
+  softSkills: string[];
+  takenCourses: string[];
+  customCourses: string[];
+  preferredField: string | null;
+  major: string | null;
+  preferredWorkType: string | null;
+  preferredLocation: string | null;
+  gpa: number | null;
+  applicationCount: number;
+}): string {
+  return [
+    ...input.technicalSkills,
+    ...input.softSkills,
+    ...input.takenCourses,
+    ...input.customCourses,
+    input.preferredField ?? "",
+    input.major ?? "",
+    input.preferredWorkType ?? "",
+    input.preferredLocation ?? "",
+    input.gpa ?? "",
+    input.applicationCount,
+  ].join("|");
+}
+
+/** Keep the three most relevant slides; tie-break rotates with profile fingerprint. */
+export function pickTopSuggestionSlides(
+  slides: SuggestionSlide[],
+  fingerprint = "",
+): SuggestionSlide[] {
   if (slides.length <= MAX_WIDGET_SLIDES) return slides;
 
-  const daySeed = Math.floor(Date.now() / 86_400_000);
+  let hash = 0;
+  const seed = fingerprint || String(Math.floor(Date.now() / 86_400_000));
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+
   const shuffleKey = (id: string) => {
-    let hash = daySeed;
+    let h = hash;
     for (let i = 0; i < id.length; i += 1) {
-      hash = (hash * 31 + id.charCodeAt(i)) | 0;
+      h = (h * 31 + id.charCodeAt(i)) | 0;
     }
-    return hash;
+    return h;
   };
 
   return [...slides]
@@ -115,12 +194,17 @@ export function buildStudentSuggestionSlides(input: {
   hasDepartment: boolean;
   hasCv: boolean;
   hasApplied: boolean;
+  applicationCount: number;
+  pendingApplications: number;
   technicalSkills: string[];
   softSkills: string[];
   takenCourses: string[];
   customCourses: string[];
   preferredField: string | null;
+  preferredWorkType: string | null;
+  preferredLocation: string | null;
   major: string | null;
+  gpa: number | null;
   labels: {
     stepProfileTitle: string;
     stepProfileDesc: string;
@@ -139,6 +223,56 @@ export function buildStudentSuggestionSlides(input: {
     assistantTitle: string;
     assistantBody: string;
     assistantCta: string;
+    skillsSpotlightTitle: string;
+    skillsSpotlightBody: string;
+    skillsSpotlightCta: string;
+    pendingAppsTitle: string;
+    pendingAppsBody: string;
+    pendingAppsCta: string;
+    careerMlTitle: string;
+    careerMlReason1: string;
+    careerMlReasonPython: string;
+    careerMlReasonCoursework: string;
+    careerMlReasonDemand: string;
+    careerFrontendTitle: string;
+    careerFrontendReason1: string;
+    careerFrontendReasonUi: string;
+    careerFrontendReasonStack: string;
+    careerFrontendReasonDemand: string;
+    careerAnalystTitle: string;
+    careerAnalystReasonViz: string;
+    careerAnalystReasonData: string;
+    careerAnalystReasonPython: string;
+    careerAnalystReasonStructured: string;
+    careerAnalystReasonRoles: string;
+    careerBackendTitle: string;
+    careerBackendReason1: string;
+    careerBackendReasonDb: string;
+    careerBackendReasonFundamentals: string;
+    careerBackendReasonOptions: string;
+    careerMobileTitle: string;
+    careerMobileReason1: string;
+    careerMobileReason2: string;
+    careerMobileReasonDemand: string;
+    careerDevopsTitle: string;
+    careerDevopsReason1: string;
+    careerDevopsReason2: string;
+    careerDevopsReasonCloud: string;
+    careerSecurityTitle: string;
+    careerSecurityReason1: string;
+    careerSecurityReason2: string;
+    careerSecurityReasonDemand: string;
+    careerPreferredReason1: string;
+    careerPreferredReasonSkills: string;
+    careerPreferredReasonAddSkills: string;
+    careerPreferredReasonWork: string;
+    careerPreferredReasonBrowse: string;
+    careerGeneralTitle: string;
+    careerGeneralReasonProfile: string;
+    careerGeneralReasonCount: string;
+    careerGeneralReasonAddSkills: string;
+    careerGeneralReasonBrowse: string;
+    careerReasonPref: string;
   };
 }): SuggestionSlide[] {
   const slides: SuggestionSlide[] = [];
@@ -150,6 +284,8 @@ export function buildStudentSuggestionSlides(input: {
     input.preferredField ?? "",
     input.major ?? "",
   ]);
+
+  const fingerprint = profileFingerprint(input);
 
   if (!input.hasDepartment) {
     slides.push({
@@ -187,17 +323,67 @@ export function buildStudentSuggestionSlides(input: {
     });
   }
 
-  const career = inferCareerDirection(tokens, input.preferredField, input.major);
-  slides.push({
-    id: "career",
-    title: input.labels.careerTitle,
-    body: career.title,
-    bullets: career.reasons,
-    href: "/internships",
-    cta: input.labels.stepBrowseCta,
-    action: "link",
-    priority: 70,
+  if (input.pendingApplications > 0) {
+    slides.push({
+      id: "pending-apps",
+      title: input.labels.pendingAppsTitle,
+      body: input.labels.pendingAppsBody.replace("{{count}}", String(input.pendingApplications)),
+      href: "/applications",
+      cta: input.labels.pendingAppsCta,
+      action: "link",
+      priority: 88,
+    });
+  }
+
+  const careers = scoreCareerCandidates(tokens, {
+    preferredField: input.preferredField,
+    major: input.major,
+    preferredWorkType: input.preferredWorkType,
+    preferredLocation: input.preferredLocation,
+    labels: input.labels,
   });
+
+  const primaryCareer = careers[0];
+  if (primaryCareer) {
+    slides.push({
+      id: `career-${primaryCareer.id}`,
+      title: input.labels.careerTitle,
+      body: primaryCareer.title,
+      bullets: primaryCareer.reasons,
+      href: "/internships",
+      cta: input.labels.stepBrowseCta,
+      action: "link",
+      priority: 78,
+    });
+  }
+
+  const spotlightSkills = topSkillTokens(input.technicalSkills.length ? input.technicalSkills : tokens, 4);
+  if (spotlightSkills.length >= 2) {
+    slides.push({
+      id: "skills-spotlight",
+      title: input.labels.skillsSpotlightTitle,
+      body: input.labels.skillsSpotlightBody.replace("{{skills}}", spotlightSkills.join(", ")),
+      bullets: spotlightSkills,
+      href: "/internships",
+      cta: input.labels.skillsSpotlightCta,
+      action: "link",
+      priority: 74,
+    });
+  }
+
+  const altCareer = careers.find((c) => c.id !== primaryCareer?.id);
+  if (altCareer && altCareer.score >= 75) {
+    slides.push({
+      id: `career-alt-${altCareer.id}`,
+      title: input.labels.careerTitle,
+      body: altCareer.title,
+      bullets: altCareer.reasons.slice(0, 2),
+      href: "/internships",
+      cta: input.labels.stepBrowseCta,
+      action: "link",
+      priority: 68,
+    });
+  }
 
   slides.push({
     id: "assistant",
@@ -218,5 +404,5 @@ export function buildStudentSuggestionSlides(input: {
     priority: 40,
   });
 
-  return pickTopSuggestionSlides(slides);
+  return pickTopSuggestionSlides(slides, fingerprint);
 }

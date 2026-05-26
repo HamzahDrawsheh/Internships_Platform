@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CompanyLogo } from "@/components/companies/CompanyLogo";
 import type { InternshipTrackSummary } from "@/lib/internship-reports/track-summary";
 import { useI18n } from "@/lib/i18n/context";
 import {
@@ -13,6 +14,7 @@ import {
 type Props = {
   positionTitle: string;
   companyName: string;
+  companyLogoUrl?: string | null;
   startDate: string;
   endDate: string;
   track: InternshipTrackSummary;
@@ -22,6 +24,7 @@ type Props = {
 export function StudentInternshipTrackCard({
   positionTitle,
   companyName,
+  companyLogoUrl,
   startDate,
   endDate,
   track,
@@ -43,7 +46,17 @@ export function StudentInternshipTrackCard({
           <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
             {t("dashboard.student.yourInternship")}
           </p>
-          <h2 className="mt-1 truncate text-lg font-semibold text-gray-900 dark:text-white">{positionTitle}</h2>
+          <div className="mt-1 flex min-w-0 items-center gap-2.5">
+            <CompanyLogo
+              name={companyName}
+              logoUrl={companyLogoUrl}
+              size="xs"
+              className="ring-1 ring-violet-200/80 dark:ring-violet-500/30"
+            />
+            <h2 className="min-w-0 truncate text-lg font-semibold text-gray-900 dark:text-white">
+              {positionTitle}
+            </h2>
+          </div>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {companyName} · {duration}
           </p>

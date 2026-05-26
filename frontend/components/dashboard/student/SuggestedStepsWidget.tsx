@@ -1,68 +1,142 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CyclicWidget } from "@/components/dashboard/CyclicWidget";
 import { Button } from "@/components/ui";
 import { openStudentAssistant } from "@/lib/ai/open-student-assistant";
 import { buildStudentSuggestionSlides } from "@/lib/dashboard/student-career-hints";
+import {
+  fetchStudentProfileSnapshot,
+  type StudentProfileSnapshot,
+} from "@/lib/dashboard/load-student-profile-snapshot";
+import { useDashboardDataRefresh } from "@/lib/dashboard/student-dashboard-sync";
 import { useI18n } from "@/lib/i18n/context";
 
-type Props = {
-  hasDepartment: boolean;
-  hasCv: boolean;
-  hasApplied: boolean;
-  technicalSkills: string[];
-  softSkills: string[];
-  takenCourses: string[];
-  customCourses: string[];
-  preferredField: string | null;
-  major: string | null;
-};
+type Props = Partial<StudentProfileSnapshot>;
 
-const STEP_KIND: Record<string, "step" | "career" | "tip" | "help"> = {
-  profile: "step",
-  cv: "step",
-  browse: "step",
-  career: "career",
-  assistant: "help",
-  refresh: "tip",
-};
+function slideKind(id: string): "step" | "career" | "tip" | "help" {
+  if (id.startsWith("career-") || id === "skills-spotlight") return "career";
+  if (id === "assistant") return "help";
+  if (id === "profile" || id === "cv" || id === "browse" || id === "pending-apps") return "step";
+  return "tip";
+}
 
-export function SuggestedStepsWidget(props: Props) {
+function buildLabels(t: (key: string) => string) {
+  const w = (key: string) => t(`dashboard.student.widgets.${key}`);
+  return {
+    stepProfileTitle: t("dashboard.student.stepProfileTitle"),
+    stepProfileDesc: t("dashboard.student.stepProfileDesc"),
+    stepProfileCta: t("dashboard.student.stepProfileCtaTodo"),
+    stepCvTitle: t("dashboard.student.stepCvTitle"),
+    stepCvDesc: t("dashboard.student.stepCvDesc"),
+    stepCvCta: t("dashboard.student.stepCvCtaTodo"),
+    stepBrowseTitle: t("dashboard.student.stepBrowseTitle"),
+    stepBrowseDesc: t("dashboard.student.stepBrowseDesc"),
+    stepBrowseCta: t("dashboard.student.stepBrowseCtaTodo"),
+    careerTitle: w("careerDirection"),
+    careerBecause: w("careerBecause"),
+    hintRefreshTitle: w("hintRefreshTitle"),
+    hintRefreshBody: w("hintRefreshBody"),
+    hintRefreshCta: w("hintRefreshCta"),
+    assistantTitle: w("assistantTitle"),
+    assistantBody: w("assistantBody"),
+    assistantCta: w("assistantCta"),
+    skillsSpotlightTitle: w("skillsSpotlightTitle"),
+    skillsSpotlightBody: w("skillsSpotlightBody"),
+    skillsSpotlightCta: w("skillsSpotlightCta"),
+    pendingAppsTitle: w("pendingAppsTitle"),
+    pendingAppsBody: w("pendingAppsBody"),
+    pendingAppsCta: w("pendingAppsCta"),
+    careerMlTitle: w("careerMlTitle"),
+    careerMlReason1: w("careerMlReason1"),
+    careerMlReasonPython: w("careerMlReasonPython"),
+    careerMlReasonCoursework: w("careerMlReasonCoursework"),
+    careerMlReasonDemand: w("careerMlReasonDemand"),
+    careerFrontendTitle: w("careerFrontendTitle"),
+    careerFrontendReason1: w("careerFrontendReason1"),
+    careerFrontendReasonUi: w("careerFrontendReasonUi"),
+    careerFrontendReasonStack: w("careerFrontendReasonStack"),
+    careerFrontendReasonDemand: w("careerFrontendReasonDemand"),
+    careerAnalystTitle: w("careerAnalystTitle"),
+    careerAnalystReasonViz: w("careerAnalystReasonViz"),
+    careerAnalystReasonData: w("careerAnalystReasonData"),
+    careerAnalystReasonPython: w("careerAnalystReasonPython"),
+    careerAnalystReasonStructured: w("careerAnalystReasonStructured"),
+    careerAnalystReasonRoles: w("careerAnalystReasonRoles"),
+    careerBackendTitle: w("careerBackendTitle"),
+    careerBackendReason1: w("careerBackendReason1"),
+    careerBackendReasonDb: w("careerBackendReasonDb"),
+    careerBackendReasonFundamentals: w("careerBackendReasonFundamentals"),
+    careerBackendReasonOptions: w("careerBackendReasonOptions"),
+    careerMobileTitle: w("careerMobileTitle"),
+    careerMobileReason1: w("careerMobileReason1"),
+    careerMobileReason2: w("careerMobileReason2"),
+    careerMobileReasonDemand: w("careerMobileReasonDemand"),
+    careerDevopsTitle: w("careerDevopsTitle"),
+    careerDevopsReason1: w("careerDevopsReason1"),
+    careerDevopsReason2: w("careerDevopsReason2"),
+    careerDevopsReasonCloud: w("careerDevopsReasonCloud"),
+    careerSecurityTitle: w("careerSecurityTitle"),
+    careerSecurityReason1: w("careerSecurityReason1"),
+    careerSecurityReason2: w("careerSecurityReason2"),
+    careerSecurityReasonDemand: w("careerSecurityReasonDemand"),
+    careerPreferredReason1: w("careerPreferredReason1"),
+    careerPreferredReasonSkills: w("careerPreferredReasonSkills"),
+    careerPreferredReasonAddSkills: w("careerPreferredReasonAddSkills"),
+    careerPreferredReasonWork: w("careerPreferredReasonWork"),
+    careerPreferredReasonBrowse: w("careerPreferredReasonBrowse"),
+    careerGeneralTitle: w("careerGeneralTitle"),
+    careerGeneralReasonProfile: w("careerGeneralReasonProfile"),
+    careerGeneralReasonCount: w("careerGeneralReasonCount"),
+    careerGeneralReasonAddSkills: w("careerGeneralReasonAddSkills"),
+    careerGeneralReasonBrowse: w("careerGeneralReasonBrowse"),
+    careerReasonPref: w("careerReasonPref"),
+  };
+}
+
+export function SuggestedStepsWidget(fallbackProps: Props = {}) {
   const { t } = useI18n();
+  const [snapshot, setSnapshot] = useState<StudentProfileSnapshot | null>(null);
+  const labels = useMemo(() => buildLabels(t), [t]);
+
+  const load = useCallback(async () => {
+    const fresh = await fetchStudentProfileSnapshot();
+    if (fresh) setSnapshot(fresh);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useDashboardDataRefresh(load);
+
+  const profile = snapshot ?? {
+    hasDepartment: fallbackProps.hasDepartment ?? false,
+    hasCv: fallbackProps.hasCv ?? false,
+    hasApplied: fallbackProps.hasApplied ?? false,
+    applicationCount: fallbackProps.applicationCount ?? 0,
+    pendingApplications: fallbackProps.pendingApplications ?? 0,
+    technicalSkills: fallbackProps.technicalSkills ?? [],
+    softSkills: fallbackProps.softSkills ?? [],
+    takenCourses: fallbackProps.takenCourses ?? [],
+    customCourses: fallbackProps.customCourses ?? [],
+    preferredField: fallbackProps.preferredField ?? null,
+    preferredWorkType: fallbackProps.preferredWorkType ?? null,
+    preferredLocation: fallbackProps.preferredLocation ?? null,
+    major: fallbackProps.major ?? null,
+    gpa: fallbackProps.gpa ?? null,
+  };
 
   const suggestionSlides = useMemo(
-    () =>
-      buildStudentSuggestionSlides({
-        ...props,
-        labels: {
-          stepProfileTitle: t("dashboard.student.stepProfileTitle"),
-          stepProfileDesc: t("dashboard.student.stepProfileDesc"),
-          stepProfileCta: t("dashboard.student.stepProfileCtaTodo"),
-          stepCvTitle: t("dashboard.student.stepCvTitle"),
-          stepCvDesc: t("dashboard.student.stepCvDesc"),
-          stepCvCta: t("dashboard.student.stepCvCtaTodo"),
-          stepBrowseTitle: t("dashboard.student.stepBrowseTitle"),
-          stepBrowseDesc: t("dashboard.student.stepBrowseDesc"),
-          stepBrowseCta: t("dashboard.student.stepBrowseCtaTodo"),
-          careerTitle: t("dashboard.student.widgets.careerDirection"),
-          careerBecause: t("dashboard.student.widgets.careerBecause"),
-          hintRefreshTitle: t("dashboard.student.widgets.hintRefreshTitle"),
-          hintRefreshBody: t("dashboard.student.widgets.hintRefreshBody"),
-          hintRefreshCta: t("dashboard.student.widgets.hintRefreshCta"),
-          assistantTitle: t("dashboard.student.widgets.assistantTitle"),
-          assistantBody: t("dashboard.student.widgets.assistantBody"),
-          assistantCta: t("dashboard.student.widgets.assistantCta"),
-        },
-      }),
-    [props, t]
+    () => buildStudentSuggestionSlides({ ...profile, labels }),
+    [profile, labels],
   );
 
   const slides = useMemo(
     () =>
       suggestionSlides.map((slide) => {
-        const kind = STEP_KIND[slide.id] ?? "tip";
+        const kind = slideKind(slide.id);
         const badge =
           kind === "career"
             ? t("dashboard.student.widgets.suggestedForYou")
@@ -82,7 +156,7 @@ export function SuggestedStepsWidget(props: Props) {
               <h4 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">{slide.title}</h4>
               <p
                 className={`mt-2 text-sm leading-relaxed ${
-                  slide.id === "career"
+                  kind === "career"
                     ? "text-lg font-semibold text-amber-900 dark:text-amber-100"
                     : "text-gray-700 dark:text-slate-300"
                 }`}
@@ -129,7 +203,7 @@ export function SuggestedStepsWidget(props: Props) {
           ),
         };
       }),
-    [suggestionSlides, t]
+    [suggestionSlides, t],
   );
 
   return (

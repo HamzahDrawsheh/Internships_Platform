@@ -6,6 +6,7 @@ type Props = {
   stroke?: number;
   label?: string;
   sublabel?: string;
+  centerText?: string;
   className?: string;
 };
 
@@ -15,6 +16,7 @@ export function ProgressDonutChart({
   stroke = 10,
   label,
   sublabel,
+  centerText,
   className = "",
 }: Props) {
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
@@ -56,7 +58,7 @@ export function ProgressDonutChart({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <span className="text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
-          {clamped}%
+          {centerText ?? `${clamped}%`}
         </span>
         {label ? (
           <span className="mt-0.5 max-w-[5rem] text-[10px] font-medium leading-tight text-gray-500 dark:text-slate-400">

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { jsPDF } from "jspdf";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildCvPdf } from "@/lib/cv/build-cv-pdf";
+import type { AiCvSuggestion, CvPdfFields } from "@/lib/cv/types";
+import { CvLivePreview } from "@/components/cv/CvLivePreview";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ProfileFormSkeleton } from "@/components/loading";
@@ -24,274 +26,10 @@ function bioFromStudentPreferences(raw: string | null): string {
 
 const DOWNLOAD_CV_FILENAME = "internconnect-cv.pdf";
 
-const MAX_EDUCATION_CHARS = 2200;
-const MAX_PROJECT_BODY_CHARS = 900;
-const MAX_COURSES_SNIPPET = 600;
-
-export type CvPdfFields = {
-  fullName: string;
-  email: string;
-  phone: string;
-  city: string;
-  summary: string;
-  university: string;
-  major: string;
-  education: string;
-  skills: string;
-  experience: string;
-  projects: string;
-  linkedin: string;
-  githubPortfolio: string;
-};
-
-export type AiCvSuggestion = {
-  summary: string;
-  skills: string;
-  experience: string;
-  projects: string;
-};
-
-function trimMax(s: string, max: number): string {
-  const t = s.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
-}
-
-/** Dedupe comma/semicolon/newline-separated skills (case-insensitive). */
-function normalizeSkillsList(raw: string): string {
-  const parts = raw
-    .split(/[,;\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const p of parts) {
-    const key = p.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(p);
-    }
-  }
-  return out.join(", ");
-}
-
-function extractGpa(text: string): string | null {
-  const m = text.match(/GPA\s*[:.]?\s*([\d.]+)/i);
-  return m?.[1]?.trim() ?? null;
-}
-
-/** Shorten a "Courses: ..." segment if present. */
-function clipCoursesLine(text: string): string {
-  const idx = text.search(/courses\s*:/i);
-  if (idx === -1) return text;
-  const head = text.slice(0, idx);
-  const tailStart = text.indexOf(":", idx) + 1;
-  const tail = text.slice(tailStart).trim();
-  const clipped = tail.length > MAX_COURSES_SNIPPET ? `${tail.slice(0, MAX_COURSES_SNIPPET)}…` : tail;
-  return `${head}${text.slice(idx, tailStart)} ${clipped}`;
-}
-
-/** Drop lines already summarized above (University — Major, GPA). */
-function stripStructuredEducationLines(raw: string): string {
-  return raw
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => {
-      if (!l) return false;
-      if (/^gpa\s*:/i.test(l)) return false;
-      if (/^university\s*:/i.test(l)) return false;
-      if (/^major\s*:/i.test(l)) return false;
-      if (/^department\s*:/i.test(l)) return false;
-      return true;
-    })
-    .join("\n")
-    .trim();
-}
-
-function experienceToBullets(raw: string): string[] {
-  return raw
-    .split(/\n+/)
-    .map((l) => l.replace(/^[\s•\-*–]+/, "").trim())
-    .filter(Boolean)
-    .map((l) => trimMax(l, 500));
-}
-
-function parseProjectBlocks(raw: string): { title: string; body: string }[] {
-  const trimmed = raw.trim();
-  if (!trimmed) return [];
-
-  const chunks = trimmed.split(/\n{2,}/).map((c) => c.trim()).filter(Boolean);
-  const blocks: { title: string; body: string }[] = [];
-
-  for (const chunk of chunks) {
-    const lines = chunk.split(/\n/).map((l) => l.trim()).filter(Boolean);
-    if (lines.length === 0) continue;
-    const title = trimMax(lines[0], 100);
-    const body = trimMax(lines.slice(1).join("\n"), MAX_PROJECT_BODY_CHARS);
-    blocks.push({ title, body: body || "" });
-  }
-
-  return blocks;
-}
-
-/**
- * ATS-friendly: real text layers (selectable), Helvetica, consistent margins — no rasterized DOM.
- */
-function buildCvPdfFromPreview(f: CvPdfFields): jsPDF {
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 20;
-  const maxW = pageW - 2 * margin;
-  let y = margin;
-
-  const ensureSpace = (neededMm: number) => {
-    if (y + neededMm > pageH - margin) {
-      doc.addPage();
-      y = margin;
-    }
-  };
-
-  const writeWrapped = (text: string, fontSize: number, weight: "normal" | "bold") => {
-    doc.setFont("helvetica", weight);
-    doc.setFontSize(fontSize);
-    const lines = doc.splitTextToSize(text, maxW);
-    const lineH = fontSize * 0.55;
-    for (const line of lines) {
-      ensureSpace(lineH + 1);
-      doc.text(line, margin, y);
-      y += lineH;
-    }
-  };
-
-  const writeIndentedWrapped = (text: string, fontSize: number, indentMm: number) => {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(fontSize);
-    const lines = doc.splitTextToSize(text, maxW - indentMm);
-    const lineH = fontSize * 0.55;
-    for (const line of lines) {
-      ensureSpace(lineH + 1);
-      doc.text(line, margin + indentMm, y);
-      y += lineH;
-    }
-  };
-
-  const sectionGap = () => {
-    y += 4;
-  };
-
-  // --- Header ---
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  const displayName = trimMax(f.fullName.trim() || "Applicant", 80);
-  ensureSpace(12);
-  doc.text(displayName, margin, y);
-  y += 10;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const contactBits = [f.email.trim(), f.phone.trim(), f.city.trim()].filter(Boolean);
-  if (contactBits.length) {
-    writeWrapped(contactBits.join(" | "), 10, "normal");
-  }
-  const linkBits = [f.linkedin.trim(), f.githubPortfolio.trim()].filter(Boolean);
-  if (linkBits.length) {
-    writeWrapped(linkBits.join(" | "), 10, "normal");
-  }
-
-  sectionGap();
-
-  const summaryTrim = f.summary.trim();
-  if (summaryTrim) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    ensureSpace(8);
-    doc.text("PROFESSIONAL SUMMARY", margin, y);
-    y += 7;
-    writeWrapped(trimMax(summaryTrim, 1200), 10, "normal");
-    sectionGap();
-  }
-
-  // --- EDUCATION ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  ensureSpace(8);
-  doc.text("EDUCATION", margin, y);
-  y += 7;
-
-  const uniLine = [f.university.trim(), f.major.trim()].filter(Boolean).join(" — ");
-  if (uniLine) {
-    writeWrapped(uniLine, 10, "bold");
-  }
-
-  const gpa = extractGpa(f.education);
-  if (gpa) {
-    writeWrapped(`GPA: ${gpa}`, 10, "normal");
-  }
-
-  let eduDetail = stripStructuredEducationLines(f.education.trim());
-  eduDetail = clipCoursesLine(eduDetail);
-  eduDetail = trimMax(eduDetail, MAX_EDUCATION_CHARS);
-  if (eduDetail) {
-    writeWrapped(eduDetail, 10, "normal");
-  }
-
-  sectionGap();
-
-  // --- SKILLS ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  ensureSpace(8);
-  doc.text("SKILLS", margin, y);
-  y += 7;
-
-  const skillsLine = normalizeSkillsList(f.skills);
-  if (skillsLine) {
-    writeWrapped(skillsLine, 10, "normal");
-  }
-
-  // --- EXPERIENCE ---
-  const expTrimmed = f.experience.trim();
-  if (expTrimmed) {
-    sectionGap();
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    ensureSpace(8);
-    doc.text("EXPERIENCE", margin, y);
-    y += 7;
-
-    const bullets = experienceToBullets(expTrimmed);
-    for (const b of bullets) {
-      writeIndentedWrapped(`• ${b}`, 10, 4);
-    }
-  }
-
-  // --- PROJECTS ---
-  const projectBlocks = parseProjectBlocks(f.projects);
-  if (projectBlocks.length) {
-    sectionGap();
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    ensureSpace(8);
-    doc.text("PROJECTS", margin, y);
-    y += 7;
-
-    for (const block of projectBlocks) {
-      writeWrapped(block.title, 10, "bold");
-      if (block.body) {
-        writeIndentedWrapped(block.body, 10, 4);
-      }
-      y += 2;
-    }
-  }
-
-  return doc;
-}
+export type { CvPdfFields, AiCvSuggestion } from "@/lib/cv/types";
 
 export default function ResumeBuilderPage() {
   const { t } = useI18n();
-  const previewRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState<string | null>(null);
@@ -303,6 +41,7 @@ export default function ResumeBuilderPage() {
   const [city, setCity] = useState("");
   const [university, setUniversity] = useState("");
   const [major, setMajor] = useState("");
+  const [department, setDepartment] = useState("");
   const [summary, setSummary] = useState("");
   const [skills, setSkills] = useState("");
   const [education, setEducation] = useState("");
@@ -381,6 +120,7 @@ export default function ResumeBuilderPage() {
       setStudentId(studentRow.id);
       setUniversity(studentRow.university ?? "");
       setMajor(studentRow.major ?? "");
+      setDepartment(studentRow.department ?? "");
 
       const rawPrefs =
         typeof studentRow.preferences === "string"
@@ -436,6 +176,41 @@ export default function ResumeBuilderPage() {
     void load();
   }, [t]);
 
+  const cvFields = useMemo<CvPdfFields>(
+    () => ({
+      fullName,
+      email,
+      phone,
+      city,
+      summary,
+      university,
+      major,
+      department,
+      education,
+      skills,
+      experience,
+      projects,
+      linkedin,
+      githubPortfolio,
+    }),
+    [
+      fullName,
+      email,
+      phone,
+      city,
+      summary,
+      university,
+      major,
+      department,
+      education,
+      skills,
+      experience,
+      projects,
+      linkedin,
+      githubPortfolio,
+    ]
+  );
+
   const handleSaveCv = useCallback(async () => {
     setMessage(null);
     setSaveError(null);
@@ -447,21 +222,7 @@ export default function ResumeBuilderPage() {
 
     setSaving(true);
     try {
-      const pdf = buildCvPdfFromPreview({
-        fullName,
-        email,
-        phone,
-        city,
-        summary,
-        university,
-        major,
-        education,
-        skills,
-        experience,
-        projects,
-        linkedin,
-        githubPortfolio,
-      });
+      const pdf = buildCvPdf(cvFields);
       const blob = pdf.output("blob");
       const objectPath = `students/${studentId}/cv.pdf`;
 
@@ -493,22 +254,7 @@ export default function ResumeBuilderPage() {
       setSaveError(e instanceof Error ? e.message : t("cvBuilder.errors.pdfFailed"));
     }
     setSaving(false);
-  }, [
-    studentId,
-    fullName,
-    email,
-    phone,
-    city,
-    summary,
-    university,
-    major,
-    education,
-    skills,
-    experience,
-    projects,
-    linkedin,
-    githubPortfolio,
-  ]);
+  }, [studentId, cvFields, t]);
 
   const handleImproveWithAi = useCallback(async () => {
     setImproveError(null);
@@ -589,41 +335,13 @@ export default function ResumeBuilderPage() {
 
     setDownloading(true);
     try {
-      const pdf = buildCvPdfFromPreview({
-        fullName,
-        email,
-        phone,
-        city,
-        summary,
-        university,
-        major,
-        education,
-        skills,
-        experience,
-        projects,
-        linkedin,
-        githubPortfolio,
-      });
+      const pdf = buildCvPdf(cvFields);
       pdf.save(DOWNLOAD_CV_FILENAME);
     } catch (e) {
       setDownloadError(e instanceof Error ? e.message : t("cvBuilder.errors.pdfFailed"));
     }
     setDownloading(false);
-  }, [
-    fullName,
-    email,
-    phone,
-    city,
-    summary,
-    university,
-    major,
-    education,
-    skills,
-    experience,
-    projects,
-    linkedin,
-    githubPortfolio,
-  ]);
+  }, [cvFields, t]);
 
   if (loading) {
     return (
@@ -727,6 +445,7 @@ export default function ResumeBuilderPage() {
               <div className="mt-4 grid gap-4">
                 <Input label={t("cvBuilder.university")} value={university} onChange={(e) => setUniversity(e.target.value)} />
                 <Input label={t("cvBuilder.major")} value={major} onChange={(e) => setMajor(e.target.value)} />
+                <Input label={t("cvBuilder.department")} value={department} onChange={(e) => setDepartment(e.target.value)} />
                 <Textarea
                   label={t("cvBuilder.educationDetail")}
                   rows={5}
@@ -856,166 +575,18 @@ export default function ResumeBuilderPage() {
             </p>
             {/* Preview is visual-only; exported PDF is generated from form fields (ATS-friendly text PDF). */}
             <div className="max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-200 bg-gray-100 p-3 dark:border-slate-700 dark:bg-slate-900">
-              <div
-                id="cv-preview"
-                ref={previewRef}
-                style={{
-                  fontFamily: "system-ui, sans-serif",
-                  backgroundColor: "#ffffff",
-                  color: "#000000",
-                  maxWidth: "210mm",
-                  minHeight: "280mm",
-                  marginLeft: "auto",
-                  marginRight: "auto",
-                  width: "100%",
-                  padding: "32px",
-                  boxSizing: "border-box",
-                  boxShadow: "0 1px 2px rgb(0 0 0 / 0.06)",
+              <CvLivePreview
+                {...cvFields}
+                previewNameFallback={t("cvBuilder.previewName")}
+                sectionLabels={{
+                  summary: t("cvBuilder.professionalSummary"),
+                  education: t("cvBuilder.education"),
+                  skills: t("cvBuilder.skills"),
+                  experience: t("cvBuilder.experience"),
+                  projects: t("cvBuilder.projects"),
+                  coursework: t("cvBuilder.coursework"),
                 }}
-              >
-                <header style={{ borderBottom: "1px solid #e5e5e5", paddingBottom: "16px" }}>
-                  <h1 style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.02em", color: "#000000", margin: 0 }}>
-                    {fullName.trim() || t("cvBuilder.previewName")}
-                  </h1>
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "8px 16px",
-                      fontSize: "14px",
-                      color: "#555555",
-                    }}
-                  >
-                    {email.trim() && <span>{email.trim()}</span>}
-                    {phone.trim() && <span>{phone.trim()}</span>}
-                    {city.trim() && <span>{city.trim()}</span>}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "8px 16px",
-                      fontSize: "14px",
-                      color: "rgb(91, 33, 182)",
-                    }}
-                  >
-                    {linkedin.trim() && <span style={{ wordBreak: "break-all" }}>{linkedin.trim()}</span>}
-                    {githubPortfolio.trim() && (
-                      <span style={{ wordBreak: "break-all" }}>{githubPortfolio.trim()}</span>
-                    )}
-                  </div>
-                </header>
-
-                {summary.trim() && (
-                  <section style={{ marginTop: "24px" }}>
-                    <h2
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#666666",
-                        margin: 0,
-                      }}
-                    >
-                      {t("cvBuilder.professionalSummary")}
-                    </h2>
-                    <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222", lineHeight: 1.5 }}>
-                      {summary.trim()}
-                    </p>
-                  </section>
-                )}
-
-                {(university.trim() || major.trim() || education.trim()) && (
-                  <section style={{ marginTop: "24px" }}>
-                    <h2
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#666666",
-                        margin: 0,
-                      }}
-                    >
-                      {t("cvBuilder.education")}
-                    </h2>
-                    {university.trim() && (
-                      <p style={{ marginTop: "8px", fontSize: "14px", fontWeight: 600, color: "#111111" }}>
-                        {university.trim()}
-                      </p>
-                    )}
-                    {major.trim() && <p style={{ fontSize: "14px", color: "#333333", margin: "4px 0 0 0" }}>{major.trim()}</p>}
-                    {education.trim() && (
-                      <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#333333" }}>
-                        {education.trim()}
-                      </p>
-                    )}
-                  </section>
-                )}
-
-                {skills.trim() && (
-                  <section style={{ marginTop: "24px" }}>
-                    <h2
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#666666",
-                        margin: 0,
-                      }}
-                    >
-                      {t("cvBuilder.skills")}
-                    </h2>
-                    <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222" }}>
-                      {skills.trim()}
-                    </p>
-                  </section>
-                )}
-
-                {experience.trim() && (
-                  <section style={{ marginTop: "24px" }}>
-                    <h2
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#666666",
-                        margin: 0,
-                      }}
-                    >
-                      {t("cvBuilder.experience")}
-                    </h2>
-                    <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222" }}>
-                      {experience.trim()}
-                    </p>
-                  </section>
-                )}
-
-                {projects.trim() && (
-                  <section style={{ marginTop: "24px" }}>
-                    <h2
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#666666",
-                        margin: 0,
-                      }}
-                    >
-                      {t("cvBuilder.projects")}
-                    </h2>
-                    <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", fontSize: "14px", color: "#222222" }}>
-                      {projects.trim()}
-                    </p>
-                  </section>
-                )}
-              </div>
+              />
             </div>
           </div>
         </div>

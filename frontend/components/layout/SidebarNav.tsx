@@ -21,20 +21,29 @@ type SidebarNavProps = {
   reserveAiSlot?: boolean;
 };
 
-function isLinkActive(pathname: string, href: string, rootHref?: string): boolean {
+function isLinkActive(pathname: string, href: string, allHrefs: string[], rootHref?: string): boolean {
   if (pathname === href) return true;
   if (rootHref && href === rootHref) return false;
-  return pathname.startsWith(`${href}/`) || pathname.startsWith(href);
+  if (!pathname.startsWith(`${href}/`)) return false;
+
+  const hasMoreSpecificSibling = allHrefs.some(
+    (other) =>
+      other !== href &&
+      other.startsWith(`${href}/`) &&
+      (pathname === other || pathname.startsWith(`${other}/`)),
+  );
+  return !hasMoreSpecificSibling;
 }
 
 export function SidebarNav({ links, rootHref, onNavigate, reserveAiSlot = false }: SidebarNavProps) {
   const pathname = usePathname();
   const { t } = useI18n();
+  const allHrefs = links.map((link) => link.href);
 
   return (
     <nav className={`space-y-1.5 px-4 ${reserveAiSlot ? "pb-24" : ""}`}>
       {links.map((link) => {
-        const isActive = isLinkActive(pathname, link.href, rootHref);
+        const isActive = isLinkActive(pathname, link.href, allHrefs, rootHref);
         return (
           <Link
             key={link.href}

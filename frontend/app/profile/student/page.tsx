@@ -12,8 +12,9 @@ import {
   computeProfileCompleteness,
 } from "@/components/profile/StudentProfileUi";
 import { isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
-import { createClient } from "@/lib/supabase/client";
+import { notifyStudentProfileUpdated } from "@/lib/dashboard/student-dashboard-sync";
 import { useI18n } from "@/lib/i18n/context";
+import { createClient } from "@/lib/supabase/client";
 import {
   ALL_PREDEFINED_COURSES,
   buildAvailabilityOptions,
@@ -356,10 +357,16 @@ export default function StudentProfilePage() {
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
       body: JSON.stringify({ scope: "student" }),
-    }).catch(() => {});
+    })
+      .then(() => {
+        notifyStudentProfileUpdated();
+      })
+      .catch(() => {});
 
     setSaved(true);
+    setEditMode(false);
     setSaving(false);
+    notifyStudentProfileUpdated();
   };
 
   const handleCvUpload = async () => {

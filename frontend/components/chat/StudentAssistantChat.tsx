@@ -3,17 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { STUDENT_ASSISTANT_OPEN_EVENT } from "@/lib/ai/open-student-assistant";
+import { useI18n } from "@/lib/i18n/context";
 
 const LS_OPEN = "internconnect-student-chat-open";
 const LS_WIDE = "internconnect-student-chat-wide";
 const MAX_INPUT_CHARS = 2000;
 const SOFT_LIMIT_HINT = 1800;
-const WELCOME_MESSAGE: ChatMessage = {
-  id: "welcome",
-  role: "assistant",
-  content:
-    "Hi! I’m here to help with your internships, applications, and any training feedback you’ve saved. Ask me anything about those — I’ll stay grounded in your account data, and you can open “See resources” when you want the exact sources.",
-};
+const WELCOME_ID = "welcome";
 
 type ChatSource = { id: string; type: string; title: string };
 type ChatMessage = {
@@ -83,6 +79,7 @@ function ChatLoadingIndicator({ compact = false }: { compact?: boolean }) {
 }
 
 function AssistantReplyBubble({ message }: { message: ChatMessage }) {
+  const { dir } = useI18n();
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const hasSources = Boolean(message.sources && message.sources.length > 0);
   const showResourcesUi = hasSources && !message.streaming;
@@ -93,6 +90,7 @@ function AssistantReplyBubble({ message }: { message: ChatMessage }) {
         "max-w-[85%] rounded-2xl border border-gray-200/80 bg-gray-50 px-3 py-2 text-sm shadow-sm",
         "text-gray-900 dark:border-gray-700/80 dark:bg-gray-800/90 dark:text-gray-100"
       )}
+      dir={dir}
     >
       {message.content ? (
         <ChatMarkdown content={message.content} />
@@ -125,16 +123,33 @@ function AssistantReplyBubble({ message }: { message: ChatMessage }) {
 }
 
 export default function StudentAssistantChat() {
+  const { t, dir } = useI18n();
+  const welcomeMessage = useMemo(
+    (): ChatMessage => ({
+      id: WELCOME_ID,
+      role: "assistant",
+      content: t("studentAssistant.welcome"),
+    }),
+    [t],
+  );
+
   const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
   const [wide, setWide] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [liveRegion, setLiveRegion] = useState<{ text: string; key: number }>({ text: "", key: 0 });
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 0) return [welcomeMessage];
+      return prev.map((m) => (m.id === WELCOME_ID ? { ...m, content: welcomeMessage.content } : m));
+    });
+  }, [welcomeMessage]);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- hydrate open/wide from localStorage after mount */
@@ -238,7 +253,7 @@ export default function StudentAssistantChat() {
 
   function resetChat() {
     if (loading || isStreamingReply) return;
-    setMessages([{ ...WELCOME_MESSAGE, id: "welcome" }]);
+    setMessages([{ ...welcomeMessage, id: WELCOME_ID }]);
     setInput("");
     setLiveRegion({ text: "", key: Date.now() });
   }
@@ -345,7 +360,7 @@ export default function StudentAssistantChat() {
       </button>
 
       {open ? (
-        <div id="student-ai-assistant-panel" className={shellInner}>
+        <div id="student-ai-assistant-panel" className={shellInner} dir={dir}>
           <div className="flex flex-shrink-0 flex-col border-b border-gray-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4 dark:border-gray-800">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -396,7 +411,10 @@ export default function StudentAssistantChat() {
                 )}
               >
                 {m.role === "user" ? (
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-md shadow-purple-500/25">
+                  <div
+                    dir="auto"
+                    className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-md shadow-purple-500/25"
+                  >
                     {m.content}
                   </div>
                 ) : (

@@ -196,6 +196,8 @@ export const cvBuilderEn = {
   saving: "Saving…",
   livePreview: "Live preview",
   previewName: "Your name",
+  coursework: "Relevant coursework",
+  department: "Department",
   phCity: "e.g. Amman",
   phSummary: "2–4 sentences about your background and goals.",
   phEducation: "Degrees, coursework, GPA, etc.",

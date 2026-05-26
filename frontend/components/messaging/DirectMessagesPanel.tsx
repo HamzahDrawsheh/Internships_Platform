@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
-import { saveMutualContacts } from "@/lib/messaging/contacts";
+import { saveMessagingContact } from "@/lib/messaging/contacts";
 import { fetchEligiblePeers, type MessagingContact } from "@/lib/messaging/peers";
 import {
   conversationUrl,
@@ -176,8 +176,17 @@ export function DirectMessagesPanel({
 
       try {
         if (label) {
-          await saveMutualContacts(supabase, viewerId, peerProfileUserId, kind, reciprocalLabel, label);
-          await loadContacts();
+          try {
+            await saveMessagingContact(supabase, viewerId, peerProfileUserId, kind, label);
+            await loadContacts();
+          } catch (contactErr) {
+            const msg =
+              contactErr && typeof contactErr === "object" && "message" in contactErr
+                ? String((contactErr as { message: string }).message)
+                : "Could not save contact.";
+            console.warn("save messaging contact:", contactErr);
+            setActionError(msg);
+          }
         }
 
         let student_user_id: string;
@@ -224,6 +233,14 @@ export function DirectMessagesPanel({
         await loadConversations();
         openConversation(id);
         return id;
+      } catch (err) {
+        const msg =
+          err && typeof err === "object" && "message" in err
+            ? String((err as { message: string }).message)
+            : "Could not start conversation.";
+        console.error("startConversation:", err);
+        setActionError(msg);
+        return null;
       } finally {
         setSendBusy(false);
       }
@@ -241,7 +258,12 @@ export function DirectMessagesPanel({
       pendingTarget.peerUserId,
       pendingTarget.label,
       pendingTarget.reciprocalLabel,
-    ).then(() => onPendingHandled?.());
+    )
+      .then(() => onPendingHandled?.())
+      .catch((err) => {
+        console.error("pending conversation:", err);
+        pendingHandledRef.current = null;
+      });
   }, [pendingTarget, viewerId, startConversation, onPendingHandled]);
 
   useEffect(() => {

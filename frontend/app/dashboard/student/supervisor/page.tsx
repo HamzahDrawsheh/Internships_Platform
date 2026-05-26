@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DetailPageSkeleton } from "@/components/loading";
 import { Button, EmptyState } from "@/components/ui";
 import { useMessagingActions } from "@/hooks/useMessagingActions";
+import { useI18n } from "@/lib/i18n/context";
 import { createClient } from "@/lib/supabase/client";
 
 type SupervisorCard = {
@@ -13,11 +14,13 @@ type SupervisorCard = {
   user_id: string;
   department: string | null;
   title: string | null;
+  office_location: string | null;
   full_name: string;
   email: string;
 };
 
 export default function StudentSupervisorPage() {
+  const { t } = useI18n();
   const { messageSupervisor, openInbox } = useMessagingActions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export default function StudentSupervisorPage() {
 
       const { data: supRows, error: supErr } = await supabase
         .from("supervisors")
-        .select("id, user_id, department, title")
+        .select("id, user_id, department, title, office_location")
         .order("created_at", { ascending: true });
       if (supErr) {
         console.error("student supervisor list:", supErr);
@@ -61,7 +64,13 @@ export default function StudentSupervisorPage() {
         return;
       }
 
-      const rows = (supRows ?? []) as { id: string; user_id: string; department: string | null; title: string | null }[];
+      const rows = (supRows ?? []) as {
+        id: string;
+        user_id: string;
+        department: string | null;
+        title: string | null;
+        office_location: string | null;
+      }[];
       if (rows.length === 0) {
         setItems([]);
         setLoading(false);
@@ -80,6 +89,7 @@ export default function StudentSupervisorPage() {
           user_id: r.user_id,
           department: r.department,
           title: r.title,
+          office_location: r.office_location,
           full_name: p?.full_name?.trim() || "—",
           email: p?.email ?? "—",
         };
@@ -135,6 +145,14 @@ export default function StudentSupervisorPage() {
                   <div>
                     <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{s.full_name}</p>
                     <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{s.email}</p>
+                    {s.office_location?.trim() ? (
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          {t("supervisor.profile.office")}:
+                        </span>{" "}
+                        {s.office_location.trim()}
+                      </p>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
                       {s.title?.trim() ? (
                         <span className="rounded-full bg-purple-50 px-2.5 py-1 font-medium text-purple-800 dark:bg-purple-500/15 dark:text-purple-200">

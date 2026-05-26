@@ -11,6 +11,8 @@ import { WeeklyInsightsWidget } from "@/components/dashboard/student/WeeklyInsig
 import type { InternshipTrackSummary } from "@/lib/internship-reports/track-summary";
 
 type Enrolled = {
+  internshipId: string;
+  internshipStatus: string;
   positionTitle: string;
   companyName: string;
   startDate: string;
@@ -45,12 +47,14 @@ export function StudentDashboardWidgetsSection({
         <div className="grid gap-4 lg:grid-cols-3">
           {enrolledInternship ? (
             <TrainingProgressCyclicWidget
+              internshipId={enrolledInternship.internshipId}
+              internshipStatus={enrolledInternship.internshipStatus}
               positionTitle={enrolledInternship.positionTitle}
               companyName={enrolledInternship.companyName}
               startDate={enrolledInternship.startDate}
               endDate={enrolledInternship.endDate}
-              track={enrolledInternship.track}
-              reportsDueCount={reportsDueCount}
+              initialTrack={enrolledInternship.track}
+              initialReportsDueCount={reportsDueCount}
             />
           ) : (
             <TopFitInternshipsWidget />

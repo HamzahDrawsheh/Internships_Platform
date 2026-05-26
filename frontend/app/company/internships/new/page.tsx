@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Input, Select, Textarea, Button, Card } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { notifyCompanyDashboardUpdated } from "@/lib/dashboard/company-dashboard-sync";
 import { buildInternshipScheduleFields, validateInternshipDates } from "@/lib/internships/dates";
 
 const locationOptions: SelectOption[] = [
@@ -133,6 +134,7 @@ export default function CreateInternshipPage() {
       }
 
       setSuccess(isActive ? "Internship published successfully." : "Internship draft saved.");
+      notifyCompanyDashboardUpdated();
       router.push("/company/internships");
       router.refresh();
     } catch (err) {
