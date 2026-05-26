@@ -9,9 +9,11 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Wider dialog for long-form content (e.g. cover letter). */
+  size?: "md" | "lg";
 }
 
-export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, footer, size = "md" }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -35,7 +37,11 @@ export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) 
         aria-hidden
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-lg rounded-lg bg-white shadow-xl transition-colors duration-300 dark:bg-slate-900">
+      <div
+        className={`relative z-10 w-full rounded-lg bg-white shadow-xl transition-colors duration-300 dark:bg-slate-900 ${
+          size === "lg" ? "max-w-2xl" : "max-w-lg"
+        }`}
+      >
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 transition-colors duration-300 dark:border-slate-800">
           <h2 id="modal-title" className="text-lg font-semibold text-gray-900 transition-colors duration-300 dark:text-white">
             {title}

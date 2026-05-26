@@ -23,6 +23,7 @@ import {
   optionLabel,
 } from "@/lib/i18n/student-profile-options";
 import { buildGenderOptions, genderLabel, normalizeProfileGender, type ProfileGender } from "@/lib/profile/gender";
+import { VerifiedTrainingSkills } from "@/components/student/VerifiedTrainingSkills";
 
 const CV_BUCKET = "student-cvs";
 const MAX_CV_BYTES = 5 * 1024 * 1024;
@@ -934,6 +935,10 @@ export default function StudentProfilePage() {
                 </Button>
               </form>
             )}
+
+            <div className="mt-6">
+              <VerifiedTrainingSkills />
+            </div>
           </>
         )}
       </Container>

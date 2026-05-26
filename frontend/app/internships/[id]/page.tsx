@@ -7,6 +7,7 @@ import { Container } from "@/components/layout/Container";
 import { DetailPageSkeleton } from "@/components/loading";
 import { Badge, Button, Modal, Textarea, EmptyState } from "@/components/ui";
 import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
+import { AICoverLetterGenerator } from "@/components/student/AICoverLetterGenerator";
 import { SkillGapLearningPlanCard } from "@/components/students/SkillGapLearningPlanCard";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { useI18n } from "@/lib/i18n/context";
@@ -320,17 +321,26 @@ export default function InternshipDetailsPage() {
             ) : isEnrolledInTraining ? (
               <Badge variant="success">Enrolled in training</Badge>
             ) : null}
-            <Button
-              variant="primary"
-              onClick={() => setApplyOpen(true)}
-              disabled={!position.is_active || Boolean(existingApplicationStatus) || isEnrolledInTraining}
-            >
-              {existingApplicationStatus
-                ? "Already applied"
-                : isEnrolledInTraining
-                  ? "Already enrolled"
-                  : "Apply"}
-            </Button>
+            <div className="flex flex-col items-stretch gap-2 sm:items-end">
+              {isStudentViewer ? (
+                <AICoverLetterGenerator
+                  positionId={position.id}
+                  enabled
+                  disabled={!position.is_active || Boolean(existingApplicationStatus) || isEnrolledInTraining}
+                />
+              ) : null}
+              <Button
+                variant="primary"
+                onClick={() => setApplyOpen(true)}
+                disabled={!position.is_active || Boolean(existingApplicationStatus) || isEnrolledInTraining}
+              >
+                {existingApplicationStatus
+                  ? "Already applied"
+                  : isEnrolledInTraining
+                    ? "Already enrolled"
+                    : "Apply"}
+              </Button>
+            </div>
           </div>
         </div>
 

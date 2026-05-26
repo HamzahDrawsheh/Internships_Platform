@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { CardGridSkeleton } from "@/components/loading";
 import { Badge, Button, EmptyState, Input, Modal, Select } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/context";
+import {
+  buildCompanyApplicationStatusNotification,
+  isValidCompanyDispatchPayload,
+  type CompanyNotifyApplicationStatus,
+} from "@/lib/notifications/company-application-status";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
@@ -50,6 +56,7 @@ function statusLabel(status: ApplicationStatus): string {
 }
 
 export default function CompanyApplicationsPage() {
+  const { locale, t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -386,55 +393,55 @@ export default function CompanyApplicationsPage() {
         return;
       }
 
-      const { data: studentRow, error: studentLookupError } = await supabase
-        .from("students")
-        .select("user_id")
-        .eq("id", appRow.student_id)
-        .maybeSingle();
-      if (studentLookupError) {
-        console.error("company applications notification student lookup error:", studentLookupError);
-      }
+      const notifyStatus: CompanyNotifyApplicationStatus | null =
+        effectiveNextStatus === "accepted"
+          ? "accepted"
+          : effectiveNextStatus === "rejected"
+            ? "rejected"
+            : effectiveNextStatus === "completed"
+              ? "completed"
+              : null;
 
-      const targetUserId = studentRow?.user_id ?? null;
-      const internshipTitle =
-        appRow.position_id
-          ? titleByPositionId.get(appRow.position_id) ?? "Internship"
-          : "Internship";
+      if (notifyStatus) {
+        const cachedStudent = studentDetailById.get(appRow.student_id);
+        let targetUserId = cachedStudent?.userId ?? null;
 
-      if (targetUserId) {
-        const message =
-          status === "accepted"
-            ? `🎉 Your application for ${internshipTitle} at ${companyName} was accepted. Confirm your commitment within 3 days on My Applications — or the offer expires.`
-            : status === "rejected"
-              ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
-              : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
-        const title =
-          status === "accepted"
-            ? "Confirm your internship commitment"
-            : status === "rejected"
-              ? "Application rejected"
-              : "Internship completed";
-        const type =
-          status === "completed"
-            ? "training_completed"
-            : status === "accepted"
-              ? "commitment_required"
-              : status === "rejected"
-                ? "rejected"
-                : "info";
+        if (!targetUserId) {
+          const { data: studentRow, error: studentLookupError } = await supabase
+            .from("students")
+            .select("user_id")
+            .eq("id", appRow.student_id)
+            .maybeSingle();
+          if (studentLookupError) {
+            console.error("company applications notification student lookup error:", studentLookupError);
+          }
+          targetUserId = studentRow?.user_id ?? null;
+        }
 
-        const notifyResult = await dispatchNotification({
-          recipientUserId: targetUserId,
-          title,
-          message,
-          type,
-          relatedApplicationId: selectedApplicationId,
-          linkPath: "/applications",
-        });
+        if (targetUserId && selectedApplicationId) {
+          const content = buildCompanyApplicationStatusNotification(
+            notifyStatus,
+            companyName,
+            locale,
+            selectedApplicationId
+          );
 
-        if (!notifyResult.ok) {
-          console.error("company applications notification error:", notifyResult.error);
-          setError("Application updated, but failed to notify the student.");
+          const notificationPayload = {
+            recipientUserId: targetUserId,
+            ...content,
+          };
+
+          if (isValidCompanyDispatchPayload(notificationPayload)) {
+            const notifyResult = await dispatchNotification(notificationPayload);
+
+            if (!notifyResult.ok) {
+              console.error("company applications notification error:", notifyResult.error);
+              setError(t("companyApplications.notifyFailed"));
+            }
+          } else {
+            console.error("company applications invalid notification payload:", notificationPayload);
+            setError(t("companyApplications.notifyFailed"));
+          }
         }
       }
 

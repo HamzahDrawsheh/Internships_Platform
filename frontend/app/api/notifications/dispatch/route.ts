@@ -1,22 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { isDispatchApiNotificationType } from "@/lib/notifications/authorize-dispatch";
 import { dispatchNotification } from "@/lib/notifications/dispatch";
 import type { DispatchNotificationParams } from "@/lib/notifications/types";
 import type { NotificationRowType } from "@/lib/notifications-ui";
-
-const VALID_TYPES = new Set<string>([
-  "accepted",
-  "rejected",
-  "application_accepted",
-  "application_rejected",
-  "info",
-  "training_completed",
-  "application_expired",
-  "new_application",
-  "new_feedback",
-  "new_training_evaluation",
-  "new_direct_message",
-]);
 
 function isValidPayload(body: unknown): body is DispatchNotificationParams {
   if (!body || typeof body !== "object") return false;
@@ -29,7 +16,7 @@ function isValidPayload(body: unknown): body is DispatchNotificationParams {
     typeof o.message === "string" &&
     o.message.trim().length > 0 &&
     typeof o.type === "string" &&
-    VALID_TYPES.has(o.type)
+    isDispatchApiNotificationType(o.type)
   );
 }
 

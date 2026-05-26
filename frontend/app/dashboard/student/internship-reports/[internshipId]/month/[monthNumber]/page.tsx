@@ -8,6 +8,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { MonthlyReportStatusBadge } from "@/components/internship-reports/MonthlyReportStatusBadge";
 import { ReportsPageSkeleton } from "@/components/internship-reports/ReportsPageSkeleton";
 import { StudentMonthlyWizard } from "@/components/internship-reports/StudentMonthlyWizard";
+import { AIExtractedSkills } from "@/components/student/AIExtractedSkills";
+import { Button } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/context";
 import type { BasicInfoValues } from "@/components/internship-reports/JustFormHeader";
 import { canStudentSubmitReport } from "@/lib/internship-reports/helpers";
 import { ensureMonthlyReportWeeklySlots, repairInternshipTracking, syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
@@ -36,6 +39,15 @@ export default function StudentMonthlyReportFormPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [justSubmitted, setJustSubmitted] = useState(false);
+  const { t } = useI18n();
+
+  useEffect(() => {
+    if (report && process.env.NODE_ENV === "development") {
+      console.log("Report details loaded report:", report);
+      console.log("Passing reportId to AIExtractedSkills:", report.id);
+    }
+  }, [report]);
 
   useEffect(() => {
     if (!internshipId || !monthNumber) return;
@@ -206,8 +218,19 @@ export default function StudentMonthlyReportFormPage() {
         related_monthly_report_id: report.id,
       });
     }
+    setReport((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: "pending_employer",
+            student_submission_date: now,
+            rejection_reason: null,
+          }
+        : prev
+    );
     setSaving(false);
-    router.push("/dashboard/student/internship-reports");
+    setJustSubmitted(true);
+    setSaveMessage(t("taskToSkill.submitSuccess"));
   };
 
   const saveSignature = async (dataUrl: string) => {
@@ -263,6 +286,35 @@ export default function StudentMonthlyReportFormPage() {
             <p className="text-sm text-red-600">Revision requested: {report.rejection_reason}</p>
           )}
         </div>
+
+        {justSubmitted ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{t("taskToSkill.submitSuccess")}</p>
+            <Link href="/dashboard/student/internship-reports">
+              <Button variant="secondary" type="button">
+                {t("taskToSkill.backToReports")}
+              </Button>
+            </Link>
+          </div>
+        ) : null}
+
+        {(justSubmitted ||
+          report.status === "pending_employer" ||
+          report.status === "pending_supervisor" ||
+          report.status === "approved" ||
+          report.status === "rejected") && (
+          <AIExtractedSkills
+            reportId={report.id}
+            autoExtract={justSubmitted}
+            reportSubmitted={
+              Boolean(report.student_submission_date) ||
+              report.status === "pending_employer" ||
+              report.status === "pending_supervisor" ||
+              report.status === "approved" ||
+              report.status === "rejected"
+            }
+          />
+        )}
 
         <div className="mt-6">
           <StudentMonthlyWizard
