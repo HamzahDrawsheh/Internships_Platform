@@ -2,27 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCvPdf } from "@/lib/cv/build-cv-pdf";
+import { buildCvPreferencesPayload } from "@/lib/cv/student-cv-preferences";
+import { persistStudentCvFields, parseCvStudentPreferences } from "@/lib/cv/persist-student-cv";
 import type { AiCvSuggestion, CvPdfFields } from "@/lib/cv/types";
 import { CvLivePreview } from "@/components/cv/CvLivePreview";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ProfileFormSkeleton } from "@/components/loading";
 import { Button, Card, Input, Textarea } from "@/components/ui";
+import { notifyStudentProfileUpdated } from "@/lib/dashboard/student-dashboard-sync";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
 
 const CV_BUCKET = "student-cvs";
-
-function bioFromStudentPreferences(raw: string | null): string {
-  if (!raw?.trim()) return "";
-  try {
-    const p = JSON.parse(raw) as { bio?: string };
-    if (typeof p.bio === "string" && p.bio.trim()) return p.bio.trim();
-    return "";
-  } catch {
-    return raw.trim();
-  }
-}
 
 const DOWNLOAD_CV_FILENAME = "internconnect-cv.pdf";
 
@@ -33,7 +25,9 @@ export default function ResumeBuilderPage() {
 
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [existingPreferences, setExistingPreferences] = useState<unknown>(null);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -118,17 +112,18 @@ export default function ResumeBuilderPage() {
       }
 
       setStudentId(studentRow.id);
+      setUserId(user.id);
       setUniversity(studentRow.university ?? "");
       setMajor(studentRow.major ?? "");
       setDepartment(studentRow.department ?? "");
+      setExistingPreferences(studentRow.preferences);
 
-      const rawPrefs =
-        typeof studentRow.preferences === "string"
-          ? studentRow.preferences
-          : studentRow.preferences != null
-            ? JSON.stringify(studentRow.preferences)
-            : null;
-      const bio = bioFromStudentPreferences(rawPrefs);
+      const cvPrefs = parseCvStudentPreferences(studentRow.preferences);
+      setSummary(cvPrefs.summary);
+      setProjects(cvPrefs.projects);
+      setLinkedin(cvPrefs.linkedin);
+      setGithubPortfolio(cvPrefs.github);
+      setPhone(cvPrefs.phone);
 
       const baseSkills = (studentRow.skills ?? "").trim();
       setSkills(baseSkills);
@@ -145,8 +140,11 @@ export default function ResumeBuilderPage() {
         setCity(extra.preferred_location?.trim() ?? "");
         const tech = (extra.technical_skills ?? []).join(", ");
         const soft = (extra.soft_skills ?? []).join(", ");
-        const mergedSkills = [baseSkills, tech, soft].filter(Boolean).join(", ");
-        setSkills(mergedSkills);
+        if (baseSkills) {
+          setSkills(baseSkills);
+        } else {
+          setSkills([tech, soft].filter(Boolean).join(", "));
+        }
 
         const gpaStr = extra.gpa != null ? String(extra.gpa) : "";
         const courses = (extra.taken_courses ?? []).filter(Boolean).join(", ");
@@ -159,7 +157,7 @@ export default function ResumeBuilderPage() {
         ].filter(Boolean);
         setEducation(eduLines.join("\n"));
 
-        if (bio) setExperience(bio);
+        if (cvPrefs.bio) setExperience(cvPrefs.bio);
       } else {
         const eduLines = [
           studentRow.university && `University: ${studentRow.university}`,
@@ -167,7 +165,7 @@ export default function ResumeBuilderPage() {
           studentRow.department && `Department: ${studentRow.department}`,
         ].filter(Boolean);
         setEducation(eduLines.join("\n"));
-        if (bio) setExperience(bio);
+        if (cvPrefs.bio) setExperience(cvPrefs.bio);
       }
 
       setLoading(false);
@@ -215,18 +213,46 @@ export default function ResumeBuilderPage() {
     setMessage(null);
     setSaveError(null);
 
-    if (!studentId) {
+    if (!studentId || !userId) {
       setSaveError(t("cvBuilder.errors.notLoaded"));
       return;
     }
 
     setSaving(true);
     try {
+      const supabase = createClient();
+
+      const persistResult = await persistStudentCvFields(
+        supabase,
+        userId,
+        studentId,
+        {
+          fullName,
+          phone,
+          city,
+          university,
+          major,
+          department,
+          summary,
+          skills,
+          experience,
+          projects,
+          linkedin,
+          githubPortfolio,
+        },
+        existingPreferences,
+      );
+
+      if (!persistResult.ok) {
+        setSaveError(persistResult.error);
+        setSaving(false);
+        return;
+      }
+
       const pdf = buildCvPdf(cvFields);
       const blob = pdf.output("blob");
       const objectPath = `students/${studentId}/cv.pdf`;
 
-      const supabase = createClient();
       const { error: uploadError } = await supabase.storage.from(CV_BUCKET).upload(objectPath, blob, {
         upsert: true,
         contentType: "application/pdf",
@@ -249,12 +275,50 @@ export default function ResumeBuilderPage() {
         return;
       }
 
+      const nextPrefsRaw = buildCvPreferencesPayload(existingPreferences, {
+        experience,
+        summary,
+        projects,
+        linkedin,
+        githubPortfolio,
+        phone,
+      });
+      setExistingPreferences(nextPrefsRaw ? JSON.parse(nextPrefsRaw) : null);
+
+      void fetch("/api/embeddings/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ scope: "student" }),
+      })
+        .then(() => notifyStudentProfileUpdated())
+        .catch(() => {});
+
+      notifyStudentProfileUpdated();
       setMessage(t("cvBuilder.cvSavedMessage"));
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : t("cvBuilder.errors.pdfFailed"));
     }
     setSaving(false);
-  }, [studentId, cvFields, t]);
+  }, [
+    studentId,
+    userId,
+    cvFields,
+    existingPreferences,
+    fullName,
+    phone,
+    city,
+    university,
+    major,
+    department,
+    summary,
+    skills,
+    experience,
+    projects,
+    linkedin,
+    githubPortfolio,
+    t,
+  ]);
 
   const handleImproveWithAi = useCallback(async () => {
     setImproveError(null);

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatWorkArrangementLabel } from "@/lib/recommendations/location-prefs";
+import { parseCvStudentPreferences } from "@/lib/cv/student-cv-preferences";
 
 type StudentRow = {
   id: string;
@@ -9,6 +10,7 @@ type StudentRow = {
   university: string | null;
   major: string | null;
   skills: string | null;
+  preferences: unknown;
 };
 
 type ProfileRow = {
@@ -78,12 +80,16 @@ export function buildStudentEmbeddingText(input: {
 }): string {
   void input.profile;
   const { student, additional } = input;
+  const cvPrefs = parseCvStudentPreferences(student.preferences);
 
   return [
     `Department: ${asValue(student.department)}`,
     `University: ${asValue(student.university)}`,
     `Major: ${asValue(student.major)}`,
     `Skills: ${asValue(student.skills)}`,
+    `Professional Summary: ${asValue(cvPrefs.summary)}`,
+    `Experience: ${asValue(cvPrefs.bio)}`,
+    `Projects: ${asValue(cvPrefs.projects)}`,
     `GPA: ${asValue(additional?.gpa)}`,
     `Technical Skills: ${asList(additional?.technical_skills)}`,
     `Soft Skills: ${asList(additional?.soft_skills)}`,
@@ -127,7 +133,7 @@ export async function generateStudentEmbeddingsForAll() {
 
   const { data: students, error: studentsError } = await supabase
     .from("students")
-    .select("id, user_id, department, university, major, skills");
+    .select("id, user_id, department, university, major, skills, preferences");
   if (studentsError) throw studentsError;
 
   const studentRows = (students ?? []) as StudentRow[];
@@ -230,7 +236,7 @@ export async function generateStudentEmbeddingByStudentId(studentId: string) {
 
   const { data: student, error: studentError } = await supabase
     .from("students")
-    .select("id, user_id, department, university, major, skills")
+    .select("id, user_id, department, university, major, skills, preferences")
     .eq("id", studentId)
     .maybeSingle();
 

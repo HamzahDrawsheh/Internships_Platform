@@ -9,75 +9,91 @@ The platform allows:
 
 ---
 
-# Tech Stack
+## Tech Stack
 
-Frontend:
-- Next.js
-- TypeScript
-- Tailwind CSS
+| Layer | Technology |
+|--------|------------|
+| Web app | Next.js 16 (App Router), React, TypeScript, Tailwind CSS |
+| Server logic | Next.js Route Handlers (`frontend/app/api/`) |
+| Database | Supabase (PostgreSQL + Row Level Security) |
+| Auth | Supabase Auth |
+| Storage | Supabase Storage (CVs, company logos) |
+| AI / email | OpenAI, SMTP / Resend (via server routes only) |
 
-Backend:
-- FastAPI
-- Python
-
-Database:
-- Supabase (PostgreSQL)
-
-Authentication:
-- Supabase Auth
-
-Storage:
-- Supabase Storage
+There is **no separate FastAPI/Python backend** in this repository. The app is a **full-stack Next.js project** backed by Supabase.
 
 ---
 
-# Project Structure
+## Project Structure
 
+```
+Intrenships_Platform-1/
+├── frontend/              # Full-stack Next.js application
+│   ├── app/               # Pages, layouts, and API routes
+│   ├── components/        # UI components
+│   ├── lib/               # Shared logic (Supabase, AI, email, i18n, …)
+│   ├── supabase/migrations/  # Canonical database schema (SQL migrations)
+│   ├── middleware.ts      # Auth / route protection
+│   └── package.json
+├── CONTEXT_ENG/           # Product and engineering documentation
+└── README.md
+```
 
-
-
-internconnect-jordan/
-
-frontend/ → Next.js web application
-backend/ → FastAPI API server
-CONTEXT_ENG/ → Project documentation
-
+**Source of truth for the database:** `frontend/supabase/migrations/`  
+Apply with `npm run supabase:push` from the `frontend/` directory (after linking your Supabase project).
 
 ---
 
-# Running the Project
+## Running the Project
 
-## Frontend
+```bash
 cd frontend
 npm install
+cp .env.example .env.local   # if present; configure Supabase + OpenAI + email keys
 npm run dev
+```
 
+Open [http://localhost:3000](http://localhost:3000).
 
-## Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+### Useful scripts (from `frontend/`)
 
-
-
----
-
-# Documentation
-
-Project documentation is located in:
-CONTEXT_ENG/
-
-
-Includes:
-
-- PRD.md
-- Implementation.md
-- UI_UX_doc.md
-- Project_structure.md
-- Bug_tracking.md
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run start` | Run production server |
+| `npm run lint` | ESLint |
+| `npm run supabase:push` | Push migrations to linked Supabase project |
 
 ---
 
-# Project Status
+## Architecture (short)
 
-Currently under development (MVP stage).
+```
+Browser
+  ├─► Next.js pages (React UI)
+  ├─► Supabase client (direct reads/writes, protected by RLS)
+  └─► /app/api/* routes (OpenAI, embeddings, email, PDFs, sensitive flows)
+         └─► Supabase admin client + external services
+```
+
+Most CRUD uses the Supabase client from the browser with **RLS policies**.  
+Secrets (API keys, service role) stay on the server in Route Handlers.
+
+---
+
+## Documentation
+
+Project documentation lives in `CONTEXT_ENG/`:
+
+- `PRD.md`
+- `Implementation.md`
+- `UI_UX_doc.md`
+- `Project_structure.md`
+- `Bug_tracking.md`
+
+---
+
+## Project Status
+
+Currently under active development (MVP stage).

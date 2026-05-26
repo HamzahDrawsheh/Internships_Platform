@@ -1,6 +1,6 @@
 -- Deprecated schema draft (kept for reference only).
 -- Do not run this file for current app versions.
--- Use `database_schema.sql` or Supabase migrations in `frontend/supabase/migrations/`.
+-- Use Supabase migrations in `frontend/supabase/migrations/` (canonical).
 
 -- 1) Profiles (auth-linked)
 create table if not exists public.profiles (

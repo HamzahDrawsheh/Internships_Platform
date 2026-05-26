@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DetailPageSkeleton } from "@/components/loading";
-import { Button } from "@/components/ui";
 import { InternshipCard } from "@/components/internships/InternshipCard";
 import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
 import { CompanyStudentFeedbacks } from "@/components/companies/CompanyStudentFeedbacks";
@@ -139,9 +138,6 @@ export function CompanyPublicProfileContent({ listHref }: Props) {
               variant="primary"
               className="rounded-xl shadow-md"
             />
-            <Button variant="secondary" className="rounded-xl shadow-md dark:border-slate-600 dark:bg-slate-800 dark:text-white" disabled>
-              Follow
-            </Button>
           </div>
         </div>
 

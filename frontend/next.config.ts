@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Repo root also has a package-lock.json; pin Turbopack to this app folder so `npm run dev` here stays stable.
+// Pin Turbopack to this app folder so `npm run dev` stays stable when run from frontend/.
 const turbopackRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {

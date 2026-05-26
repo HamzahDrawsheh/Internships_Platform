@@ -2,7 +2,7 @@
 
 **InternConnect Jordan** (branded in the app as **AI Intern Jordan**) is a web platform that connects AI and Data Science students in Jordan with companies offering internships, while university supervisors monitor progress. The product targets Jordanian universities (JU, PSUT, GJU, etc.) and the local tech ecosystem.
 
-This document reflects what is **actually in the repository today**, not only what the PRD plans for later.
+This document reflects what is **actually in the repository today**, not only what the original PRD planned.
 
 ---
 
@@ -13,11 +13,12 @@ flowchart TB
   Browser[Browser - Next.js 16 App]
   Middleware[Next.js middleware - auth + role gates]
   Pages[App Router pages - client + server components]
-  APIRoutes[Next.js API routes - OpenAI + admin Supabase]
+  APIRoutes[Next.js API routes - OpenAI + email + admin Supabase]
   SupabaseAuth[Supabase Auth - JWT sessions]
   SupabaseDB[(PostgreSQL + RLS)]
   SupabaseStorage[Supabase Storage - CVs / logos]
   OpenAI[OpenAI API]
+  Email[SMTP / Resend]
 
   Browser --> Middleware --> Pages
   Pages --> SupabaseAuth
@@ -26,34 +27,36 @@ flowchart TB
   APIRoutes --> SupabaseAuth
   APIRoutes --> SupabaseDB
   APIRoutes --> OpenAI
+  APIRoutes --> Email
 ```
 
 | Layer | Technology | Role |
 |--------|------------|------|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 | UI, routing, most business logic |
+| Application | Next.js 16, React 19, TypeScript, Tailwind CSS 4 | UI, routing, client logic, **server API routes** |
 | Auth & data | Supabase (Auth, Postgres, Storage, RLS) | Users, data, security |
-| AI | OpenAI (`openai` package) | Embeddings, chat assistant, resume help, feedback analysis |
-| Backend (planned) | FastAPI (Python) | Documented in README/PRD but **not implemented** — `backend/` only contains `.env` |
+| AI | OpenAI (`openai` package) | Embeddings, chat assistant, resume help, cover letter, task-to-skill, feedback analysis |
+| Email | Nodemailer / Resend | Transactional email via API routes |
 | Docs | `CONTEXT_ENG/` | PRD, implementation plan, UI/UX, structure, bug tracking |
 
-**Important:** The app talks to Supabase directly from the browser and from Next.js API routes. There is no working FastAPI server in the repo; `NEXT_PUBLIC_API_URL` in env is unused in frontend code. Admin analytics page is still a placeholder.
+**Important:** The app is a **full-stack Next.js project**. There is **no FastAPI/Python backend** in the repo. Most pages talk to Supabase directly (with RLS); sensitive operations use **Next.js Route Handlers** in `frontend/app/api/`.
 
 ---
 
 ## 2. Repository layout
 
 ```
-Intrenships_Platform-3/
-├── frontend/          # Main application (Next.js)
-│   ├── app/           # App Router pages + API routes
-│   ├── components/    # UI, layout, domain components
-│   ├── lib/           # Supabase clients, auth, AI, messaging, departments
-│   ├── supabase/migrations/  # 52 SQL migrations (schema + RLS + RPCs)
-│   └── public/        # Static assets (e.g. hero image)
-├── backend/           # Only .env (FastAPI not built yet)
-├── CONTEXT_ENG/       # Product & engineering documentation
+Intrenships_Platform-1/
+├── frontend/                    # Full-stack Next.js application
+│   ├── app/                     # App Router pages + API routes
+│   ├── components/              # UI, layout, domain components
+│   ├── lib/                     # Supabase, auth, AI, i18n, messaging, …
+│   ├── supabase/migrations/     # 70+ SQL migrations (schema + RLS + RPCs)
+│   └── public/                  # Static assets
+├── CONTEXT_ENG/                 # Product & engineering documentation
 └── README.md
 ```
+
+There is **no `backend/` folder**. All deployable code lives under `frontend/`.
 
 ---
 
@@ -64,18 +67,18 @@ Four roles are enforced in the database (`profiles.role`) and in **middleware** 
 | Role | Home route | What they can access |
 |------|------------|----------------------|
 | **Student** | `/dashboard/student` | Internships, applications, companies, profile, notifications, messages, resume builder |
-| **Company** | `/dashboard/company` | Company dashboard, internship CRUD, applicants, messages, company profile |
+| **Company** | `/dashboard/company` | Company dashboard, widgets, internship CRUD, applicants, messages, company profile |
 | **Supervisor** | `/dashboard/supervisor` | Students (same department), reports, messages, supervisor profile |
-| **Admin** | `/admin/dashboard` | Users, internships moderation, onboarding approvals, dashboard counts |
+| **Admin** | `/admin/dashboard` | Users, internships moderation, onboarding approvals, analytics |
 
 ### Role upgrade flow (company / supervisor)
 
-- Signup always creates `profiles.role = 'student'` (database trigger).
-- If the user picks Company or Supervisor at signup, intent is stored in `role_upgrade_requests` with status `pending`.
-- User completes onboarding forms (`/onboarding/company` or `/onboarding/supervisor`).
+- Signup creates `profiles.role = 'student'` (database trigger).
+- Company or Supervisor intent → `role_upgrade_requests` (pending).
+- User completes onboarding (`/onboarding/company` or `/onboarding/supervisor`).
 - While pending → `/pending-approval`.
-- Admin approves/rejects via `/admin/onboarding-requests` (RPCs in migrations).
-- Middleware redirects students with approved upgrade intent to company/supervisor dashboards.
+- Admin approves/rejects via `/admin/onboarding-requests`.
+- Middleware redirects approved users to the correct dashboard.
 
 ### Departments (canonical, for supervisor–student matching)
 
@@ -83,7 +86,7 @@ Four roles are enforced in the database (`profiles.role`) and in **middleware** 
 - Computer Information Systems
 - Software Engineering
 
-Aliases (CS, CIS, legacy IT, etc.) are normalized in `lib/departments.ts` and in SQL migrations.
+Aliases are normalized in `lib/departments.ts` and SQL migrations.
 
 ---
 
@@ -91,64 +94,61 @@ Aliases (CS, CIS, legacy IT, etc.) are normalized in `lib/departments.ts` and in
 
 ### Signup & login
 
-- **Signup** (`/auth/signup`): email/password, role selection (student / company / supervisor), `full_name` in metadata, email confirmation redirect.
-- **Login** (`/auth/login`), **verify** (`/auth/verify`).
-- **Profile bootstrap**: `handle_new_auth_user` trigger creates `profiles` row; `lib/auth.ts` has `ensureProfile()` for server-side upsert.
+- **Signup** (`/auth/signup`): email/password, role selection, email confirmation.
+- **Login** (`/auth/login`), **verify** (`/auth/verify`), **callback** (`/auth/callback`).
+- **Profile bootstrap**: DB trigger + `lib/auth.ts` helpers.
 
 ### Route protection
 
-- **Middleware** checks Supabase session, loads `profiles.role` and latest `role_upgrade_requests`, enforces role-specific path allowlists, redirects unauthenticated users to login with `?next=`.
-- Public: landing `/`, all `/auth/*` paths that are not also “protected” overlaps.
+- Middleware checks Supabase session, loads role and upgrade status, enforces path allowlists.
+- Public: landing `/`, auth pages, browse listings where RLS allows.
 
 ### Data security
 
-- **Row Level Security (RLS)** on all core tables; many migrations fix recursion and tighten company/supervisor read access.
-- **Service role** used only in Next.js API routes via `lib/supabase/admin.ts` (embeddings, recommendations, feedback analysis, CV signed URLs).
-- **Rate limiting**: in-memory per-user limits for chat and feedback analyze (`lib/server/in-memory-user-rate-limit.ts`).
+- **Row Level Security (RLS)** on core tables; extensive migration history for policy fixes.
+- **Service role** only in Route Handlers via `lib/supabase/admin.ts`.
+- **Rate limiting**: in-memory per-user limits on AI routes (`lib/server/in-memory-user-rate-limit.ts`).
 
 ---
 
 ## 5. Database model (Supabase PostgreSQL)
 
-Core tables from `20260312001500_full_schema.sql` and later migrations:
+Core and extended tables (see `frontend/supabase/migrations/`):
 
 | Table | Purpose |
 |-------|---------|
-| `profiles` | 1:1 with `auth.users`; email, full_name, role |
-| `students` | University, major, department, skills, `cv_url` / `cv_path`, preferences, `embedding`, optional `supervisor_id` |
-| `companies` | Company profile linked to profile |
-| `internship_positions` | Listings: title, description, requirements, duration, `duration_weeks`, location, type, `is_active`, `embedding` |
-| `applications` | Student → position; status; optional cover `message`; `accepted_at`, `training_end_date` |
-| `ratings` | Legacy student→company ratings (1–5 + feedback) |
-| `supervisors` | Department, title |
-| `student_preferences` | Courses, GPA, skills, preferred work type/location, availability |
-| `student_additional_info` | Extended profile for matching (technical/soft skills, courses, custom courses, preferred field) |
-| `notifications` | In-app notifications with types and links to applications/conversations |
-| `role_upgrade_requests` | Company/supervisor onboarding approval queue |
-| `student_training_evaluations` | Post-internship ratings (overall, mentorship, environment, skills, recommend, notes) |
-| `feedback_analysis` | AI-derived scores/sentiment/keywords per evaluation |
+| `profiles` | 1:1 with `auth.users`; email, full_name, role, gender, notification prefs |
+| `students` | University, major, department, skills, preferences (JSON: bio, summary, projects, …), `cv_path`, `embedding` |
+| `companies` | Company profile, logo, evaluation fields |
+| `internship_positions` | Listings with embeddings, dates, requirements |
+| `applications` | Student → position; status lifecycle; commitment fields |
+| `student_additional_info` | Technical/soft skills, courses, GPA, preferences |
+| `notifications` | In-app + email routing metadata |
+| `role_upgrade_requests` | Company/supervisor approval queue |
+| `student_training_evaluations` | Post-internship dimension ratings |
+| `feedback_analysis` | AI analysis of evaluation text |
+| `internship_monthly_reports` | JUST-style monthly report workflow |
+| `student_report_skills` | AI-extracted skills from reports |
 | `dm_conversations` / `dm_messages` | Direct messaging |
+| `notification_email_queue` | Outbound email queue |
 
-**Application statuses:** `pending` → `accepted` / `rejected` → `completed` (after training ends or manual completion).
+**Application statuses** include: `pending`, `accepted`, `rejected`, `completed`, commitment-related states, etc.
 
 ### Database functions (examples)
 
-- `auto_complete_expired_trainings()` — marks accepted apps completed when `training_end_date` passed; notifies student.
-- `get_company_evaluation` — company reputation tier (`white` / `gray` / `black`) from aggregated feedback.
-- `get_company_feedback_ai_summary` / `get_supervisor_department_ai_summary` — AI summaries for company/supervisor UIs.
-- Student recommendation RPC (optional; API route can skip RPC via env flag).
-
-### Views
-
-`application_student_details` (and variants) — join application + student + additional info for company applicant review.
+- `auto_complete_expired_trainings()` — training lifecycle automation
+- `get_company_evaluation` / `get_company_student_feedbacks` — company reputation
+- `get_company_feedback_ai_summary` / `get_supervisor_department_ai_summary` — AI summaries
+- Student recommendation RPCs + API-side scoring
 
 ### Storage
 
-Bucket `student-cvs` for PDF CVs (max 5MB on profile page).
+- Bucket `student-cvs` for PDF CVs
+- Company logos via upload API and storage
 
 ### Extensions
 
-`pgcrypto`, `vector` (1536-dim embeddings for students and positions).
+`pgcrypto`, `vector` (embeddings for students and positions).
 
 ---
 
@@ -156,146 +156,123 @@ Bucket `student-cvs` for PDF CVs (max 5MB on profile page).
 
 ### 6.1 Public / marketing
 
-- **Landing page** (`/`): hero, value props, CTA to signup/login, dark mode support.
-- Branding: purple/indigo theme, Geist fonts, `next-themes` (light default).
+- **Landing page** (`/`): hero, value props, bilingual support (EN/AR), dark mode.
 
 ### 6.2 Student features
 
 | Feature | Route / location | Details |
 |---------|------------------|---------|
-| Dashboard | `/dashboard/student` | Application stats (pending/accepted/rejected), recent apps, “getting started” checklist (department, CV, apply, complete training), **AI student assistant chat** |
-| Browse internships | `/internships` | Search, filters (location, skill, posted date, company, **company level** white/gray/black, sort, min match %), pagination, **AI recommendations** section |
-| Internship detail | `/internships/[id]` | View listing, apply with optional message |
-| My applications | `/applications` | Full list with status badges |
-| Student profile | `/profile/student` | Name, university, **department**, major, bio, GPA, technical/soft skills, course picker (predefined + custom), work preferences, **CV upload** to storage |
-| Companies directory | `/companies`, `/companies/[id]` | Browse companies; **evaluation panel** (avg score, level, feedback count) |
-| Resume builder | `/resume-builder` | Build CV from profile data, **AI improve** via `/api/resume/improve`, export **PDF** with jsPDF |
-| Messages | `/dashboard/student/messages` | DM with supervisors (same department) and companies (eligibility rules in DB) |
-| My supervisor | `/dashboard/student/supervisor` | List supervisors in same department; open conversation |
-| Notifications | `/notifications` + navbar dropdown | Mark read, link to related application or conversation |
-| AI assistant | Embedded on dashboard + `/api/chat/student-assistant` | RAG-style context: internships, companies, applications, embeddings similarity, company evaluations, rate limited |
+| Dashboard | `/dashboard/student` | Widgets (training progress, recommendations, insights), AI assistant |
+| Browse internships | `/internships` | Search, filters, AI recommendations, match scores |
+| Internship detail | `/internships/[id]` | Apply, cover letter generator, skill gap / learning plan |
+| My applications | `/applications` | Status, commitment flow, training evaluations |
+| Student profile | `/profile/student` | Full profile + skills + CV upload |
+| Resume builder | `/resume-builder` | AI improve, **persisted to profile**, PDF export |
+| Companies | `/companies`, `/companies/[id]` | Browse + evaluation panel |
+| Messages | `/dashboard/student/messages` | DM with supervisors and companies |
+| Monthly reports | `/dashboard/student/internship-reports` | Report wizard and tracking |
 
-**AI recommendations** (`/api/recommendations/internships`):
-
-- Cosine similarity between student `embedding` and position `embedding`.
-- `buildMatchInsights`: matched skills, gaps, tips.
-- Embeddings generated/refreshed via `/api/embeddings/generate` and `/api/embeddings/refresh`.
-
-**Training lifecycle:**
-
-- On accept, company sets training end from `duration_weeks`.
-- `invokeAutoCompleteExpiredTrainings` calls DB function on dashboard/internships load.
-- Completed internships → student can submit **training evaluation** → triggers **feedback analysis** (OpenAI).
+**AI recommendations:** cosine similarity on embeddings + skill-gap insights; profile/CV fields feed embeddings after save.
 
 ### 6.3 Company features
 
 | Feature | Route | Details |
 |---------|-------|---------|
-| Dashboard | `/dashboard/company` | Overview metrics and quick links |
-| Company hub | `/company` | Navigation entry |
-| Manage internships | `/company/internships` | List own positions |
-| Create internship | `/company/internships/new` | `InternshipForm`: title, description, requirements, duration (+ weeks), location type, active flag |
-| Edit internship | `/company/internships/[id]/edit` | Update or deactivate |
-| Applicants | `/company/internships/[id]/applications` | Filter/search applicants, view **application_student_details** (skills, courses, GPA, bio), **open CV** via `/api/company/applications/[id]/cv`, accept/reject/complete, set training schedule on accept, sends **notifications** |
-| All applications | `/company/applications` | Cross-listing view |
-| Company profile | `/profile/company`, `/profile/company/create` | Name, description, location, website, contact, logo |
-| Messages | `/company/messages` | DM with students who are allowed per RLS |
-| AI feedback summary | `CompanyAiFeedbackSummary` | RPC `get_company_feedback_ai_summary` on company-facing pages |
+| Dashboard | `/dashboard/company` | Cyclic widgets (reputation, listings, trainee progress) |
+| Manage internships | `/company/internships` | CRUD, pause/resume, applicant counts |
+| Applicants | `/company/internships/[id]/applications`, `/company/applications` | Review, CV access, accept/reject, notifications |
+| Trainee reports | `/company/internship-reports` | Monthly reports, attendance, evaluations |
+| Company profile | `/profile/company` | Branding, logo, description |
 
 ### 6.4 Supervisor features
 
 | Feature | Route | Details |
 |---------|-------|---------|
-| Dashboard | `/dashboard/supervisor` | Department-scoped overview |
-| Students list | `/supervisor/students` | All students with **same department** (not only `supervisor_id` assignment) |
-| Student detail | `/supervisor/students/[id]` | Application history, profile context |
-| Reports | `/supervisor/reports` | Filterable table; **CSV-style export** of placement/application data |
-| Profile | `/supervisor/profile` | Supervisor info |
-| Messages | `/supervisor/messages` | DM with students in department |
-| AI insights | `SupervisorAiInsights` | Department-wide feedback summary via `get_supervisor_department_ai_summary` |
-| Onboarding | `/onboarding/supervisor`, `/auth/onboarding/supervisor` | Name, university, department for upgrade request |
+| Dashboard | `/dashboard/supervisor` | Department overview |
+| Students | `/supervisor/students`, `/supervisor/students/[id]` | Same-department students |
+| Reports | `/supervisor/internship-reports`, `/supervisor/reports` | Report review and exports |
+| AI insights | `SupervisorAiInsights` | Department feedback summary |
 
 ### 6.5 Admin features
 
 | Feature | Route | Details |
 |---------|-------|---------|
-| Dashboard | `/admin/dashboard` | Counts: students, supervisors, companies, positions, applications, **pending company/supervisor requests**, recent applications table |
-| Users | `/admin/users` | User management UI |
-| Internships | `/admin/internships` | Listing moderation / oversight |
-| Onboarding requests | `/admin/onboarding-requests` | Approve/reject role upgrades with admin notes |
-| Analytics | `/admin/analytics` | **Placeholder** — “Connect backend to load data” |
-| Layout | `AdminSidebar` | Admin navigation shell |
+| Dashboard | `/admin/dashboard` | Platform counts |
+| Users | `/admin/users` | User management |
+| Internships | `/admin/internships` | Oversight |
+| Onboarding | `/admin/onboarding-requests` | Role upgrade approvals |
+| Analytics | `/admin/analytics` | Partial / evolving |
 
-### 6.6 Shared / cross-role
+### 6.6 Shared
 
-- **Notifications** types include: application accepted/rejected, new application, training completed, application expired, new feedback, new training evaluation, new direct message, info.
-- **Companies pages** readable by students, supervisors, admins (per RLS).
-- **Navbar**: theme toggle, notification bell, role-based home link, logout.
-- **Sidebars**: `Sidebar`, `CompanySidebar`, `SupervisorSidebar`, `AdminSidebar` for role layouts.
-- **UI kit**: `components/ui` (Button, Card, Table, Modal, Select, etc.) + `components/common` legacy duplicates.
+- **i18n**: English and Arabic (`lib/i18n/`)
+- **Notifications**: in-app + email dispatch
+- **Direct messaging** with RLS eligibility rules
+- **Role-specific sidebars** and shared UI kit
 
 ---
 
-## 7. Next.js API routes (server-side AI & privileged ops)
+## 7. Next.js API routes (server-side)
 
-| Route | Purpose |
-|-------|---------|
-| `POST /api/embeddings/generate` | Generate OpenAI embeddings for student/position |
-| `POST /api/embeddings/refresh` | Refresh stale embeddings |
-| `GET /api/recommendations/internships` | Ranked internships + match insights |
-| `POST /api/chat/student-assistant` | Conversational assistant with platform context |
-| `POST /api/resume/improve` | AI suggestions for CV sections |
-| `POST /api/feedback/analyze` | Analyze training evaluation text → `feedback_analysis` row |
-| `GET /api/company/applications/[applicationId]/cv` | Secure CV access for company reviewers |
+| Route group | Purpose |
+|-------------|---------|
+| `applications/` | Apply, commitment |
+| `recommendations/internships` | Match scoring and insights |
+| `embeddings/` | Generate and refresh vectors |
+| `ai/cover-letter`, `ai/task-to-skill` | Student AI tools |
+| `resume/improve` | CV AI suggestions |
+| `chat/student-assistant` | Dashboard assistant |
+| `feedback/analyze` | Evaluation text analysis |
+| `notifications/` | Dispatch and email queue processing |
+| `email/` | Status, test, welcome |
+| `internship-reports/[reportId]/pdf` | Report PDFs |
+| `company/` | Logo upload, secure CV access |
+| `student-skills/`, `student-report-skills/` | Verified skills → profile |
+| `dashboard/student/weekly-insights` | Dashboard insights |
 
-All require authenticated student/company/admin as appropriate; service role bypasses RLS where needed.
+All require appropriate auth; service role used only server-side.
 
 ---
 
 ## 8. Frontend technical details
 
-- **App Router** with route groups: `(public)`, role layouts under `dashboard/`, `company/`, `supervisor/`, `admin/`.
-- **Client-heavy pages**: most dashboards use `"use client"` + Supabase browser client.
-- **Server Supabase**: `lib/supabase/server.ts` for middleware and server components.
-- **Types**: `lib/types.ts` — internships, applications, roles, statuses.
-- **Env**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, optional `NEXT_PUBLIC_INTERN_RECOMMENDATIONS_SKIP_RPC`.
-
-**Scripts:** `npm run dev`, `supabase:push` for migrations.
+- **App Router** with role-based layouts.
+- **Client-heavy pages** use Supabase browser client; **Route Handlers** for secrets.
+- **Env** (in `frontend/.env.local`): Supabase URL/keys, `OPENAI_API_KEY`, SMTP or `RESEND_API_KEY`.
+- **Scripts:** `npm run dev`, `npm run build`, `npm run supabase:push`.
 
 ---
 
 ## 9. Company reputation system
 
-From completed student training evaluations and AI analysis:
+From completed training evaluations:
 
-- Aggregated **average score** and star-style ratings.
-- **Company level**: `white` (strong), `gray` (mixed), `black` (weak) — used as a filter on internship browse.
-- Shown on company cards, detail pages, and fed into the student AI assistant.
+- Aggregated scores and dimension breakdown (mentorship, environment, skills)
+- **Company level**: `white` / `gray` / `black` — filter on internship browse
+- Company dashboard widgets and public profile panels
 
 ---
 
 ## 10. Direct messaging
 
-- Tables: `dm_conversations` (kinds: `student_supervisor`, `student_company`), `dm_messages`.
-- Eligibility enforced in SQL (same department for supervisor; company–student relationship for company).
-- UI: `DirectMessagesShell` on student/company/supervisor message pages.
-- New messages create `new_direct_message` notifications with `related_conversation_id`.
+- `dm_conversations` (student↔supervisor, student↔company), `dm_messages`
+- Eligibility enforced in SQL
+- UI: `DirectMessagesPanel` / message buttons per role
 
 ---
 
-## 11. What the PRD mentions but is NOT (or not fully) implemented
+## 11. PRD vs repository (honest gap list)
 
-| PRD item | Status in repo |
-|----------|----------------|
-| FastAPI backend | Not present (only `backend/.env`) |
-| Bookmark internships | No code |
-| Email notifications | In-app only; no email integration found |
-| Admin listing moderation before go-live | Partial admin UI; not full workflow |
-| Supervisor CSV from dedicated export button | Reports page supports export-style data |
-| `lib/api.ts` FastAPI wrapper | Not used |
-| Admin analytics charts | Placeholder page |
-| Mobile app | Future |
+| PRD / original plan item | Status in repo |
+|--------------------------|----------------|
+| FastAPI backend | **Not used** — replaced by Next.js API routes + Supabase |
+| Separate `backend/` service | **Not present** |
+| Bookmark internships | Not implemented |
+| Native mobile app | Future |
 | Video interviews, skill tests | Future |
+| Some admin analytics depth | Partial |
+
+**Implemented beyond original MVP:** embeddings matching, student assistant, CV builder with persistence, cover letter generator, task-to-skill extraction, commitment flow, monthly internship reports, email notifications, bilingual UI, company dashboard widgets.
 
 ---
 
@@ -303,28 +280,34 @@ From completed student training evaluations and AI analysis:
 
 | File | Content |
 |------|---------|
-| `PRD.md` | Product vision, personas, MVP features, future phases, KPIs |
-| `Implementation.md` | Staged build plan (setup → auth → listings → …) |
-| `Project_structure.md` | Intended folder layout |
+| `PRD.md` | Product vision, personas, MVP features |
+| `Implementation.md` | Staged build plan (aligned with as-built architecture) |
+| `Project_structure.md` | Folder layout and data-access patterns |
 | `UI_UX_doc.md` | Design guidelines |
 | `Bug_tracking.md` | Known issues |
-| `PROJECT_OVERVIEW.md` | This file — full project explanation |
+| `PROJECT_OVERVIEW.md` | This file |
 
 ---
 
 ## 13. Running the project
 
-**Frontend:**
-
 ```bash
 cd frontend
 npm install
+# configure frontend/.env.local (Supabase, OpenAI, email)
 npm run dev
 ```
 
-**Database:** Link Supabase project and run migrations (`npm run supabase:push`).
+**Database:** link Supabase project and push migrations:
 
-**Backend:** Documented as `uvicorn app.main:app` but there is no Python app in the repo yet.
+```bash
+npm run supabase:link   # once
+npm run supabase:push
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+There is **no Python/FastAPI server** to start.
 
 ---
 
@@ -338,16 +321,15 @@ sequenceDiagram
   participant DB as Supabase
 
   S->>P: Sign up (student role)
-  S->>P: Complete profile + CV + embeddings
+  S->>P: Complete profile + CV + embeddings refresh
   S->>P: Browse / apply to internship
   P->>DB: Insert application (pending)
   DB->>C: Notification (new_application)
   C->>P: Review applicant + CV
-  C->>P: Accept + set training_end_date
+  C->>P: Accept + set training schedule
   DB->>S: Notification (accepted)
-  Note over P,DB: training_end_date passes
+  Note over P,DB: Training period + monthly reports
   DB->>DB: auto_complete_expired_trainings
-  DB->>S: Notification (training_completed)
   S->>P: Submit training evaluation
   P->>DB: feedback_analysis via OpenAI
 ```
@@ -356,6 +338,6 @@ sequenceDiagram
 
 ## 15. Summary
 
-**InternConnect Jordan** is a **Supabase-backed Next.js internship platform** with four roles, rich **student matching (embeddings + AI)**, **company applicant management**, **supervisor department monitoring**, **admin onboarding approvals**, **in-app notifications**, **direct messaging**, **training lifecycle** (accept → schedule → auto-complete → evaluate → AI feedback analysis), and a **resume builder with PDF export**.
+**InternConnect Jordan** is a **Supabase-backed full-stack Next.js platform** with four roles, AI-powered matching, company applicant management, supervisor monitoring, admin onboarding, in-app and email notifications, direct messaging, training lifecycle, monthly reports, and a resume builder with persisted AI improvements.
 
-The codebase has **grown beyond the original MVP PRD** in AI and messaging areas, while the **FastAPI layer and some admin analytics** remain planned rather than built. Almost all logic lives in `frontend/` with **52 SQL migrations** defining security and behavior in the database.
+Almost all application code lives in **`frontend/`** with **70+ SQL migrations** defining schema, RLS, and RPC behavior in the database. Server logic is implemented as **Next.js Route Handlers**, not a separate Python API.
