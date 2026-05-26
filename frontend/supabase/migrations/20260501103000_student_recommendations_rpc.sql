@@ -1,0 +1,10 @@
+-- DEFERRED: student internship recommendations RPC (get_student_recommended_internships).
+--
+-- This migration previously defined vector similarity search using the pgvector cosine
+-- operator (<=>) between internship_positions.embedding and students.embedding.
+--
+-- db push failed with: operator does not exist: extensions.vector <=> extensions.vector
+-- Recommendations / embeddings work is postponed until pgvector operator compatibility
+-- is resolved on the target Supabase project.
+--
+-- Re-enable by restoring the create-or-replace function + grants from version control history.

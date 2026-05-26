@@ -1,26 +1,350 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0F172A;
+  --primary: #7C3AED;
+  --primary-hover: #6D28D9;
+  --primary-light: #F3E8FF;
+  --gray-bg: #F8FAFC;
+  --border-gray: #E2E8F0;
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #F8FAFC;
+  --gray-bg: #020617;
+  --border-gray: #334155;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-gray-bg: var(--gray-bg);
+  --color-border-gray: var(--border-gray);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: var(--gray-bg);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+#site-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  direction: ltr;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes cyclic-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-cyclic-enter,
+.cyclic-slide-enter {
+  animation: cyclic-fade-in 520ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cyclic-enter,
+  .cyclic-slide-enter {
+    animation: none;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 650ms ease-out both;
+}
+
+.animate-delay-1 {
+  animation-delay: 120ms;
+}
+
+.animate-delay-2 {
+  animation-delay: 240ms;
+}
+
+.animate-float-y {
+  animation: float-y 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-float-y {
+    animation: none;
+  }
+}
+
+@keyframes chat-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-chat-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(229 231 235 / 0.9) 0%,
+    rgb(243 244 246 / 1) 45%,
+    rgb(229 231 235 / 0.9) 90%
+  );
+  background-size: 200% 100%;
+  animation: chat-shimmer 1.35s ease-in-out infinite;
+}
+
+.dark .animate-chat-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(55 65 81 / 0.9) 0%,
+    rgb(75 85 99 / 1) 45%,
+    rgb(55 65 81 / 0.9) 90%
+  );
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-shimmer {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
+/* Chat typing indicator: visible on light backgrounds */
+@keyframes chat-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes chat-dot-opacity {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.chat-loading-dot {
+  animation: chat-dot-bounce 0.85s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-loading-dot {
+    animation: chat-dot-opacity 1s ease-in-out infinite;
+    transform: none;
+  }
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-geist-sans), "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+}
+
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  text-align: right;
+}
+
+html[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+html[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* Landing legal document typography (midanijo-style) */
+.legal-document {
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.legal-document .legal-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7c3aed;
+}
+
+.dark .legal-document .legal-eyebrow {
+  color: #c4b5fd;
+}
+
+.legal-document .legal-title {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  color: #0f172a;
+}
+
+.dark .legal-document .legal-title {
+  color: #f8fafc;
+}
+
+.legal-document .legal-meta {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.dark .legal-document .legal-meta {
+  color: #94a3b8;
+}
+
+.legal-document .legal-section-heading {
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+.dark .legal-document .legal-section-heading {
+  color: #f8fafc;
+}
+
+.legal-document .legal-body {
+  font-size: clamp(1rem, 2vw, 1.0625rem);
+  line-height: 1.85;
+  color: #334155;
+}
+
+.dark .legal-document .legal-body {
+  color: #cbd5e1;
+}
+
+html[dir="rtl"] .legal-document .legal-body,
+html[dir="rtl"] .legal-document .legal-list li {
+  line-height: 2;
+}
+
+.legal-document .legal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.875rem;
+}
+
+.legal-document .legal-list li {
+  position: relative;
+  padding-inline-start: 1.375rem;
+  font-size: clamp(1rem, 2vw, 1.0625rem);
+  line-height: 1.85;
+  color: #334155;
+}
+
+.dark .legal-document .legal-list li {
+  color: #cbd5e1;
+}
+
+.legal-document .legal-list li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.72em;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+}
+
+.legal-document .legal-link {
+  font-weight: 500;
+  color: #7c3aed;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.legal-document .legal-link:hover {
+  color: #6d28d9;
+}
+
+.dark .legal-document .legal-link {
+  color: #c4b5fd;
+}
+
+.dark .legal-document .legal-link:hover {
+  color: #ddd6fe;
+}
+
+.legal-document .legal-footer {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.dark .legal-document .legal-footer {
+  color: #94a3b8;
+}
+
+.legal-document .legal-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    #e2e8f0 20%,
+    #e2e8f0 80%,
+    transparent
+  );
+}
+
+.dark .legal-document .legal-divider {
+  background: linear-gradient(
+    to right,
+    transparent,
+    #334155 20%,
+    #334155 80%,
+    transparent
+  );
 }

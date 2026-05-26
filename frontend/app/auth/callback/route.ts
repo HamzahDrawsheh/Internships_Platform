@@ -27,7 +27,17 @@ export async function GET(request: Request) {
   }
 
   // Redirect to requested path if allowed (protected path), else role dashboard
-  const isAllowed = next.startsWith("/dashboard") || next.startsWith("/admin") || next.startsWith("/company") || next.startsWith("/supervisor") || next.startsWith("/internships") || next.startsWith("/applications") || next.startsWith("/profile") || next.startsWith("/notifications");
+  const isAllowed =
+    next.startsWith("/dashboard") ||
+    next.startsWith("/admin") ||
+    next.startsWith("/company") ||
+    next.startsWith("/supervisor") ||
+    next.startsWith("/internships") ||
+    next.startsWith("/applications") ||
+    next.startsWith("/profile") ||
+    next.startsWith("/notifications") ||
+    next.startsWith("/onboarding/") ||
+    next === "/pending-approval";
   const target = isAllowed ? next : dashboardPath;
   return NextResponse.redirect(new URL(target, request.url));
 }

@@ -2,16 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/context";
 import { createClient } from "@/lib/supabase/client";
 
-interface LogoutButtonProps {
-  variant?: "primary" | "secondary" | "danger" | "link";
-  className?: string;
-  children?: React.ReactNode;
-}
-
-export function LogoutButton({ variant = "secondary", className, children }: LogoutButtonProps) {
+export function LogoutButton() {
   const router = useRouter();
+  const { t } = useI18n();
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -21,8 +17,8 @@ export function LogoutButton({ variant = "secondary", className, children }: Log
   };
 
   return (
-    <Button type="button" variant={variant} onClick={handleLogout} className={className}>
-      {children ?? "Logout"}
+    <Button type="button" variant="secondary" onClick={handleLogout} className="transition-colors duration-300 dark:bg-slate-800 dark:text-white dark:border-slate-700 dark:hover:bg-slate-700">
+      {t("nav.logout")}
     </Button>
   );
 }

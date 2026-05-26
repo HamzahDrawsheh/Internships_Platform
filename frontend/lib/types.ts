@@ -1,8 +1,17 @@
-// Shared domain types (aligned with Supabase schema).
+// Shared domain types aligned with current Supabase schema.
+
+export type { AcademicDepartment } from "./departments";
 
 export type LocationType = "remote" | "onsite" | "hybrid";
-export type ApplicationStatus = "submitted" | "under_review" | "accepted" | "rejected";
-export type InternshipStatus = "draft" | "active" | "paused" | "closed" | "pending";
+export type ApplicationStatus =
+  | "pending"
+  | "accepted_pending_commit"
+  | "accepted"
+  | "rejected"
+  | "completed"
+  | "commitment_expired"
+  | "withdrawn";
+export type InternshipStatus = "active" | "inactive";
 export type ProfileRole = "student" | "company" | "supervisor" | "admin";
 
 export interface Internship {
@@ -10,26 +19,29 @@ export interface Internship {
   company_id: string;
   title: string;
   description: string | null;
-  location_type: LocationType | null;
-  skills: string[];
-  duration_weeks: number | null;
-  start_date: string | null;
-  deadline: string | null;
-  open_positions: number;
-  status: InternshipStatus;
-  created_at?: string;
-  updated_at?: string;
+  requirements: string | null;
+  duration: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  additional_notes?: string | null;
+  location: string | null;
+  type: string | null;
+  is_active: boolean;
+  created_at: string;
   company_name?: string;
   applicants_count?: number;
 }
 
 export interface Application {
   id: string;
-  internship_id: string;
   student_id: string;
+  position_id: string;
+  company_id?: string;
   status: ApplicationStatus;
-  cover_letter: string | null;
-  created_at: string;
+  message: string | null;
+  applied_at: string;
+  commitment_deadline?: string | null;
+  committed_at?: string | null;
   internship_title?: string;
   company_name?: string;
 }

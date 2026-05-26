@@ -1,119 +1,99 @@
-# Graduation Project - Data Science
+# InternConnect Jordan
 
+InternConnect Jordan is a web platform that connects AI and Data Science students in Jordan with companies offering internships.
 
-## Students:
-
-- **Hamzah Drawsheh**
-- **Mahde Hanandeh**
-- **Mohammad Othman**
-- **Jad Awad-Allah**
-
-
-# Internships Platform
-
-This project is an **Internship Management Platform** for IT students, companies, and university supervisors.  
-It provides a structured, organized, and transparent environment to manage internship opportunities, applications, and monitoring.
-
----
-
-## Features
-
-- **Students**: Browse and apply to internships, manage applications, view notifications.  
-- **Companies**: Post internships, manage applications, edit internships, view analytics.  
-- **Supervisors**: Monitor students, approve applications, generate reports.  
-- **Admin**: Manage users, internships, dashboards for analytics and monitoring.
+The platform allows:
+- Students to discover and apply to internships
+- Companies to post internships and review applicants
+- University supervisors to monitor student internships
 
 ---
 
 ## Tech Stack
 
-**Frontend**:
-- Next.js (App Router)
-- TypeScript
-- Tailwind CSS
-- Shadcn/UI components
+| Layer | Technology |
+|--------|------------|
+| Web app | Next.js 16 (App Router), React, TypeScript, Tailwind CSS |
+| Server logic | Next.js Route Handlers (`frontend/app/api/`) |
+| Database | Supabase (PostgreSQL + Row Level Security) |
+| Auth | Supabase Auth |
+| Storage | Supabase Storage (CVs, company logos) |
+| AI / email | OpenAI, SMTP / Resend (via server routes only) |
 
-**Backend & Database**:
-- Node.js + Express (custom backend)
-- SQLite (via `better-sqlite3`) as the local data store
-- Supabase Auth for authentication (JWTs verified by the backend using JWKS)
-
-Demo data for local development is loaded into the SQLite database via the backend seed script (see below).
+There is **no separate FastAPI/Python backend** in this repository. The app is a **full-stack Next.js project** backed by Supabase.
 
 ---
 
 ## Project Structure
 
-```text
-Intrenships_Platform/
-├─ frontend/          → Next.js application code
-│   ├─ app/           → App Router pages and layouts
-│   ├─ components/    → React components
-│   ├─ lib/           → Supabase clients, backend API client, auth, types
-│   └─ public/        → Static assets
-├─ backend/           → Express + TypeScript API (SQLite, auth, seed)
-├─ CONTEXT_ENG/       → Project documentation and implementation guides
-├─ Project Diagrams/  → UML diagrams, business process flows
 ```
+Intrenships_Platform-1/
+├── frontend/              # Full-stack Next.js application
+│   ├── app/               # Pages, layouts, and API routes
+│   ├── components/        # UI components
+│   ├── lib/               # Shared logic (Supabase, AI, email, i18n, …)
+│   ├── supabase/migrations/  # Canonical database schema (SQL migrations)
+│   ├── middleware.ts      # Auth / route protection
+│   └── package.json
+├── CONTEXT_ENG/           # Product and engineering documentation
+└── README.md
+```
+
+**Source of truth for the database:** `frontend/supabase/migrations/`  
+Apply with `npm run supabase:push` from the `frontend/` directory (after linking your Supabase project).
 
 ---
 
-## Frontend development
-
-Run the Next.js app from the `frontend` directory:
+## Running the Project
 
 ```bash
 cd frontend
 npm install
+cp .env.example .env.local   # if present; configure Supabase + OpenAI + email keys
 npm run dev
 ```
 
-The site will be available at **http://localhost:3000**.
+Open [http://localhost:3000](http://localhost:3000).
+
+### Useful scripts (from `frontend/`)
+
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run start` | Run production server |
+| `npm run lint` | ESLint |
+| `npm run supabase:push` | Push migrations to linked Supabase project |
 
 ---
 
-## Backend development & demo data
+## Architecture (short)
 
-Run the backend API from the `backend` directory:
-
-```bash
-cd backend
-npm install
-npm run dev
+```
+Browser
+  ├─► Next.js pages (React UI)
+  ├─► Supabase client (direct reads/writes, protected by RLS)
+  └─► /app/api/* routes (OpenAI, embeddings, email, PDFs, sensitive flows)
+         └─► Supabase admin client + external services
 ```
 
-The API will be available at **http://localhost:3001**.
+Most CRUD uses the Supabase client from the browser with **RLS policies**.  
+Secrets (API keys, service role) stay on the server in Route Handlers.
 
-### Demo data (SQLite)
+---
 
-To populate the local SQLite database with demo profiles, internships, and applications:
+## Documentation
 
-```bash
-cd backend
-npm run seed
-```
+Project documentation lives in `CONTEXT_ENG/`:
 
-This will clear the existing SQLite tables and insert demo data via `src/seed.ts`.  
-This is the **recommended and only supported way** to create demo data now.  
-The previous Supabase-based `frontend/app/api/create-demo/route.ts` has been removed to avoid duplicating demo logic.
+- `PRD.md`
+- `Implementation.md`
+- `UI_UX_doc.md`
+- `Project_structure.md`
+- `Bug_tracking.md`
 
-### Environment variables
+---
 
-Create a `frontend/.env.local` file with:
+## Project Status
 
-- `NEXT_PUBLIC_SUPABASE_URL` – your Supabase project URL  
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` – your Supabase anon/public key  
-
-Next.js loads these automatically from `.env.local`.
-
-### Clearing cache (if dev server crashes or behaves oddly)
-
-Delete the build cache and restart:
-
-```bash
-cd frontend
-npm run clean
-npm run dev
-```
-
-Or manually remove the `.next` folder in `frontend`, then run `npm run dev`.
+Currently under active development (MVP stage).

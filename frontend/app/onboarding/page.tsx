@@ -1,24 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Input, Select, Button } from "@/components/ui";
-import type { SelectOption } from "@/components/ui";
+import { Input, Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-import { api, ApiError } from "@/lib/api";
 
-const roleOptions: SelectOption[] = [
-  { value: "student", label: "Student" },
-  { value: "company", label: "Company" },
-  { value: "supervisor", label: "Supervisor" },
-];
+/** Profile role for first-time rows only — never taken from user input (DB / admin-controlled thereafter). */
+const INITIAL_PROFILE_ROLE = "student" as const;
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,40 +22,59 @@ export default function OnboardingPage() {
     setLoading(true);
     setError(null);
 
-
     const supabase = createClient();
     const {
       data: { session },
     } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    const email = session?.user?.email ?? "";
 
-    if (!session?.user?.id) {
+    if (!userId || !email) {
       setError("You must be signed in to complete your profile.");
       setLoading(false);
       router.push("/auth/login");
       return;
     }
 
-    const name = fullName.trim() || (session?.user?.user_metadata?.full_name as string)?.trim() || session?.user?.email?.split("@")[0] || "User";
+    const name =
+      fullName.trim() ||
+      (session?.user?.user_metadata?.full_name as string)?.trim() ||
+      session?.user?.email?.split("@")[0] ||
+      "User";
     if (!name) {
       setError("Please enter your full name.");
       setLoading(false);
       return;
     }
 
-    try {
-      await api.patch("/profiles/me", { full_name: name, role: role });
+    const { error: insertError } = await supabase.from("profiles").insert({
+      id: userId,
+      role: INITIAL_PROFILE_ROLE,
+      full_name: name,
+      email,
+    });
 
-      router.push("/dashboard");
-      router.refresh();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 0) {
-        setError("Could not connect to the backend server. Make sure the API is running.");
+    if (insertError) {
+      if (insertError.code === "23505") {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ full_name: name, email })
+          .eq("id", userId);
+        if (updateError) {
+          setError(updateError.message);
+          setLoading(false);
+          return;
+        }
       } else {
-        setError(err instanceof Error ? err.message : "Failed to save profile.");
+        setError(insertError.message);
+        setLoading(false);
+        return;
       }
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
+    router.push("/dashboard/student");
+    router.refresh();
   };
 
   return (
@@ -68,7 +82,7 @@ export default function OnboardingPage() {
       <Container className="mx-auto max-w-md">
         <PageHeader
           title="Complete your profile"
-          description="Choose your role and confirm your name to continue."
+          description="Confirm your name to continue as a student. Company or supervisor access is granted only through admin-approved onboarding — use the links below if that applies to you."
         />
         {error && (
           <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800" role="alert">
@@ -83,12 +97,17 @@ export default function OnboardingPage() {
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Your name"
           />
-          <Select
-            label="Role"
-            options={roleOptions}
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          />
+          <p className="text-sm text-gray-600">
+            Need company or supervisor access? Continue through the dedicated flows (admin approval required):{" "}
+            <Link href="/onboarding/company" className="font-medium text-purple-700 underline">
+              Company onboarding
+            </Link>
+            {" · "}
+            <Link href="/onboarding/supervisor" className="font-medium text-purple-700 underline">
+              Supervisor onboarding
+            </Link>
+            .
+          </p>
           <Button type="submit" variant="primary" className="w-full" disabled={loading}>
             {loading ? "Saving…" : "Continue"}
           </Button>

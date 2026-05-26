@@ -2,209 +2,143 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useRef, useState } from "react";
+import { useTheme } from "next-themes";
+import { LanguageToggle } from "@/components/i18n/LanguageToggle";
+import { MessagesNavbarButton } from "@/components/messaging/MessagesNavbarButton";
+import NotificationsDropdown from "@/components/layout/NotificationsDropdown";
+import { LandingHomeNav } from "@/components/landing/LandingHomeNav";
+import { AppBrand } from "@/components/layout/AppBrand";
+import { SidebarIcon } from "@/components/layout/SidebarIcon";
+import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell";
+import { useI18n } from "@/lib/i18n/context";
+import { getRoleDashboardPath } from "@/lib/role-home";
+import { createClient } from "@/lib/supabase/client";
+import { NAV_ICON_BUTTON_CLASS } from "@/components/layout/navControlStyles";
 import type { ProfileRole } from "@/lib/types";
-import { LogoutButton } from "@/components/auth/logout-button";
-import { IconBell, IconArrowRightOnRectangle } from "./icons";
 
-function getDashboardHref(role: ProfileRole): string {
-  switch (role) {
-    case "student":
-      return "/dashboard/student";
-    case "company":
-      return "/dashboard/company";
-    case "supervisor":
-      return "/dashboard/supervisor";
-    case "admin":
-      return "/admin/dashboard";
-    default:
-      return "/dashboard";
-  }
-}
-
-function getProfileHref(role: ProfileRole): string {
-  switch (role) {
-    case "student":
-      return "/profile/student";
-    case "company":
-      return "/profile/company";
-    default:
-      return "/profile/student";
-  }
-}
-
-const linkClass = (active: boolean) =>
-  "rounded-md px-3 py-2 text-sm font-medium transition-colors " +
-  (active ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900");
-
-export function Navbar() {
+export default function Navbar() {
   const pathname = usePathname();
-  const { user, role, loading } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [homeHref, setHomeHref] = useState("/onboarding");
+  const [themeMounted, setThemeMounted] = useState(false);
+  const roleResolvedRef = useRef(false);
+  const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
 
-  const dashboardHref = role ? getDashboardHref(role) : "/dashboard";
-  const profileHref = role ? getProfileHref(role) : "/profile/student";
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThemeMounted(true);
+  }, []);
 
-  const navLinks = [
-    { label: "Home", href: "/" },
-    { label: "Internships", href: "/internships" },
-    ...(user
-      ? [
-          { label: "Dashboard", href: dashboardHref },
-          ...(role === "student" ? [{ label: "Applications", href: "/applications" }] : []),
-          { label: "Profile", href: profileHref },
-        ]
-      : []),
-  ];
+  useEffect(() => {
+    if (roleResolvedRef.current) return;
+    roleResolvedRef.current = true;
+
+    const supabase = createClient();
+
+    const resolveHomeHref = async () => {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      // Guests are a normal state; do not surface AuthSessionMissingError noise.
+      if (sessionError) {
+        const isMissingSession =
+          sessionError.name === "AuthSessionMissingError" ||
+          sessionError.message?.toLowerCase().includes("auth session missing");
+        if (!isMissingSession) {
+          console.error("navbar getSession error:", sessionError);
+        }
+        setIsAuthenticated(false);
+        return;
+      }
+
+      if (!session?.user) {
+        setIsAuthenticated(false);
+        return;
+      }
+      setIsAuthenticated(true);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      setHomeHref(getRoleDashboardPath(profile?.role as ProfileRole | undefined));
+    };
+
+    resolveHomeHref();
+  }, []);
+
+  const isHomePage = pathname === "/";
+  const adminEntryHref = "/auth/login?next=%2Fdashboard%2Fadmin";
+  const brandHref = isHomePage ? "/" : isAuthenticated ? homeHref : "/";
+
+  if (pathname?.startsWith("/auth")) return null;
 
   return (
-    <nav className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-2 text-lg font-semibold text-gray-900 hover:text-gray-700"
-        >
-          InternConnect Jordan
-        </Link>
-
-        {/* Center / right: links + actions */}
-        <div className="flex flex-1 items-center justify-end gap-1">
-          {/* Desktop nav */}
-          <div className="hidden items-center gap-0.5 sm:flex">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={linkClass(pathname === link.href || pathname.startsWith(link.href + "/"))}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-
-          {user && (
-            <Link
-              href="/notifications"
-              className="rounded-md p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-              aria-label="Notifications"
-            >
-              <IconBell />
-            </Link>
-          )}
-
-          {/* Auth: Login or account dropdown */}
-          {!loading && (
-            <div className="relative flex items-center">
-              {user ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setAccountOpen(!accountOpen)}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    aria-expanded={accountOpen}
-                    aria-haspopup="true"
-                    aria-label="Account menu"
-                  >
-                    <span className="hidden sm:inline">{user.email ?? "Account"}</span>
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-600">
-                      {(user.user_metadata?.full_name as string)?.charAt(0) ?? user.email?.charAt(0) ?? "?"}
-                    </span>
-                  </button>
-                  {accountOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        aria-hidden
-                        onClick={() => setAccountOpen(false)}
-                      />
-                      <div
-                        className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-                        role="menu"
-                      >
-                        <div className="border-b border-gray-100 px-3 py-2">
-                          <p className="truncate text-sm font-medium text-gray-900">
-                            {user.user_metadata?.full_name ?? "User"}
-                          </p>
-                          <p className="truncate text-xs text-gray-500">{user.email}</p>
-                        </div>
-                        <div className="p-2">
-                          <LogoutButton
-                            variant="link"
-                            className="w-full justify-start gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <IconArrowRightOnRectangle />
-                            Logout
-                          </LogoutButton>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </>
-              ) : (
-                <Link
-                  href="/auth/login"
-                  className={linkClass(pathname === "/auth/login")}
-                >
-                  Login
-                </Link>
-              )}
-            </div>
-          )}
-
-          {/* Mobile menu trigger */}
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="rounded-md p-2 text-gray-600 hover:bg-gray-50 sm:hidden"
-            aria-label="Open menu"
-            aria-expanded={menuOpen}
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-              {menuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
+    <>
+      <nav id="site-navbar" data-i18n-skip dir="ltr" className={`${NAVBAR_CLASS} ${NAVBAR_HEIGHT_CLASS}`}>
+        <div className={`flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`}>
+        <div className="flex shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3">
+          <div id="navbar-sidebar-toggle-slot" className="flex items-center" />
+          <AppBrand href={brandHref} className="shrink-0" />
         </div>
-      </div>
 
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="border-t border-gray-200 bg-white py-2 sm:hidden">
-          <div className="flex flex-col gap-0.5 px-2">
-            {navLinks.map((link) => (
+        {isHomePage ? <LandingHomeNav /> : <div className="hidden flex-1 lg:block" aria-hidden />}
+
+        <div className="ms-auto flex shrink-0 items-center gap-2 pe-2 sm:gap-3 sm:pe-3 lg:pe-4">
+            <LanguageToggle />
+
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={NAV_ICON_BUTTON_CLASS}
+              aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
+            >
+              <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
+              <span className="hidden md:inline">{themeMounted && theme === "dark" ? t("common.light") : t("common.dark")}</span>
+            </button>
+
+            {!isHomePage && isAuthenticated && (
               <Link
-                key={link.href}
-                href={link.href}
-                className={`rounded-md px-3 py-2.5 text-sm font-medium ${
-                  pathname === link.href ? "bg-gray-100 text-gray-900" : "text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => setMenuOpen(false)}
+                href={homeHref}
+                className={NAV_ICON_BUTTON_CLASS}
+                title={t("nav.home")}
+                aria-label={t("nav.home")}
               >
-                {link.label}
-              </Link>
-            ))}
-            {user ? (
-              <div className="mt-2 border-t border-gray-100 pt-2">
-                <LogoutButton />
-              </div>
-            ) : (
-              <Link
-                href="/auth/login"
-                className="rounded-md px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => setMenuOpen(false)}
-              >
-                Login
+                <SidebarIcon name="dashboard" />
+                <span className="hidden md:inline">{t("nav.home")}</span>
               </Link>
             )}
+
+            {isHomePage && (
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Link
+                  href={adminEntryHref}
+                  className="hidden rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-medium text-purple-700 transition-colors duration-300 hover:bg-purple-100 sm:inline-flex dark:border-purple-400/40 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
+                >
+                  {t("nav.adminPortal")}
+                </Link>
+                <Link href="/auth/login" className="rounded-xl px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 sm:px-4 dark:border dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700">
+                  {t("nav.login")}
+                </Link>
+                <Link href="/auth/signup" className="rounded-xl bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white shadow-md hover:bg-[#6D28D9] sm:px-4">
+                  {t("nav.getStarted")}
+                </Link>
+              </div>
+            )}
+
+            {!isHomePage && <MessagesNavbarButton enabled={isAuthenticated} />}
+
+            {!isHomePage && <NotificationsDropdown enabled={isAuthenticated} />}
           </div>
         </div>
-      )}
-    </nav>
+      </nav>
+      <div className={NAVBAR_HEIGHT_CLASS} aria-hidden />
+    </>
   );
 }

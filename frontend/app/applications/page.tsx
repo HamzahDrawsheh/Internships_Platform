@@ -1,35 +1,23 @@
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button, Table, EmptyState } from "@/components/ui";
+import { Button } from "@/components/ui";
+import ApplicationsList from "./ApplicationsList";
 
 export default function MyApplicationsPage() {
-  const applications: unknown[] = [];
-
   return (
-    <main className="py-8">
+    <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container>
         <PageHeader
           title="My Applications"
-          description="Track status of your internship applications."
+          description="When an internship is marked completed, submit your training evaluation here and leave a company rating below."
           action={
             <Link href="/internships">
               <Button variant="primary">Browse internships</Button>
             </Link>
           }
         />
-        {applications.length === 0 ? (
-          <EmptyState
-            title="No applications yet"
-            description="Apply to internships to see them here."
-            actionLabel="Browse internships"
-            actionHref="/internships"
-          />
-        ) : (
-          <Table headers={["Internship", "Company", "Applied date", "Status", "Action"]}>
-            <tr><td colSpan={5} className="px-4 py-3 text-sm text-gray-500">No rows</td></tr>
-          </Table>
-        )}
+        <ApplicationsList />
       </Container>
     </main>
   );

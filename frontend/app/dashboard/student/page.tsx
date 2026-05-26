@@ -1,26 +1,13 @@
-import Link from "next/link";
-import { Container } from "@/components/layout/Container";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Button } from "@/components/ui";
 import StudentDashboardContent from "./StudentDashboardContent";
 
 export default function StudentDashboardPage() {
   return (
-    <main className="py-8">
-      <Container>
-        <PageHeader
-          title="Dashboard"
-          description="Overview of your applications and next steps."
-          action={
-            <Link href="/internships">
-              <Button variant="primary">Browse internships</Button>
-            </Link>
-          }
-        />
-        <div className="mt-8">
+    <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-5xl">
+        <section>
           <StudentDashboardContent />
-        </div>
-      </Container>
+        </section>
+      </div>
     </main>
   );
 }
