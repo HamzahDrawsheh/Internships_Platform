@@ -11,6 +11,7 @@ import { MonthlyReportStatusBadge } from "@/components/internship-reports/Monthl
 import { Button, EmptyState, Textarea, ReportsPageSkeleton } from "@/components/ui";
 import { computeAttendancePercentage, filterAttendanceForMonth, formatIsoDate } from "@/lib/internship-reports/helpers";
 import type { AttendanceRow, EmployerEvaluationRow, MonthlyReportRow, WeeklyReportRow } from "@/lib/internship-reports/types";
+import { AIExtractedSkills } from "@/components/student/AIExtractedSkills";
 import { createClient } from "@/lib/supabase/client";
 
 const COMMENT_CHIPS = [
@@ -239,6 +240,12 @@ export default function SupervisorMonthlyReviewPage() {
             <Button variant="secondary">Preview / download PDF</Button>
           </a>
         </div>
+
+        {(report.status === "pending_supervisor" ||
+          report.status === "approved" ||
+          report.status === "pending_employer") && (
+          <AIExtractedSkills reportId={report.id} readOnly />
+        )}
 
         {report.status === "pending_supervisor" && (
           <div className="mt-8 space-y-4">

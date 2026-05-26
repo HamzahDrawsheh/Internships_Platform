@@ -13,6 +13,8 @@ const MAX_REQUESTS = 5;
 export const RATE_LIMIT_BUCKET_RESUME_IMPROVE = "resume_improve";
 export const RATE_LIMIT_BUCKET_FEEDBACK_ANALYZE = "feedback_analyze";
 export const RATE_LIMIT_BUCKET_STUDENT_ASSISTANT_CHAT = "student_assistant_chat";
+export const RATE_LIMIT_BUCKET_COVER_LETTER = "cover_letter";
+export const RATE_LIMIT_BUCKET_TASK_TO_SKILL = "task_to_skill";
 
 const hitsByKey = new Map<string, number[]>();
 

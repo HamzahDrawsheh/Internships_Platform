@@ -7,6 +7,12 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TableListPageSkeleton } from "@/components/loading";
 import { Badge, Button, Input, Modal, Select, Table, EmptyState } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/context";
+import {
+  buildCompanyApplicationStatusNotification,
+  isValidCompanyDispatchPayload,
+  type CompanyNotifyApplicationStatus,
+} from "@/lib/notifications/company-application-status";
 import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import { openCompanyApplicantCv } from "@/lib/open-company-cv";
@@ -18,6 +24,7 @@ import {
 import type { ApplicationStatus } from "@/lib/types";
 
 export default function ApplicantsPage() {
+  const { locale, t } = useI18n();
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
   const [detailOpen, setDetailOpen] = useState(false);
@@ -385,41 +392,38 @@ export default function ApplicantsPage() {
       console.error("company applicants notification student lookup error:", studentLookupError);
     }
 
-    if (studentRow?.user_id) {
-      const internshipTitle = row?.internship_title ?? title ?? "Internship";
-      const message =
-        status === "accepted"
-          ? `🎉 Your application for ${internshipTitle} at ${companyName} was accepted. Confirm your commitment within 3 days on My Applications — or the offer expires.`
-          : status === "rejected"
-            ? `❌ Your application for ${internshipTitle} at ${companyName} has been rejected.`
-            : `✅ Your internship for ${internshipTitle} at ${companyName} has been marked as completed.`;
-      const titleText =
-        status === "accepted"
-          ? "Confirm your internship commitment"
-          : status === "rejected"
-            ? "Application rejected"
-            : "Internship completed";
-      const type =
-        status === "completed"
-          ? "training_completed"
-          : status === "accepted"
-            ? "commitment_required"
-            : status === "rejected"
-              ? "rejected"
-              : "info";
+    const notifyStatus: CompanyNotifyApplicationStatus | null =
+      status === "accepted"
+        ? "accepted"
+        : status === "rejected"
+          ? "rejected"
+          : status === "completed"
+            ? "completed"
+            : null;
 
-      const notifyResult = await dispatchNotification({
+    if (notifyStatus && studentRow?.user_id) {
+      const content = buildCompanyApplicationStatusNotification(
+        notifyStatus,
+        companyName,
+        locale,
+        applicationId
+      );
+
+      const notificationPayload = {
         recipientUserId: studentRow.user_id,
-        title: titleText,
-        message,
-        type,
-        relatedApplicationId: applicationId,
-        linkPath: "/applications",
-      });
+        ...content,
+      };
 
-      if (!notifyResult.ok) {
-        console.error("company applicants notification error:", notifyResult.error);
-        setActionMessage("Status updated, but failed to notify the student.");
+      if (isValidCompanyDispatchPayload(notificationPayload)) {
+        const notifyResult = await dispatchNotification(notificationPayload);
+
+        if (!notifyResult.ok) {
+          console.error("company applicants notification error:", notifyResult.error);
+          setActionMessage(t("companyApplications.notifyFailed"));
+        }
+      } else {
+        console.error("company applicants invalid notification payload:", notificationPayload);
+        setActionMessage(t("companyApplications.notifyFailed"));
       }
     }
 

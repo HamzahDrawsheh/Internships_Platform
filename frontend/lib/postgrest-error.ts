@@ -61,3 +61,15 @@ export function isRlsDeniedError(err: unknown): boolean {
   const o = toPostgrestErrorLike(err);
   return o?.code === "42501" || formatPostgrestError(err).toLowerCase().includes("row-level security");
 }
+
+/** Table or relation missing from schema (migration not applied). */
+export function isMissingSchemaError(err: unknown): boolean {
+  const combined = formatPostgrestError(err).toLowerCase();
+  const o = toPostgrestErrorLike(err);
+  if (o?.code === "PGRST205" || o?.code === "42P01") return true;
+  return (
+    combined.includes("could not find the table") ||
+    combined.includes("does not exist") ||
+    combined.includes("schema cache")
+  );
+}

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DispatchNotificationParams } from "@/lib/notifications/types";
 import type { NotificationRowType } from "@/lib/notifications-ui";
 
-const COMPANY_TO_STUDENT_TYPES = new Set<NotificationRowType>([
+export const COMPANY_TO_STUDENT_NOTIFICATION_TYPES = new Set<NotificationRowType>([
   "accepted",
   "rejected",
   "application_accepted",
@@ -16,7 +16,7 @@ const COMPANY_TO_STUDENT_TYPES = new Set<NotificationRowType>([
   "application_withdrawn",
 ]);
 
-const STUDENT_TO_COMPANY_TYPES = new Set<NotificationRowType>([
+export const STUDENT_TO_COMPANY_NOTIFICATION_TYPES = new Set<NotificationRowType>([
   "new_application",
   "new_feedback",
   "new_training_evaluation",
@@ -53,7 +53,7 @@ export async function authorizeNotificationDispatch(
     return { allowed: false, error: "This notification type cannot be sent via the dispatch API." };
   }
 
-  if (STUDENT_TO_COMPANY_TYPES.has(type)) {
+  if (STUDENT_TO_COMPANY_NOTIFICATION_TYPES.has(type)) {
     if (type === "new_application") {
       if (!params.relatedApplicationId) {
         return { allowed: false, error: "relatedApplicationId is required." };
@@ -94,7 +94,7 @@ export async function authorizeNotificationDispatch(
     }
   }
 
-  if (COMPANY_TO_STUDENT_TYPES.has(type)) {
+  if (COMPANY_TO_STUDENT_NOTIFICATION_TYPES.has(type)) {
     if (!params.relatedApplicationId) {
       return { allowed: false, error: "relatedApplicationId is required." };
     }
@@ -108,4 +108,12 @@ export async function authorizeNotificationDispatch(
   }
 
   return { allowed: false, error: `Unsupported notification type: ${type}` };
+}
+
+/** Types allowed in POST /api/notifications/dispatch (must match authorizeNotificationDispatch). */
+export function isDispatchApiNotificationType(type: string): type is NotificationRowType {
+  return (
+    COMPANY_TO_STUDENT_NOTIFICATION_TYPES.has(type as NotificationRowType) ||
+    STUDENT_TO_COMPANY_NOTIFICATION_TYPES.has(type as NotificationRowType)
+  );
 }
