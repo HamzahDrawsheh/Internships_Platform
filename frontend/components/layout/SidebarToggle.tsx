@@ -39,6 +39,8 @@ export function SidebarTogglePortal({ open, onToggle }: Props) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    // The portal target exists only after the navbar is mounted in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSlot(document.getElementById(NAVBAR_SIDEBAR_TOGGLE_SLOT_ID));
   }, []);
 

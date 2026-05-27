@@ -14,13 +14,6 @@ export interface SmtpConfig {
   fromName: string;
 }
 
-const REQUIRED_SMTP_KEYS = [
-  SMTP_ENV_KEYS.host,
-  SMTP_ENV_KEYS.user,
-  SMTP_ENV_KEYS.password,
-  SMTP_ENV_KEYS.fromEmail,
-] as const;
-
 function readEnv(key: string): string {
   return process.env[key]?.trim() ?? "";
 }

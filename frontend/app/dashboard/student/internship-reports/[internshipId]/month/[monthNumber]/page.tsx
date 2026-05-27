@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -14,16 +14,14 @@ import { useI18n } from "@/lib/i18n/context";
 import type { BasicInfoValues } from "@/components/internship-reports/JustFormHeader";
 import { canStudentSubmitReport } from "@/lib/internship-reports/helpers";
 import { ensureMonthlyReportWeeklySlots, repairInternshipTracking, syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
-import type { AttendanceRow, InternshipRow, MonthlyReportRow, WeeklyReportRow } from "@/lib/internship-reports/types";
+import type { AttendanceRow, MonthlyReportRow, WeeklyReportRow } from "@/lib/internship-reports/types";
 import { createClient } from "@/lib/supabase/client";
 
 export default function StudentMonthlyReportFormPage() {
   const params = useParams();
-  const router = useRouter();
   const internshipId = typeof params.internshipId === "string" ? params.internshipId : "";
   const monthNumber = Number(params.monthNumber);
 
-  const [internship, setInternship] = useState<InternshipRow | null>(null);
   const [report, setReport] = useState<MonthlyReportRow | null>(null);
   const [allReports, setAllReports] = useState<MonthlyReportRow[]>([]);
   const [weeks, setWeeks] = useState<WeeklyReportRow[]>([]);
@@ -74,7 +72,6 @@ export default function StudentMonthlyReportFormPage() {
       await syncInternshipReportStatuses(supabase, internshipId);
 
       const { data: i } = await supabase.from("internships").select("*").eq("id", internshipId).maybeSingle();
-      setInternship(i as InternshipRow | null);
 
       let defaultEmployer = i?.employer_supervisor_name ?? "";
       if (i?.company_id) {

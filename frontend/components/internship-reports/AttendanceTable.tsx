@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef } from "react";
-import { Button } from "@/components/ui";
 import type { AttendanceRow } from "@/lib/internship-reports/types";
 import { computeHoursBetween } from "@/lib/internship-reports/helpers";
 

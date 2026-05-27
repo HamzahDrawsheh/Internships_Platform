@@ -10,6 +10,20 @@ import {
   isSmtpNetworkBlocked,
 } from "@/lib/email/provider-state";
 import { describeSmtpNetworkBlock } from "@/lib/email/errors";
+import { consumeIpRateLimitSlot } from "@/lib/server/ip-rate-limit";
+import { requireAdminUser } from "@/lib/server/require-admin";
+
+const EMAIL_TEST_RATE_LIMIT_BUCKET = "email_test";
+const EMAIL_TEST_MAX_REQUESTS_PER_IP = 5;
+const EMAIL_TEST_WINDOW_MS = 60 * 60 * 1000;
+
+function getClientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() || "unknown";
+  }
+  return request.headers.get("x-real-ip")?.trim() || "unknown";
+}
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -22,6 +36,11 @@ function isValidEmail(value: string): boolean {
  * POST /api/email/test { "to": "you@example.com" } — verify + send test message
  */
 export async function GET() {
+  const admin = await requireAdminUser();
+  if (!admin.ok) {
+    return NextResponse.json({ ok: false, error: admin.error }, { status: admin.status });
+  }
+
   logEmailConfigurationStatus({ force: true });
 
   const smtp = getSmtpConfigurationStatus();
@@ -58,6 +77,23 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const admin = await requireAdminUser();
+    if (!admin.ok) {
+      return NextResponse.json({ ok: false, error: admin.error }, { status: admin.status });
+    }
+
+    const ip = getClientIp(request);
+    if (
+      !(await consumeIpRateLimitSlot(
+        ip,
+        EMAIL_TEST_RATE_LIMIT_BUCKET,
+        EMAIL_TEST_MAX_REQUESTS_PER_IP,
+        EMAIL_TEST_WINDOW_MS
+      ))
+    ) {
+      return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
+    }
+
     logEmailConfigurationStatus({ force: true });
 
     const payload = (await request.json()) as { to?: string };

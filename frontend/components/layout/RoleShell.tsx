@@ -28,6 +28,8 @@ export function RoleShell({ sidebar, children }: { sidebar: ReactNode; children:
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
+    // Browser-only localStorage/media-query hydration after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarOpen(readInitialSidebarOpen());
   }, []);
 

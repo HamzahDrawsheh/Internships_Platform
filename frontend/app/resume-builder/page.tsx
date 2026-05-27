@@ -376,7 +376,7 @@ export default function ResumeBuilderPage() {
       setImproveError(t("cvBuilder.errors.aiNetwork"));
     }
     setImproving(false);
-  }, [fullName, university, major, skills, education, experience, projects, linkedin, githubPortfolio]);
+  }, [fullName, university, major, skills, education, experience, projects, linkedin, githubPortfolio, t]);
 
   const handleApplyAiSuggestions = useCallback(() => {
     if (!pendingAi) return;

@@ -124,7 +124,7 @@ export default function AdminFeedbacksPage() {
 
   useEffect(() => {
     if (!accessLoading && isAdmin) {
-      void loadFeedbacks();
+      void Promise.resolve().then(loadFeedbacks);
     }
   }, [accessLoading, isAdmin, loadFeedbacks]);
 

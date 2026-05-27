@@ -27,12 +27,12 @@ export async function POST(request: Request) {
 
     const ip = getClientIp(request);
     if (
-      !consumeIpRateLimitSlot(
+      !(await consumeIpRateLimitSlot(
         ip,
         WELCOME_RATE_LIMIT_BUCKET,
         MAX_WELCOME_REQUESTS_PER_IP,
         WELCOME_WINDOW_MS
-      )
+      ))
     ) {
       console.warn("[welcome-email] rate limit exceeded", { ip });
       return NextResponse.json({ ok: true });

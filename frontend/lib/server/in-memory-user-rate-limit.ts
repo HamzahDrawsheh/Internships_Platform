@@ -1,9 +1,9 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+
 /**
- * MVP in-memory rate limiter keyed by authenticated Supabase user id + logical bucket.
- * Sliding window: at most MAX_REQUESTS within WINDOW_MS per key.
- *
- * Not shared across server instances (each Node process has its own Map).
- * Suitable for small deployments / single-instance; replace with Redis etc. when scaling out.
+ * User rate limiter keyed by authenticated Supabase user id + logical bucket.
+ * Uses a Supabase-backed counter when service role is configured, with a local
+ * in-memory fallback for development or misconfigured non-critical environments.
  */
 
 const WINDOW_MS = 60_000;
@@ -21,7 +21,7 @@ const hitsByKey = new Map<string, number[]>();
 /**
  * Records this attempt and returns whether the user is still under the limit.
  */
-export function consumeUserRateLimitSlot(userId: string, bucket: string): boolean {
+function consumeLocalUserRateLimitSlot(userId: string, bucket: string): boolean {
   const key = `${userId}:${bucket}`;
   const now = Date.now();
   const prev = hitsByKey.get(key) ?? [];
@@ -35,4 +35,31 @@ export function consumeUserRateLimitSlot(userId: string, bucket: string): boolea
   recent.push(now);
   hitsByKey.set(key, recent);
   return true;
+}
+
+export async function consumeUserRateLimitSlot(userId: string, bucket: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("consume_api_rate_limit", {
+      p_key: `user:${userId}:${bucket}`,
+      p_bucket: bucket,
+      p_subject: userId,
+      p_max_requests: MAX_REQUESTS,
+      p_window_seconds: Math.floor(WINDOW_MS / 1000),
+    });
+    if (!error && typeof data === "boolean") {
+      return data;
+    }
+    if (process.env.NODE_ENV === "production") {
+      console.error("[rate-limit] shared limiter failed", { bucket, error: error?.message });
+      return false;
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[rate-limit] shared limiter unavailable", { bucket, error });
+      return false;
+    }
+  }
+
+  return consumeLocalUserRateLimitSlot(userId, bucket);
 }

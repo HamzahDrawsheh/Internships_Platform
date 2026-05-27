@@ -14,6 +14,7 @@ export type TransactionalEmailQueueRow = {
   type: string;
   link_path: string | null;
   recipient_email: string;
+  attempts: number;
 };
 
 /**
@@ -21,28 +22,31 @@ export type TransactionalEmailQueueRow = {
  */
 export async function processTransactionalEmailQueue(
   admin: SupabaseClient,
-  options?: { limit?: number }
-): Promise<{ processed: number; failed: number }> {
+  options?: { limit?: number; maxAttempts?: number }
+): Promise<{ processed: number; failed: number; skipped: number }> {
   const limit = options?.limit ?? 25;
+  const maxAttempts = options?.maxAttempts ?? 5;
 
   const { data: rows, error } = await admin
     .from("transactional_email_queue")
-    .select("id, user_id, title, message, type, link_path, recipient_email")
+    .select("id, user_id, title, message, type, link_path, recipient_email, attempts")
     .is("processed_at", null)
+    .lt("attempts", maxAttempts)
     .order("created_at", { ascending: true })
     .limit(limit);
 
   if (error) {
     console.error("[notification-email-queue] load failed:", formatPostgrestError(error));
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, skipped: 0 };
   }
 
   if (!rows?.length) {
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, skipped: 0 };
   }
 
   let processed = 0;
   let failed = 0;
+  let skipped = 0;
   const baseUrl = resolveAppBaseUrl();
 
   for (const row of rows as TransactionalEmailQueueRow[]) {
@@ -52,7 +56,7 @@ export async function processTransactionalEmailQueue(
         .from("transactional_email_queue")
         .update({ processed_at: new Date().toISOString(), last_error: "no recipient email" })
         .eq("id", row.id);
-      failed += 1;
+      skipped += 1;
       continue;
     }
 
@@ -88,20 +92,23 @@ export async function processTransactionalEmailQueue(
         result.reason === "not_configured"
           ? "email provider not configured"
           : result.error ?? "send failed";
+      const nextAttempts = (row.attempts ?? 0) + 1;
       await admin
         .from("transactional_email_queue")
         .update({
           last_error: errMsg,
-          attempts: 1,
+          attempts: nextAttempts,
         })
         .eq("id", row.id);
       failed += 1;
       console.warn("[notification-email-queue] send failed", {
         queueId: row.id,
+        attempts: nextAttempts,
+        deadLettered: nextAttempts >= maxAttempts,
         error: errMsg,
       });
     }
   }
 
-  return { processed, failed };
+  return { processed, failed, skipped };
 }

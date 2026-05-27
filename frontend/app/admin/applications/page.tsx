@@ -136,7 +136,7 @@ export default function AdminApplicationsPage() {
 
   useEffect(() => {
     if (!accessLoading && isAdmin) {
-      void loadApplications();
+      void Promise.resolve().then(loadApplications);
     }
   }, [accessLoading, isAdmin, loadApplications]);
 

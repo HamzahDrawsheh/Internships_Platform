@@ -106,6 +106,8 @@ export default function SupervisorOnboardingPage() {
     };
 
     checkSessionAndPending();
+    // Only hydrate the initial pending request snapshot on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

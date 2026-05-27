@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import type { AttendanceRow, EmployerEvaluationRow, MonthlyReportRow, WeeklyReportRow } from "./types";
+import type { AttendanceRow, EmployerEvaluationRow, WeeklyReportRow } from "./types";
 import { computeAttendancePercentage, filterAttendanceForMonth } from "./helpers";
 
 export type ReportPdfContext = {

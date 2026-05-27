@@ -173,7 +173,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_STUDENT_ASSISTANT_CHAT)) {
+    if (!(await consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_STUDENT_ASSISTANT_CHAT))) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
 

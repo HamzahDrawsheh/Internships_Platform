@@ -12,7 +12,7 @@ import { ApplicationStatsCards } from "@/components/applications/ApplicationStat
 import EmptyState from "@/components/common/EmptyState";
 import { TableListPageSkeleton } from "@/components/loading";
 import { Button, Card, Modal, Select, Textarea } from "@/components/ui";
-import type { Application, ApplicationStatus } from "@/lib/types";
+import type { Application } from "@/lib/types";
 
 type TrainingEvaluationSummary = {
   overall_rating: number;

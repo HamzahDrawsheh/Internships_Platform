@@ -55,7 +55,13 @@ export async function POST(request: Request) {
     }
 
     try {
-      await fetch(new URL("/api/notifications/process-email-queue", request.url), { method: "POST" });
+      const cronSecret = process.env.CRON_SECRET?.trim();
+      if (cronSecret) {
+        await fetch(new URL("/api/notifications/process-email-queue", request.url), {
+          method: "POST",
+          headers: { "x-cron-secret": cronSecret },
+        });
+      }
     } catch {
       // non-fatal
     }

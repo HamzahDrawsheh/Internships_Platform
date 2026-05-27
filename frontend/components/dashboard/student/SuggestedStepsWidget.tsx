@@ -106,27 +106,31 @@ export function SuggestedStepsWidget(fallbackProps: Props = {}) {
   }, []);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   useDashboardDataRefresh(load);
 
-  const profile = snapshot ?? {
-    hasDepartment: fallbackProps.hasDepartment ?? false,
-    hasCv: fallbackProps.hasCv ?? false,
-    hasApplied: fallbackProps.hasApplied ?? false,
-    applicationCount: fallbackProps.applicationCount ?? 0,
-    pendingApplications: fallbackProps.pendingApplications ?? 0,
-    technicalSkills: fallbackProps.technicalSkills ?? [],
-    softSkills: fallbackProps.softSkills ?? [],
-    takenCourses: fallbackProps.takenCourses ?? [],
-    customCourses: fallbackProps.customCourses ?? [],
-    preferredField: fallbackProps.preferredField ?? null,
-    preferredWorkType: fallbackProps.preferredWorkType ?? null,
-    preferredLocation: fallbackProps.preferredLocation ?? null,
-    major: fallbackProps.major ?? null,
-    gpa: fallbackProps.gpa ?? null,
-  };
+  const profile = useMemo(
+    () =>
+      snapshot ?? {
+        hasDepartment: fallbackProps.hasDepartment ?? false,
+        hasCv: fallbackProps.hasCv ?? false,
+        hasApplied: fallbackProps.hasApplied ?? false,
+        applicationCount: fallbackProps.applicationCount ?? 0,
+        pendingApplications: fallbackProps.pendingApplications ?? 0,
+        technicalSkills: fallbackProps.technicalSkills ?? [],
+        softSkills: fallbackProps.softSkills ?? [],
+        takenCourses: fallbackProps.takenCourses ?? [],
+        customCourses: fallbackProps.customCourses ?? [],
+        preferredField: fallbackProps.preferredField ?? null,
+        preferredWorkType: fallbackProps.preferredWorkType ?? null,
+        preferredLocation: fallbackProps.preferredLocation ?? null,
+        major: fallbackProps.major ?? null,
+        gpa: fallbackProps.gpa ?? null,
+      },
+    [fallbackProps, snapshot]
+  );
 
   const suggestionSlides = useMemo(
     () => buildStudentSuggestionSlides({ ...profile, labels }),

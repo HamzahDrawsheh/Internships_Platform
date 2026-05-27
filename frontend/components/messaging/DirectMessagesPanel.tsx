@@ -169,7 +169,7 @@ export function DirectMessagesPanel({
   }, [basePath, router, variant]);
 
   const startConversation = useCallback(
-    async (kind: DmConversationRow["kind"], peerProfileUserId: string, label?: string, reciprocalLabel?: string) => {
+    async (kind: DmConversationRow["kind"], peerProfileUserId: string, label?: string) => {
       if (!viewerId) return null;
       setActionError(null);
       setSendBusy(true);
@@ -257,7 +257,6 @@ export function DirectMessagesPanel({
       pendingTarget.kind,
       pendingTarget.peerUserId,
       pendingTarget.label,
-      pendingTarget.reciprocalLabel,
     )
       .then(() => onPendingHandled?.())
       .catch((err) => {
@@ -318,11 +317,11 @@ export function DirectMessagesPanel({
     };
   }, [selectedId, viewerId, view, loadMessages, supabase]);
 
-  const labelForConversation = (c: DmConversationRow) => {
+  const labelForConversation = useCallback((c: DmConversationRow) => {
     if (!viewerId) return "…";
     const pid = peerUserId(c, viewerId);
     return labels[pid] ?? (c.kind === "student_supervisor" ? "Supervisor" : "Company");
-  };
+  }, [labels, viewerId]);
 
   const labelForContact = (c: MessagingContact) => c.label;
 
@@ -340,7 +339,7 @@ export function DirectMessagesPanel({
       conversation: c,
       label: labelForConversation(c),
     }));
-  }, [conversations, viewerId, labels]);
+  }, [conversations, viewerId, labelForConversation]);
 
   const sendMessage = async () => {
     if (!viewerId || !selectedId || !composeBody.trim()) return;

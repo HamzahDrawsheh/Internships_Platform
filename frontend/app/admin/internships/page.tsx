@@ -79,7 +79,7 @@ export default function AdminInternshipsPage() {
 
   useEffect(() => {
     if (!accessLoading && isAdmin) {
-      void loadInternships();
+      void Promise.resolve().then(loadInternships);
     }
   }, [accessLoading, isAdmin, loadInternships]);
 

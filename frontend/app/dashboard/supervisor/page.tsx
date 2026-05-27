@@ -37,7 +37,6 @@ export default function SupervisorDashboardPage() {
   const [totalApplications, setTotalApplications] = useState(0);
   const [acceptedApplications, setAcceptedApplications] = useState(0);
   const [pendingApplications, setPendingApplications] = useState(0);
-  const [rejectedApplications, setRejectedApplications] = useState(0);
   const [completedInternships, setCompletedInternships] = useState(0);
   const [previewStudents, setPreviewStudents] = useState<PreviewStudent[]>([]);
   const [departmentInsightsEligible, setDepartmentInsightsEligible] = useState(false);
@@ -98,7 +97,6 @@ export default function SupervisorDashboardPage() {
         setTotalApplications(0);
         setAcceptedApplications(0);
         setPendingApplications(0);
-        setRejectedApplications(0);
         setCompletedInternships(0);
         setPreviewStudents([]);
         setLoading(false);
@@ -137,7 +135,6 @@ export default function SupervisorDashboardPage() {
         setTotalApplications(0);
         setAcceptedApplications(0);
         setPendingApplications(0);
-        setRejectedApplications(0);
         setCompletedInternships(0);
         setPreviewStudents([]);
         setLoading(false);
@@ -158,7 +155,6 @@ export default function SupervisorDashboardPage() {
       setTotalApplications(safeApplications.length);
       setAcceptedApplications(safeApplications.filter((application) => application.status === "accepted").length);
       setPendingApplications(safeApplications.filter((application) => application.status === "pending").length);
-      setRejectedApplications(safeApplications.filter((application) => application.status === "rejected").length);
       setCompletedInternships(safeApplications.filter((application) => application.status === "completed").length);
 
       const profileIds = [...new Set(safeStudents.map((student) => student.user_id))];

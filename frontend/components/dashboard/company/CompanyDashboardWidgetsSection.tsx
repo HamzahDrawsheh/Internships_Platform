@@ -40,7 +40,7 @@ export function CompanyDashboardWidgetsSection() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    void Promise.resolve().then(refresh);
   }, [refresh]);
 
   useCompanyDashboardRefresh(refresh);

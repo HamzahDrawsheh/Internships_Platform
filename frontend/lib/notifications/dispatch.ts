@@ -1,8 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deliverEmail } from "@/lib/email/delivery";
 import { normalizeNotificationSettings } from "@/lib/notification-preferences";
 import { authorizeNotificationDispatch } from "@/lib/notifications/authorize-dispatch";
-import { buildTransactionalNotificationEmail, resolveAppBaseUrl } from "@/lib/notifications/email-template";
 import { processTransactionalEmailQueue } from "@/lib/notifications/process-email-queue";
 import type {
   DispatchNotificationParams,
@@ -10,8 +8,6 @@ import type {
 } from "@/lib/notifications/types";
 import { formatPostgrestError } from "@/lib/postgrest-error";
 import { createClient } from "@/lib/supabase/server";
-
-const APP_NAME = process.env.SMTP_FROM_NAME?.trim() || "AI Intern Jordan";
 
 /**
  * Server-only: creates in-app notification per push_notifications and sends email per email_notifications.
@@ -58,28 +54,34 @@ export async function dispatchNotification(
   }
 
   const prefs = normalizeNotificationSettings(recipient);
-  const baseUrl = resolveAppBaseUrl();
   const linkPath = params.linkPath ?? "/notifications";
-  const linkUrl = `${baseUrl}${linkPath.startsWith("/") ? linkPath : `/${linkPath}`}`;
 
   let notificationId: string | null = null;
 
   if (prefs.push_notifications) {
+    const notificationPayload = {
+      user_id: params.recipientUserId,
+      title: params.title,
+      message: params.message,
+      type: params.type,
+      is_read: false,
+      related_application_id: params.relatedApplicationId ?? null,
+      related_rating_id: params.relatedRatingId ?? null,
+      related_conversation_id: params.relatedConversationId ?? null,
+      idempotency_key: params.idempotencyKey ?? null,
+    };
     // Service role: recipient is another user; client session cannot insert under RLS.
-    const { data: inserted, error: insertError } = await admin
-      .from("notifications")
-      .insert({
-        user_id: params.recipientUserId,
-        title: params.title,
-        message: params.message,
-        type: params.type,
-        is_read: false,
-        related_application_id: params.relatedApplicationId ?? null,
-        related_rating_id: params.relatedRatingId ?? null,
-        related_conversation_id: params.relatedConversationId ?? null,
-      })
-      .select("id")
-      .maybeSingle();
+    const { data: inserted, error: insertError } = params.idempotencyKey
+      ? await admin
+          .from("notifications")
+          .upsert(notificationPayload, { onConflict: "idempotency_key", ignoreDuplicates: true })
+          .select("id")
+          .maybeSingle()
+      : await admin
+          .from("notifications")
+          .insert(notificationPayload)
+          .select("id")
+          .maybeSingle();
 
     if (insertError) {
       console.error("[dispatchNotification] in-app insert:", formatPostgrestError(insertError));
@@ -89,7 +91,7 @@ export async function dispatchNotification(
     notificationId = inserted?.id ?? null;
   }
 
-  let emailSent = false;
+  const emailSent = false;
   let emailSkippedReason: string | undefined;
 
   if (!prefs.email_notifications) {
@@ -97,38 +99,31 @@ export async function dispatchNotification(
   } else if (!recipient.email?.trim()) {
     emailSkippedReason = "recipient has no email address";
   } else {
-    const { subject, html, text } = buildTransactionalNotificationEmail({
-      appName: APP_NAME,
+    const emailPayload = {
+      user_id: params.recipientUserId,
+      recipient_email: recipient.email.trim(),
       title: params.title,
       message: params.message,
-      linkUrl,
-    });
+      type: params.type,
+      link_path: linkPath,
+      notification_id: notificationId,
+      idempotency_key: params.idempotencyKey ? `${params.idempotencyKey}:email` : null,
+    };
+    const { error: queueError } = params.idempotencyKey
+      ? await admin
+          .from("transactional_email_queue")
+          .upsert(emailPayload, { onConflict: "idempotency_key", ignoreDuplicates: true })
+      : await admin.from("transactional_email_queue").insert(emailPayload);
 
-    const emailResult = await deliverEmail({
-      to: recipient.email.trim(),
-      subject,
-      html,
-      text,
-    });
-
-    if (emailResult.ok) {
-      emailSent = true;
-      console.info("[dispatchNotification] email sent", {
-        recipientUserId: params.recipientUserId,
-        type: params.type,
-        messageId: emailResult.messageId,
-        provider: emailResult.provider,
-      });
-    } else {
-      emailSkippedReason =
-        emailResult.reason === "not_configured"
-          ? "email provider not configured"
-          : emailResult.error ?? "email send failed";
-      console.warn("[dispatchNotification] email failed", {
+    if (queueError) {
+      emailSkippedReason = `email queue failed: ${formatPostgrestError(queueError)}`;
+      console.warn("[dispatchNotification] email queue failed", {
         recipientUserId: params.recipientUserId,
         type: params.type,
         reason: emailSkippedReason,
       });
+    } else {
+      emailSkippedReason = "queued for delivery";
     }
   }
 

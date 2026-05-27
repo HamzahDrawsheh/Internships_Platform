@@ -37,12 +37,6 @@ type ApiSuccess = {
   message?: string;
 };
 
-type ApiFailure = {
-  success: false;
-  ok: false;
-  error: string;
-};
-
 function jsonSuccess(payload: Omit<ApiSuccess, "success" | "ok">, status = 200) {
   return NextResponse.json({ success: true, ok: true, ...payload }, { status });
 }
@@ -102,7 +96,7 @@ export async function POST(request: Request) {
     return jsonFailure("Only students can extract report skills.", 403);
   }
 
-  if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_TASK_TO_SKILL)) {
+  if (!(await consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_TASK_TO_SKILL))) {
     return jsonFailure("Too many requests. Please wait a minute and try again.", 429);
   }
 

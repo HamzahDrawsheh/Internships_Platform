@@ -66,6 +66,8 @@ export function TrainingProgressCyclicWidget({
   }, [endDate, internshipId, internshipStatus, startDate]);
 
   useEffect(() => {
+    // Parent dashboard may refresh the precomputed summary; mirror that into the widget state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTrack(initialTrack);
     setReportsDueCount(initialReportsDueCount);
   }, [initialTrack, initialReportsDueCount]);

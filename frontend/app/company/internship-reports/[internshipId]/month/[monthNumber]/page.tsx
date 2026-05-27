@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -22,7 +22,6 @@ function draftKey(reportId: string) {
 
 export default function CompanyMonthlyEvaluationPage() {
   const params = useParams();
-  const router = useRouter();
   const internshipId = typeof params.internshipId === "string" ? params.internshipId : "";
   const monthNumber = Number(params.monthNumber);
   const [report, setReport] = useState<MonthlyReportRow | null>(null);

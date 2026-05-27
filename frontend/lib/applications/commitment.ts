@@ -45,10 +45,7 @@ export function canCompanyTransitionStatus(
 }
 
 /** Company UI sends "accepted"; stored as pending student commitment. */
-export function buildCompanyStatusPatch(
-  nextStatus: ApplicationStatus | "accepted",
-  scheduleWeeks: number | null
-): Record<string, unknown> {
+export function buildCompanyStatusPatch(nextStatus: ApplicationStatus | "accepted"): Record<string, unknown> {
   if (nextStatus === "accepted") {
     return {
       status: COMMITMENT_PENDING_STATUS,

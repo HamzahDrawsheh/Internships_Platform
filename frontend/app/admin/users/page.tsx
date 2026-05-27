@@ -71,7 +71,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     if (!accessLoading && isAdmin) {
-      void loadUsers();
+      void Promise.resolve().then(loadUsers);
     }
   }, [accessLoading, isAdmin, loadUsers]);
 

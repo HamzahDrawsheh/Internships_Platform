@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   }
 
   // Cap LLM-bound abuse per authenticated student before reading body / calling OpenAI.
-  if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_RESUME_IMPROVE)) {
+  if (!(await consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_RESUME_IMPROVE))) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
   }
 

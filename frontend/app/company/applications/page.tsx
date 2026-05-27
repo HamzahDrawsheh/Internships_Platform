@@ -206,7 +206,6 @@ export default function CompanyApplicationsPage() {
         preferences: string | null;
         cv_path: string | null;
       }[];
-      const studentById = new Map(studentsList.map((s) => [s.id, s]));
       const profileUserIds = [...new Set(studentsList.map((s) => s.user_id))];
 
       const { data: profilesData, error: profilesError } = profileUserIds.length
@@ -279,10 +278,6 @@ export default function CompanyApplicationsPage() {
 
     load();
   }, []);
-
-  const titleByPositionId = useMemo(() => {
-    return new Map(positions.map((position) => [position.id, position.title]));
-  }, [positions]);
 
   const selectedApplication = useMemo(
     () => applications.find((application) => application.id === selectedApplicationId) ?? null,
@@ -383,7 +378,7 @@ export default function CompanyApplicationsPage() {
         }
       }
 
-      const applicationPatch = buildCompanyStatusPatch(effectiveNextStatus, null);
+      const applicationPatch = buildCompanyStatusPatch(effectiveNextStatus);
 
       const { error: updateError } = await supabase
         .from("applications")

@@ -9,11 +9,17 @@ import {
   getSmtpVerifySnapshot,
   isSmtpNetworkBlocked,
 } from "@/lib/email/provider-state";
+import { requireAdminUser } from "@/lib/server/require-admin";
 
 /**
  * GET /api/email/status — env + optional SMTP verify
  */
 export async function GET() {
+  const admin = await requireAdminUser();
+  if (!admin.ok) {
+    return NextResponse.json({ ok: false, error: admin.error }, { status: admin.status });
+  }
+
   logEmailConfigurationStatus({ force: true });
 
   const smtp = getSmtpConfigurationStatus();

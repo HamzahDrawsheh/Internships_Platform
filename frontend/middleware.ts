@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
+import { getRoleDashboardPath } from "@/lib/role-home";
 import type { ProfileRole } from "@/lib/types";
 
 const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/verify"];
@@ -12,21 +13,6 @@ function isPublic(pathname: string): boolean {
 
 function isAuthPath(pathname: string): boolean {
   return AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
-}
-
-function getRoleHome(role: ProfileRole | null): string {
-  switch (role) {
-    case "student":
-      return "/dashboard/student";
-    case "company":
-      return "/dashboard/company";
-    case "supervisor":
-      return "/dashboard/supervisor";
-    case "admin":
-      return "/admin/dashboard";
-    default:
-      return "/onboarding";
-  }
 }
 
 function isCompanyOrSupervisorProtectedPath(pathname: string): boolean {
@@ -144,6 +130,9 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   if (!supabaseUrl || !supabaseAnonKey) {
+    if (process.env.NODE_ENV === "production" && isProtected(request.nextUrl.pathname)) {
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
     return response;
   }
 
@@ -253,7 +242,7 @@ export async function middleware(request: NextRequest) {
     if (onboardingTarget) {
       return NextResponse.redirect(new URL(onboardingTarget, request.url));
     }
-    const home = getRoleHome(role);
+    const home = getRoleDashboardPath(role);
     return NextResponse.redirect(new URL(home, request.url));
   }
 
@@ -277,7 +266,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isProtected(pathname) && !isAllowedForRole(pathname, role)) {
-    const home = getRoleHome(role);
+    const home = getRoleDashboardPath(role);
     return NextResponse.redirect(new URL(home, request.url));
   }
 

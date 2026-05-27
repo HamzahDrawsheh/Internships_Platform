@@ -27,11 +27,6 @@ export async function GET(_request: Request, context: RouteContext) {
       error: userError,
     } = await supabaseAuth.auth.getUser();
 
-    console.log("step: auth user", {
-      userId: user?.id ?? null,
-      userError: userError?.message ?? null,
-    });
-
     if (userError || !user) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
@@ -70,11 +65,6 @@ export async function GET(_request: Request, context: RouteContext) {
       .eq("id", trimmedId)
       .maybeSingle();
 
-    console.log("step: fetched application", {
-      application,
-      applicationError: applicationError?.message ?? null,
-    });
-
     if (applicationError) {
       return NextResponse.json({ error: "Unable to load application" }, { status: 500 });
     }
@@ -97,33 +87,11 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    console.log("step: company ownership ok", {
-      companyId: company.id,
-      positionCompanyId: position.company_id,
-      applicationId: trimmedId,
-    });
-
-    console.log("step: before student cv_path query", {
-      studentId: application.student_id,
-    });
-
     const { data: studentCvRow, error: studentCvError } = await supabaseAuth
       .from("students")
       .select("cv_path")
       .eq("id", application.student_id)
       .single();
-
-    console.log("step: after student cv_path query", {
-      studentCvRow,
-      studentCvError: studentCvError
-        ? {
-            message: studentCvError.message,
-            code: studentCvError.code,
-            details: studentCvError.details,
-            hint: studentCvError.hint,
-          }
-        : null,
-    });
 
     if (studentCvError) {
       console.error("student cv_path fetch error:", studentCvError);
@@ -138,13 +106,6 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    console.log("step: resolved cvPath", { cvPath });
-
-    console.log("step: env check", {
-      hasSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-      hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    });
-
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
       return NextResponse.json({ error: "server_storage_config_missing" }, { status: 500 });
     }
@@ -156,20 +117,9 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
-    console.log("step: before createSignedUrl", {
-      bucket: "student-cvs",
-      cvPath,
-      ttlSec: 300,
-    });
-
     const { data: signed, error: signError } = await admin.storage
       .from(BUCKET)
       .createSignedUrl(cvPath, SIGNED_URL_TTL_SEC);
-
-    console.log("step: after createSignedUrl", {
-      hasSignedUrl: !!signed?.signedUrl,
-      signError: signError?.message ?? null,
-    });
 
     if (signError || !signed?.signedUrl) {
       const message = signError?.message ?? "Could not generate download link";

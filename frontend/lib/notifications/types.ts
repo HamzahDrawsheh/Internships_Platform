@@ -8,6 +8,7 @@ export type DispatchNotificationParams = {
   relatedApplicationId?: string | null;
   relatedRatingId?: string | null;
   relatedConversationId?: string | null;
+  idempotencyKey?: string | null;
   /** Optional deep link path (e.g. /applications). */
   linkPath?: string | null;
 };

@@ -145,6 +145,8 @@ export default function StudentAssistantChat() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
+    // Keep the localized welcome message in sync when the active locale changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessages((prev) => {
       if (prev.length === 0) return [welcomeMessage];
       return prev.map((m) => (m.id === WELCOME_ID ? { ...m, content: welcomeMessage.content } : m));

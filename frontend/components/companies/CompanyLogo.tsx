@@ -35,6 +35,8 @@ export function CompanyLogo({ name, logoUrl, previewUrl, size = "md", className 
       aria-hidden={showImage}
     >
       {showImage ? (
+        // Company logos may come from public storage or object previews; keep native img for broad URL support.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={resolvedUrl}
           alt={`${name} logo`}

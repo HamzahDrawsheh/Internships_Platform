@@ -231,7 +231,7 @@ export async function POST(request: Request) {
     }
 
     // Limit OpenAI-bound analyze calls per user after authorization (admins share same bucket).
-    if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_FEEDBACK_ANALYZE)) {
+    if (!(await consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_FEEDBACK_ANALYZE))) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
 

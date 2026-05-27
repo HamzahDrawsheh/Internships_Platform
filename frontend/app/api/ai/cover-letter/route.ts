@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
-  if (!consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_COVER_LETTER)) {
+  if (!(await consumeUserRateLimitSlot(user.id, RATE_LIMIT_BUCKET_COVER_LETTER))) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
   }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { StatCardsSkeleton, TableSectionSkeleton } from "@/components/loading";
+import { TableSectionSkeleton } from "@/components/loading";
 import { Table, Badge } from "@/components/ui";
 import { CompanyAiFeedbackSummary } from "@/components/companies/CompanyAiFeedbackSummary";
 import { CompanyDashboardWidgetsSection } from "@/components/dashboard/company/CompanyDashboardWidgetsSection";
@@ -32,11 +32,7 @@ type Props = {
 };
 
 export default function CompanyDashboardContent({ onSummary }: Props) {
-  const [internshipCount, setInternshipCount] = useState(0);
-  const [applicationCount, setApplicationCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
-  const [activeCount, setActiveCount] = useState(0);
-  const [completedCount, setCompletedCount] = useState(0);
   const [recentApplicants, setRecentApplicants] = useState<Row[]>([]);
   const [ratings, setRatings] = useState<RatingRow[]>([]);
   const [averageRating, setAverageRating] = useState<number | null>(null);
@@ -58,8 +54,6 @@ export default function CompanyDashboardContent({ onSummary }: Props) {
 
       if (!company) {
         setCompanyRecordId(null);
-        setInternshipCount(0);
-        setApplicationCount(0);
         setRecentApplicants([]);
         setRatings([]);
         setAverageRating(null);
@@ -76,13 +70,8 @@ export default function CompanyDashboardContent({ onSummary }: Props) {
         .eq("company_id", company.id);
 
       const positionIds = (positions ?? []).map((p) => p.id);
-      setInternshipCount(positionIds.length);
-
       if (positionIds.length === 0) {
-        setApplicationCount(0);
         setPendingCount(0);
-        setActiveCount(0);
-        setCompletedCount(0);
         setRecentApplicants([]);
         setTraineeOverview(null);
         setLoading(false);
@@ -96,10 +85,7 @@ export default function CompanyDashboardContent({ onSummary }: Props) {
         .order("applied_at", { ascending: false });
 
       const allApplications = applicationRows ?? [];
-      setApplicationCount(allApplications.length);
       setPendingCount(allApplications.filter((a) => a.status === "pending").length);
-      setActiveCount(allApplications.filter((a) => a.status === "accepted").length);
-      setCompletedCount(allApplications.filter((a) => a.status === "completed").length);
 
       const recent = allApplications.slice(0, 5);
       const studentsIds = [...new Set(recent.map((r) => r.student_id))];

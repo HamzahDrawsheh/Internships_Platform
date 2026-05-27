@@ -371,7 +371,7 @@ export default function ApplicantsPage() {
       }
     }
 
-    const applicationPatch = buildCompanyStatusPatch(status, null);
+    const applicationPatch = buildCompanyStatusPatch(status);
 
     const { error } = await supabase.from("applications").update(applicationPatch).eq("id", applicationId);
     if (error) {
@@ -381,7 +381,6 @@ export default function ApplicantsPage() {
       return;
     }
 
-    const row = rows.find((item) => item.id === applicationId);
     const { data: studentRow, error: studentLookupError } = await supabase
       .from("students")
       .select("user_id")

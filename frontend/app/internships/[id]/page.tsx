@@ -301,7 +301,13 @@ export default function InternshipDetailsPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{position.title}</h1>
             <div className="mt-1 flex items-center gap-2 text-gray-600 dark:text-gray-300">
               <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-purple-100 text-xs font-bold text-purple-700 dark:bg-slate-800 dark:text-violet-300">
-                {companyLogoUrl ? <img src={companyLogoUrl} alt="" className="h-full w-full object-cover" /> : companyName.slice(0, 1)}
+                {companyLogoUrl ? (
+                  // Company logos can be public Supabase Storage or preview URLs; keep native img here.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={companyLogoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  companyName.slice(0, 1)
+                )}
               </span>
               <span>{companyName}</span>
             </div>
