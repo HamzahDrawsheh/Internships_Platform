@@ -10,10 +10,14 @@ import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/Das
 import { RoleOverviewTrackCard } from "@/components/dashboard/RoleOverviewTrackCard";
 import { DashboardPageSkeleton } from "@/components/loading";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
+import { SmartActionCenter } from "@/components/supervisor/SmartActionCenter";
 import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import { createClient } from "@/lib/supabase/client";
+import { SupervisorQuickFilters, type SupervisorFilter } from "@/components/supervisor/SupervisorQuickFilters";
+import { SupervisorRiskRadar } from "@/components/supervisor/SupervisorRiskRadar";
+import { SupervisorFilteredResults } from "@/components/supervisor/SupervisorFilteredResults";
 
 type PreviewStudent = {
   id: string;
@@ -28,6 +32,7 @@ type PreviewStudent = {
 export default function SupervisorDashboardPage() {
   const router = useRouter();
   const { t } = useI18n();
+  const [selectedFilter, setSelectedFilter] = useState<SupervisorFilter>("all");
   const [loading, setLoading] = useState(true);
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [supervisorName, setSupervisorName] = useState("User");
@@ -423,6 +428,22 @@ export default function SupervisorDashboardPage() {
           />
         </div>
 
+        <SupervisorQuickFilters
+          hasDepartment={hasDepartment}
+          supervisorDepartmentLabel={supervisorDepartment ?? ""}
+          assignedStudents={assignedStudents}
+          pendingApplications={pendingApplications}
+          pendingApprovalCount={pendingApprovalCount}
+          selectedFilter={selectedFilter}
+          onChangeFilter={setSelectedFilter}
+        />
+
+        <SupervisorFilteredResults
+          hasDepartment={hasDepartment}
+          supervisorDepartment={supervisorDepartment ?? ""}
+          selectedFilter={selectedFilter}
+        />
+
         <Modal
           isOpen={gettingStartedOpen}
           onClose={() => setGettingStartedOpen(false)}
@@ -576,9 +597,22 @@ export default function SupervisorDashboardPage() {
               </section>
             ) : null}
 
-            <div id="supervisor-ai-insights">
-              <SupervisorAiInsights eligible={departmentInsightsEligible} className="mt-8" />
-            </div>
+            <SupervisorRiskRadar
+              hasDepartment={hasDepartment}
+              supervisorDepartment={supervisorDepartment ?? ""}
+              selectedFilter={selectedFilter}
+            />
+
+            <SmartActionCenter
+              hasDepartment={hasDepartment}
+              assignedStudents={assignedStudents}
+              pendingApplications={pendingApplications}
+              pendingApprovalCount={pendingApprovalCount}
+              totalApplications={totalApplications}
+              selectedFilter={selectedFilter}
+              onFilterChange={setSelectedFilter}
+            />
+
             <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {t("supervisor.dashboard.studentsOverview")}
@@ -629,6 +663,10 @@ export default function SupervisorDashboardPage() {
                 </Table>
               )}
             </section>
+
+            <div id="supervisor-ai-insights">
+              <SupervisorAiInsights eligible={departmentInsightsEligible} className="mt-8" />
+            </div>
           </>
         )}
       </Container>
