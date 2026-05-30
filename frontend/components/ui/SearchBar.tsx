@@ -1,5 +1,6 @@
 "use client";
 
+import { IconMagnifyingGlass } from "@/components/layout/icons";
 import { useI18n } from "@/lib/i18n/context";
 
 interface SearchBarProps {
@@ -13,9 +14,12 @@ export function SearchBar({ value, onChange, placeholder = "Search…", classNam
   const { lt, t } = useI18n();
 
   return (
-    <div className={`relative ${className}`}>
-      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#0F172A]/50 transition-colors duration-300 dark:text-slate-400" aria-hidden>
-        🔍
+    <div className={`group relative ${className}`}>
+      <span
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#7C3AED] transition-colors duration-300 group-focus-within:text-[#6D28D9] dark:text-violet-400 dark:group-focus-within:text-violet-300"
+        aria-hidden
+      >
+        <IconMagnifyingGlass />
       </span>
       <input
         type="search"
