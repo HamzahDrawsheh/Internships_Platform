@@ -540,16 +540,19 @@ export default function BrowseInternshipsPage() {
 
   type FilterKey = "location" | "skill" | "posted" | "company" | "companyLevel" | "match";
 
-  const filterChipBase =
-    "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-white dark:border-slate-600 dark:bg-white dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-white";
+  /** Shared chip surface: white in light mode, slate-800 in dark (not white + light text). */
+  const filterChipSurface =
+    "border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:hover:border-slate-500 dark:hover:bg-slate-700/90";
 
-  const filterChipActiveText: Record<FilterKey, string> = {
-    location: "border-slate-300 text-sky-700 shadow-sm dark:border-slate-500 dark:text-sky-400",
-    skill: "border-slate-300 text-emerald-700 shadow-sm dark:border-slate-500 dark:text-emerald-400",
-    posted: "border-slate-300 text-amber-800 shadow-sm dark:border-slate-500 dark:text-amber-400",
-    company: "border-slate-300 text-violet-700 shadow-sm dark:border-slate-500 dark:text-violet-400",
-    companyLevel: "border-slate-300 text-indigo-700 shadow-sm dark:border-slate-500 dark:text-indigo-400",
-    match: "border-slate-300 text-fuchsia-700 shadow-sm dark:border-slate-500 dark:text-fuchsia-400",
+  const filterChipIdleLabel = "text-slate-700 dark:text-slate-200";
+
+  const filterChipActiveLabel: Record<FilterKey, string> = {
+    location: "text-sky-700 dark:text-sky-300",
+    skill: "text-emerald-700 dark:text-emerald-300",
+    posted: "text-amber-800 dark:text-amber-300",
+    company: "text-violet-700 dark:text-violet-300",
+    companyLevel: "text-indigo-700 dark:text-indigo-300",
+    match: "text-fuchsia-700 dark:text-fuchsia-300",
   };
 
   const filterChipDot: Record<FilterKey, string> = {
@@ -572,8 +575,8 @@ export default function BrowseInternshipsPage() {
 
   const filterChipClass = (key: FilterKey, open: boolean) => {
     const active = filterIsActive[key] || open;
-    return `inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
-      active ? filterChipActiveText[key] : filterChipBase
+    return `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${filterChipSurface} ${
+      active ? `shadow-sm ${filterChipActiveLabel[key]}` : filterChipIdleLabel
     }`;
   };
 
