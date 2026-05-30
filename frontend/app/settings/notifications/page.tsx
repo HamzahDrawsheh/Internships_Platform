@@ -185,11 +185,6 @@ export default function NotificationSettingsPage() {
             >
               {saving ? t("settings.notifications.saving") : t("settings.notifications.save")}
             </Button>
-            <p className="text-xs text-gray-500 dark:text-slate-500">
-              {t("settings.notifications.defaultsHintPrefix")}{" "}
-              <code className="rounded bg-gray-100 px-1 dark:bg-slate-800">npm run supabase:push</code>{" "}
-              {t("settings.notifications.defaultsHintSuffix")}
-            </p>
           </div>
         </Card>
       </Container>

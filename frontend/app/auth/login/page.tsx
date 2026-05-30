@@ -3,9 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useTheme } from "next-themes";
 import { Input, Button, Modal } from "@/components/ui";
 import { normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
+import { SidebarIcon } from "@/components/layout/SidebarIcon";
+import { AppBrand } from "@/components/layout/AppBrand";
+import { LanguageToggle } from "@/components/i18n/LanguageToggle";
+import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell";
+import { NAV_ICON_BUTTON_CLASS } from "@/components/layout/navControlStyles";
+import { useI18n } from "@/lib/i18n/context";
 
 function logPostgrestError(scope: string, err: unknown) {
   if (err && typeof err === "object" && "message" in err) {
@@ -73,12 +80,15 @@ function IconEyeOff(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LoginPage() {
+  const { theme, setTheme } = useTheme();
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [themeMounted, setThemeMounted] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
@@ -86,6 +96,7 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
+    setThemeMounted(true);
     const params = new URLSearchParams(window.location.search);
     if (params.get("reset") === "success") {
       setSuccessMessage("Your password has been updated. You can now sign in.");
@@ -324,24 +335,47 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-4 transition-colors duration-300 sm:p-6 lg:p-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl items-center justify-center sm:min-h-[calc(100vh-3rem)] lg:min-h-[calc(100vh-4rem)]">
-        <div className="w-full overflow-hidden rounded-2xl border border-purple-100 bg-white/70 shadow-xl backdrop-blur-xl transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900/80">
-          <div className="grid min-h-[620px] grid-cols-1 lg:grid-cols-2">
-            <div className="flex items-center justify-center bg-[#F3E8FF] p-8 transition-colors duration-300 sm:p-10 lg:p-12 dark:bg-slate-800">
+    <>
+      <nav id="site-navbar" data-i18n-skip dir="ltr" className={`${NAVBAR_CLASS} ${NAVBAR_HEIGHT_CLASS}`}>
+        <div className={`mx-auto flex ${NAVBAR_HEIGHT_CLASS} w-full max-w-7xl items-center gap-3 px-3 sm:px-4 lg:px-6`}>
+          <AppBrand href="/" className="shrink-0" />
+          <div className="ms-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            <LanguageToggle />
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={NAV_ICON_BUTTON_CLASS}
+              aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
+            >
+              <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
+              <span className="hidden md:inline">{themeMounted && theme === "dark" ? t("common.light") : t("common.dark")}</span>
+            </button>
+            <Link href="/auth/signup" className="rounded-xl bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white shadow-md transition-colors duration-300 hover:bg-[#6D28D9] sm:px-4">
+              {t("nav.getStarted")}
+            </Link>
+          </div>
+        </div>
+      </nav>
+      <div className={NAVBAR_HEIGHT_CLASS} aria-hidden />
+
+      <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-3 transition-colors duration-300 sm:p-4 lg:p-5 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+        <div className="mx-auto flex max-w-5xl items-center justify-center">
+          <div className="w-full overflow-hidden rounded-2xl border border-purple-100 bg-white/80 shadow-xl backdrop-blur-xl transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900/85">
+            <div className="relative h-[120px] w-full overflow-hidden sm:h-[150px] lg:h-[180px]">
               <Image
-                src="/login_png.png"
-                alt="Login illustration"
-                width={800}
-                height={500}
-                className="animate-float-y h-auto w-full max-w-xl object-contain drop-shadow-[0_16px_30px_rgba(124,58,237,0.25)]"
+                src="/registration-banner-v2.png"
+                alt="AI internship platform preview"
+                fill
+                sizes="(min-width: 1024px) 1024px, 100vw"
+                className="object-cover object-top"
+                unoptimized
                 priority
               />
             </div>
-            <div className="flex items-center justify-center p-8 sm:p-10 lg:p-12">
-              <div className="w-full max-w-md py-4 lg:py-8">
-                <h1 className="text-3xl font-extrabold tracking-tight text-[#0F172A] transition-colors duration-300 sm:text-4xl dark:text-white">Welcome back</h1>
-                <p className="mt-3 text-sm text-[#475569] transition-colors duration-300 dark:text-slate-400">Sign in with your email and password.</p>
+            <div className="p-5 sm:p-6 lg:p-7">
+              <div className="mx-auto max-w-md">
+                <h1 className="text-2xl font-bold text-[#0F172A] transition-colors duration-300 dark:text-white">Welcome back</h1>
+                <p className="mt-2 text-sm text-[#475569] transition-colors duration-300 dark:text-slate-400">Sign in with your email and password.</p>
 
                 {successMessage && (
                   <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">
@@ -350,12 +384,12 @@ export default function LoginPage() {
                 )}
 
                 {error && (
-                  <div className="mt-5 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800" role="alert">
+                  <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300" role="alert">
                     {error}
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+                <form onSubmit={handleSubmit} className="mt-5 space-y-4">
                   <Input
                     label="Email"
                     type="email"
@@ -407,7 +441,7 @@ export default function LoginPage() {
                   </Button>
                 </form>
 
-                <p className="mt-8 text-center text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">
+                <p className="mt-5 text-center text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">
                   Don&apos;t have an account?{" "}
                   <Link href="/auth/signup" className="font-medium text-[#7C3AED] transition-colors duration-300 hover:text-[#6D28D9] hover:underline">Sign up</Link>
                 </p>
@@ -415,7 +449,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       <Modal
         isOpen={forgotOpen}
@@ -456,6 +490,6 @@ export default function LoginPage() {
           )}
         </form>
       </Modal>
-    </main>
+    </>
   );
 }
