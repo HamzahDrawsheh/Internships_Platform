@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
 import { DashboardPageSkeleton } from "@/components/loading";
-import { Badge, Button, EmptyState, Table } from "@/components/ui";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
+import { Button, EmptyState, Table } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 
 type RecentApplicationRow = {
@@ -38,18 +39,13 @@ const initialCounts: DashboardCounts = {
 };
 
 function applicationStatusBadge(status: RecentApplicationRow["status"]) {
-  switch (status) {
-    case "pending":
-      return <Badge variant="warning">Pending</Badge>;
-    case "accepted":
-      return <Badge variant="success">Active</Badge>;
-    case "completed":
-      return <Badge variant="info">Completed</Badge>;
-    case "rejected":
-      return <Badge variant="danger">Rejected</Badge>;
-    default:
-      return <Badge>{status}</Badge>;
-  }
+  const labels: Record<RecentApplicationRow["status"], string> = {
+    pending: "Pending",
+    accepted: "Active",
+    completed: "Completed",
+    rejected: "Rejected",
+  };
+  return <ApplicationStatusBadge status={status} label={labels[status]} />;
 }
 
 export default function AdminDashboardPage() {
@@ -312,26 +308,10 @@ export default function AdminDashboardPage() {
           <>
             <section className="mt-8">
               <DashboardStatGrid>
-                <DashboardStatCard
-                  label="Total students"
-                  value={counts.students}
-                  cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
-                />
-                <DashboardStatCard
-                  label="Total supervisors"
-                  value={counts.supervisors}
-                  cardClass="bg-indigo-100 text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-300"
-                />
-                <DashboardStatCard
-                  label="Total companies"
-                  value={counts.companies}
-                  cardClass="bg-teal-100 text-teal-900 dark:bg-teal-500/10 dark:text-teal-300"
-                />
-                <DashboardStatCard
-                  label="Total applications"
-                  value={counts.applications}
-                  cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
-                />
+                <DashboardStatCard label="Total students" value={counts.students} tone="purple" />
+                <DashboardStatCard label="Total supervisors" value={counts.supervisors} tone="indigo" />
+                <DashboardStatCard label="Total companies" value={counts.companies} tone="teal" />
+                <DashboardStatCard label="Total applications" value={counts.applications} tone="sky" />
               </DashboardStatGrid>
             </section>
 

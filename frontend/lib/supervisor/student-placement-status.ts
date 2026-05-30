@@ -1,4 +1,21 @@
+import {
+  applicationStatusTextClass,
+  statusTextVariantClass,
+  type StatusTextVariant,
+} from "@/lib/ui/status-text";
+import type { ApplicationStatus } from "@/lib/types";
+
 export type StudentPlacementStatus = "Completed" | "Active" | "Pending" | "Available";
+
+const APPLICATION_STATUSES = new Set<string>([
+  "pending",
+  "accepted_pending_commit",
+  "accepted",
+  "rejected",
+  "completed",
+  "commitment_expired",
+  "withdrawn",
+]);
 
 export function deriveStudentPlacementStatus(applications: { status: string }[]): StudentPlacementStatus {
   if (applications.length === 0) return "Available";
@@ -38,4 +55,23 @@ export function formatApplicationStatusLabel(status: string): string {
   const k = status.trim().toLowerCase();
   if (!k || k === "unknown") return "Unknown";
   return k.charAt(0).toUpperCase() + k.slice(1);
+}
+
+export function placementStatusTextClass(status: StudentPlacementStatus): string {
+  return statusTextVariantClass(placementStatusBadgeVariant(status));
+}
+
+export function applicationStatusStringTextClass(status: string): string {
+  const k = status.trim().toLowerCase();
+  if (APPLICATION_STATUSES.has(k)) {
+    return applicationStatusTextClass(k as ApplicationStatus);
+  }
+  return statusTextVariantClass(applicationStatusBadgeVariant(status));
+}
+
+/** Maps filter / meta tones to text-only status colors. */
+export function filterToneTextClass(tone: "danger" | "warning" | "default"): string {
+  const variant: StatusTextVariant =
+    tone === "danger" ? "danger" : tone === "warning" ? "warning" : "default";
+  return statusTextVariantClass(variant);
 }

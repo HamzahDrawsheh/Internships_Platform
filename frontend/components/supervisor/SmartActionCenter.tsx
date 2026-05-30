@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Badge, EmptyState } from "@/components/ui";
+import { Button, EmptyState, StatusText } from "@/components/ui";
+import { statusTextVariantClass } from "@/lib/ui/status-text";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import type { SupervisorFilter } from "@/components/supervisor/SupervisorQuickFilters";
@@ -31,10 +32,10 @@ type ActionItem = {
   disabledHint?: string;
 };
 
-function badgeClasses(tone: NonNullable<ActionItem["badge"]>["tone"]) {
-  if (tone === "urgent") return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200";
-  if (tone === "success") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200";
-  return "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200";
+function badgeTextClass(tone: NonNullable<ActionItem["badge"]>["tone"]) {
+  if (tone === "urgent") return statusTextVariantClass("danger");
+  if (tone === "success") return statusTextVariantClass("success");
+  return statusTextVariantClass("info");
 }
 
 export function SmartActionCenter({
@@ -227,9 +228,13 @@ export function SmartActionCenter({
                   <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{action.description}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {typeof action.count === "number" ? <Badge>{action.count}</Badge> : null}
+                  {typeof action.count === "number" ? (
+                    <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-400">
+                      {action.count}
+                    </span>
+                  ) : null}
                   {action.badge ? (
-                    <Badge className={badgeClasses(action.badge.tone)}>{action.badge.label}</Badge>
+                    <span className={`text-xs ${badgeTextClass(action.badge.tone)}`}>{action.badge.label}</span>
                   ) : null}
                 </div>
               </div>

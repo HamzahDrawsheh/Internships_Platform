@@ -1,18 +1,5 @@
-import Badge from "@/components/common/Badge";
+import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import type { ApplicationStatus } from "@/lib/types";
-
-const statusVariant: Record<
-  ApplicationStatus,
-  "default" | "info" | "warning" | "success" | "danger"
-> = {
-  pending: "warning",
-  accepted_pending_commit: "warning",
-  accepted: "success",
-  rejected: "danger",
-  completed: "info",
-  commitment_expired: "danger",
-  withdrawn: "default",
-};
 
 const statusLabel: Record<ApplicationStatus, string> = {
   pending: "Pending",
@@ -26,8 +13,22 @@ const statusLabel: Record<ApplicationStatus, string> = {
 
 interface ApplicationStatusBadgeProps {
   status: ApplicationStatus;
-}
+  className?: string;
+  /** Override default English label (e.g. i18n on detail pages). */
+  label?: string;
+};
 
-export default function ApplicationStatusBadge({ status }: ApplicationStatusBadgeProps) {
-  return <Badge variant={statusVariant[status]}>{statusLabel[status]}</Badge>;
+export default function ApplicationStatusBadge({
+  status,
+  className = "",
+  label,
+}: ApplicationStatusBadgeProps) {
+  return (
+    <span
+      className={`text-xs ${applicationStatusTextClass(status)} ${className}`.trim()}
+      role="status"
+    >
+      {label ?? statusLabel[status]}
+    </span>
+  );
 }

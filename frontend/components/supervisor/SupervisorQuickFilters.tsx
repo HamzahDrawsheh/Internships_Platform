@@ -88,9 +88,6 @@ export function SupervisorQuickFilters({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/supervisor/students">
-            <Button variant="secondary">{t("supervisor.dashboard.quickFiltersStudents")}</Button>
-          </Link>
           <Link href="/supervisor/reports?status=pending">
             <Button variant={pendingApplications > 0 ? "primary" : "secondary"}>
               {t("supervisor.dashboard.quickFiltersPendingApplications")}

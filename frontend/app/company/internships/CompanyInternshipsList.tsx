@@ -6,7 +6,7 @@ import { dispatchNotification } from "@/lib/notifications/client";
 import { createClient } from "@/lib/supabase/client";
 import EmptyState from "@/components/common/EmptyState";
 import { CardGridSkeleton } from "@/components/loading";
-import { Modal, Button, Badge } from "@/components/ui";
+import { Modal, Button, StatusText } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
 
 type FilterKey = "all" | "active" | "paused";
@@ -331,7 +331,9 @@ export default function CompanyInternshipsList() {
                     <h2 className="line-clamp-2 text-base font-semibold leading-snug text-slate-900 dark:text-white">
                       {listing.title}
                     </h2>
-                    <Badge variant={isActive ? "success" : "default"}>{isActive ? "Active" : "Paused"}</Badge>
+                    <StatusText variant={isActive ? "success" : "default"}>
+                      {isActive ? "Active" : "Paused"}
+                    </StatusText>
                   </div>
 
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">

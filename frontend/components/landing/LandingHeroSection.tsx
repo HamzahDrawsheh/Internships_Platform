@@ -15,21 +15,21 @@ export function LandingHeroSection() {
       <Container>
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <div className="text-center lg:text-start">
-            <p className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300">
+            <p className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300">
               <span aria-hidden>✨</span>
               {t("landing.heroBadge")}
             </p>
-            <h1 className="animate-fade-up mt-5 text-4xl font-extrabold leading-tight tracking-tight text-[#0F172A] transition-colors duration-300 sm:text-5xl lg:text-6xl dark:text-white">
+            <h1 className="mt-5 text-4xl font-extrabold leading-tight tracking-tight text-[#0F172A] transition-colors duration-300 sm:text-5xl lg:text-6xl dark:text-white">
               {t("landing.heroTitleBefore")}{" "}
               <span className="bg-gradient-to-r from-[#7C3AED] to-[#6366F1] bg-clip-text text-transparent">
                 {t("landing.heroTitleHighlight")}
               </span>{" "}
               {t("landing.heroTitleAfter")}
             </h1>
-            <p className="animate-fade-up animate-delay-1 mx-auto mt-6 max-w-xl text-lg text-[#0F172A]/80 transition-colors duration-300 lg:mx-0 dark:text-slate-400">
+            <p className="mx-auto mt-6 max-w-xl text-lg text-[#0F172A]/80 transition-colors duration-300 lg:mx-0 dark:text-slate-400">
               {t("landing.heroSubtitle")}
             </p>
-            <div className="animate-fade-up animate-delay-2 mt-10 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
               <Link href="/auth/signup">
                 <Button
                   variant="primary"
@@ -50,8 +50,8 @@ export function LandingHeroSection() {
           </div>
           <div className="flex justify-center">
             <div className="relative flex w-full max-w-2xl items-center justify-center">
-              <div className="animate-float-y pointer-events-none absolute -z-10 hidden h-64 w-64 rounded-full bg-[#C4B5FD]/30 blur-3xl dark:block dark:bg-purple-600/20" />
-              <div className="animate-float-y group flex w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/60 ring-1 ring-slate-100 transition-all duration-300 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:ring-purple-900/40">
+              <div className="pointer-events-none absolute -z-10 hidden h-64 w-64 rounded-full bg-[#C4B5FD]/30 blur-3xl dark:block dark:bg-purple-600/20" />
+              <div className="group flex w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/60 ring-1 ring-slate-100 transition-all duration-300 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:ring-purple-900/40">
                 <Image
                   src="/hero-dashboard.jpg"
                   alt={t("landing.heroImageAlt")}

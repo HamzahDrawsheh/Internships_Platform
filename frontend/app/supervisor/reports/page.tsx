@@ -7,6 +7,8 @@ import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TableListPageSkeleton } from "@/components/loading";
 import { Button, EmptyState, Input, Table } from "@/components/ui";
+import type { ApplicationStatus } from "@/lib/types";
+import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import { logPostgrestError } from "@/lib/postgrest-error";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
@@ -373,12 +375,17 @@ function ReportsExportPageContent() {
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
                     {formatDate(row.applied_at)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 transition-colors duration-300 dark:text-slate-400">
-                    {appStatusLabel(row.status, t)}
+                  <td className="whitespace-nowrap px-4 py-3 text-sm">
+                    <span
+                      role="status"
+                      className={applicationStatusTextClass(row.status as ApplicationStatus)}
+                    >
+                      {appStatusLabel(row.status, t)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <Link href={`/supervisor/students/${row.student_id}`}>
-                      <Button variant="secondary">{t("supervisor.reports.view")}</Button>
+                      <Button variant="primary">{t("supervisor.reports.view")}</Button>
                     </Link>
                   </td>
                 </tr>

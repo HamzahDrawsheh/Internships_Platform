@@ -5,7 +5,8 @@ import { Container } from "@/components/layout/Container";
 import { CardGridSkeleton, StatCardsSkeleton } from "@/components/loading";
 import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
 import { notifyCompanyDashboardUpdated } from "@/lib/dashboard/company-dashboard-sync";
-import { Badge, Button, EmptyState, Input, Modal, Select } from "@/components/ui";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
+import { Button, EmptyState, Input, Modal, Select } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
 import {
   buildCompanyApplicationStatusNotification,
@@ -522,15 +523,6 @@ export default function CompanyApplicationsPage() {
   const hasActiveFilters =
     search.trim().length > 0 || Boolean(statusFilter) || Boolean(positionFilter) || Boolean(hasCvFilter);
 
-  const statusVariant = (status: ApplicationStatus) => {
-    if (status === "accepted") return "success";
-    if (status === COMMITMENT_PENDING_STATUS) return "warning";
-    if (status === "rejected" || status === "commitment_expired") return "danger";
-    if (status === "completed") return "info";
-    if (status === "withdrawn") return "default";
-    return "warning";
-  };
-
   return (
     <main className="pb-10 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container>
@@ -549,30 +541,10 @@ export default function CompanyApplicationsPage() {
         {!loading ? (
           <div className="mt-6">
             <DashboardStatGrid>
-              <DashboardStatCard
-                label="Total applications"
-                value={stats.total}
-                cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
-                delayMs={0}
-              />
-              <DashboardStatCard
-                label="Pending"
-                value={stats.pending}
-                cardClass="bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300"
-                delayMs={80}
-              />
-              <DashboardStatCard
-                label="Active"
-                value={stats.accepted}
-                cardClass="bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300"
-                delayMs={160}
-              />
-              <DashboardStatCard
-                label="Completed"
-                value={stats.completed}
-                cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
-                delayMs={240}
-              />
+              <DashboardStatCard label="Total applications" value={stats.total} tone="purple" />
+              <DashboardStatCard label="Pending" value={stats.pending} tone="amber" />
+              <DashboardStatCard label="Active" value={stats.accepted} tone="green" />
+              <DashboardStatCard label="Completed" value={stats.completed} tone="sky" />
             </DashboardStatGrid>
           </div>
         ) : (
@@ -697,7 +669,10 @@ export default function CompanyApplicationsPage() {
                               {application.internship_title}
                             </p>
                           </div>
-                          <Badge variant={statusVariant(application.status)}>{statusLabel(application.status)}</Badge>
+                          <ApplicationStatusBadge
+                            status={application.status}
+                            label={statusLabel(application.status)}
+                          />
                         </div>
 
                         <dl className="mt-4 space-y-2 text-sm">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, Button, EmptyState, Table } from "@/components/ui";
+import { Button, EmptyState, StatusText, Table } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import type { SupervisorFilter } from "@/components/supervisor/SupervisorQuickFilters";
@@ -384,15 +384,15 @@ export function SupervisorRiskRadar({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="danger" className="shadow-sm">
+          <StatusText variant="danger">
             {fmt(t("supervisor.dashboard.radarHighCount"), { count: summary.high })}
-          </Badge>
-          <Badge variant="warning" className="shadow-sm">
+          </StatusText>
+          <StatusText variant="warning">
             {fmt(t("supervisor.dashboard.radarMediumCount"), { count: summary.medium })}
-          </Badge>
-          <Badge variant="default" className="shadow-sm">
+          </StatusText>
+          <StatusText variant="default">
             {fmt(t("supervisor.dashboard.radarTotalCount"), { count: summary.total })}
-          </Badge>
+          </StatusText>
         </div>
       </div>
 
@@ -436,12 +436,9 @@ export function SupervisorRiskRadar({
                   {r.reasons.map((x) => x.label).join(" · ")}
                 </td>
                 <td className="px-4 py-4">
-                  <Badge
-                    variant={priorityBadgeVariant(r.priority)}
-                    className={r.priority === "high" ? "ring-1 ring-red-500/20" : r.priority === "medium" ? "ring-1 ring-amber-500/20" : ""}
-                  >
+                  <StatusText variant={priorityBadgeVariant(r.priority)}>
                     {t(priorityLabelKey(r.priority))}
-                  </Badge>
+                  </StatusText>
                 </td>
                 <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-200">{r.suggestedAction}</td>
                 <td className="px-4 py-4">

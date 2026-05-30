@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, EmptyState, Table } from "@/components/ui";
+import { Button, EmptyState, Table } from "@/components/ui";
+import { filterToneTextClass } from "@/lib/supervisor/student-placement-status";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import { createClient } from "@/lib/supabase/client";
@@ -56,12 +57,6 @@ function isNowWithinPeriod(periodStartIso: string, periodEndIso: string): boolea
   const end = new Date(periodEndIso);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
   return now.getTime() >= start.getTime() && now.getTime() <= end.getTime();
-}
-
-function badgeForTone(tone: NonNullable<FilterRow["tone"]>) {
-  if (tone === "danger") return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200";
-  if (tone === "warning") return "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200";
-  return "bg-gray-100 text-gray-800 dark:bg-gray-700/40 dark:text-gray-100";
 }
 
 /**
@@ -510,7 +505,7 @@ export function SupervisorFilteredResults({
                     <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-200">{r.reason}</td>
                     <td className="px-4 py-4">
                       {r.meta ? (
-                        <Badge className={badgeForTone(r.tone ?? "default")}>{r.meta}</Badge>
+                        <span className={`text-xs ${filterToneTextClass(r.tone ?? "default")}`}>{r.meta}</span>
                       ) : (
                         <span className="text-sm text-gray-500 dark:text-gray-400">—</span>
                       )}
@@ -566,7 +561,7 @@ export function SupervisorFilteredResults({
                 <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-200">{r.reason}</td>
                 <td className="px-4 py-4">
                   {r.meta ? (
-                    <Badge className={badgeForTone(r.tone ?? "default")}>{r.meta}</Badge>
+                    <span className={`text-xs ${filterToneTextClass(r.tone ?? "default")}`}>{r.meta}</span>
                   ) : (
                     <span className="text-sm text-gray-500 dark:text-gray-400">—</span>
                   )}

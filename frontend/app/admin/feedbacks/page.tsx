@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TableListPageSkeleton } from "@/components/loading";
-import { Badge, Button, EmptyState, Input, Table } from "@/components/ui";
+import { Button, EmptyState, Input, StatusText, Table } from "@/components/ui";
 import { useAdminAccess } from "@/lib/admin/use-admin-access";
 import { createClient } from "@/lib/supabase/client";
 
@@ -264,9 +264,9 @@ export default function AdminFeedbacksPage() {
                     </td>
                     <td className="px-4 py-3 text-sm">
                       {row.is_hidden ? (
-                        <Badge variant="warning">Hidden</Badge>
+                        <StatusText variant="warning">Hidden</StatusText>
                       ) : (
-                        <Badge variant="success">Public</Badge>
+                        <StatusText variant="success">Public</StatusText>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
