@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Input, Button } from "@/components/ui";
+import { Input, Button, Modal } from "@/components/ui";
 import { normalizeDepartmentAlias } from "@/lib/departments";
 import { createClient } from "@/lib/supabase/client";
 
@@ -51,11 +51,89 @@ function hasRequiredOnboardingPayload(
   );
 }
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function IconEye(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden className="h-5 w-5" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
+function IconEyeOff(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden className="h-5 w-5" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.292 16.338 7.31 19.5 12 19.5c1.88 0 3.675-.435 5.236-1.216M6.75 6.75A8.96 8.96 0 0 1 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639-.418 2.396-1.66 4.506-3.46 5.978M9.75 9.75l4.5 4.5M9.75 14.25l4.5-4.5M3 3l18 18" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("reset") === "success") {
+      setSuccessMessage("Your password has been updated. You can now sign in.");
+    }
+  }, []);
+
+  const openForgotPassword = () => {
+    setResetEmail(email.trim());
+    setResetError(null);
+    setResetSuccess(null);
+    setForgotOpen(true);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetSuccess(null);
+
+    const trimmedEmail = resetEmail.trim();
+    if (!trimmedEmail) {
+      setResetError("Please enter your email address.");
+      return;
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      setResetError("Please enter a valid email address.");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const supabase = createClient();
+      const { error: resetPasswordError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetPasswordError) {
+        setResetError(resetPasswordError.message);
+        return;
+      }
+
+      setResetSuccess("Password reset link has been sent to your email.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to send reset link. Please try again.";
+      setResetError(message);
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,6 +343,12 @@ export default function LoginPage() {
                 <h1 className="text-3xl font-extrabold tracking-tight text-[#0F172A] transition-colors duration-300 sm:text-4xl dark:text-white">Welcome back</h1>
                 <p className="mt-3 text-sm text-[#475569] transition-colors duration-300 dark:text-slate-400">Sign in with your email and password.</p>
 
+                {successMessage && (
+                  <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">
+                    {successMessage}
+                  </div>
+                )}
+
                 {error && (
                   <div className="mt-5 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800" role="alert">
                     {error}
@@ -281,18 +365,37 @@ export default function LoginPage() {
                     placeholder="you@example.com"
                     className="rounded-xl border-[#E2E8F0] transition-all duration-300 focus:border-[#7C3AED] focus:ring-[#7C3AED]/20"
                   />
-                  <Input
-                    label="Password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="rounded-xl border-[#E2E8F0] transition-all duration-300 focus:border-[#7C3AED] focus:ring-[#7C3AED]/20"
-                  />
+                  <div className="w-full">
+                    <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700 transition-colors duration-300 dark:text-slate-300">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="block w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 pr-10 text-gray-900 shadow-sm transition-all duration-300 focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 transition-colors duration-300 hover:text-gray-700 focus:outline-none dark:text-slate-400 dark:hover:text-slate-200"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <IconEyeOff /> : <IconEye />}
+                      </button>
+                    </div>
+                  </div>
                   <div className="flex justify-end">
-                    <Link href="#" className="text-sm font-medium text-[#7C3AED] transition-colors duration-300 hover:text-[#6D28D9] hover:underline">
+                    <button
+                      type="button"
+                      onClick={openForgotPassword}
+                      className="text-sm font-medium text-[#7C3AED] transition-colors duration-300 hover:text-[#6D28D9] hover:underline"
+                    >
                       Forgot password?
-                    </Link>
+                    </button>
                   </div>
                   <Button
                     type="submit"
@@ -313,6 +416,46 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={forgotOpen}
+        onClose={() => setForgotOpen(false)}
+        title="Reset your password"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setForgotOpen(false)} disabled={resetLoading}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleForgotPassword} disabled={resetLoading}>
+              {resetLoading ? "Sending…" : "Send reset link"}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleForgotPassword} className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-slate-400">
+            Enter your email and we&apos;ll send you a link to reset your password.
+          </p>
+          <Input
+            label="Email"
+            type="email"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="rounded-xl border-[#E2E8F0] transition-all duration-300 focus:border-[#7C3AED] focus:ring-[#7C3AED]/20"
+          />
+          {resetError && (
+            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
+              {resetError}
+            </p>
+          )}
+          {resetSuccess && (
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">
+              {resetSuccess}
+            </p>
+          )}
+        </form>
+      </Modal>
     </main>
   );
 }

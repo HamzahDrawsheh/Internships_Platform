@@ -4,7 +4,7 @@ import { isValidDepartment, normalizeDepartmentAlias } from "@/lib/departments";
 import { getRoleDashboardPath } from "@/lib/role-home";
 import type { ProfileRole } from "@/lib/types";
 
-const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/verify"];
+const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/verify", "/reset-password"];
 const AUTH_PATHS = ["/auth/login", "/auth/signup"];
 
 function isPublic(pathname: string): boolean {
