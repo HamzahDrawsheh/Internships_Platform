@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TableListPageSkeleton } from "@/components/loading";
-import { Badge, Button, EmptyState, Input, Table } from "@/components/ui";
+import { Button, EmptyState, Input, StatusText, Table } from "@/components/ui";
 import { useAdminAccess } from "@/lib/admin/use-admin-access";
 import { createClient } from "@/lib/supabase/client";
 
@@ -190,9 +190,9 @@ export default function AdminInternshipsPage() {
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{row.application_count}</td>
                     <td className="px-4 py-3 text-sm">
                       {row.is_active ? (
-                        <Badge variant="success">Active</Badge>
+                        <StatusText variant="success">Active</StatusText>
                       ) : (
-                        <Badge variant="warning">Inactive</Badge>
+                        <StatusText variant="warning">Inactive</StatusText>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-slate-400">

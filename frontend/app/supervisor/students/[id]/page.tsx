@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Container } from "@/components/layout/Container";
 import { DetailPageSkeleton } from "@/components/loading";
-import { Badge, EmptyState } from "@/components/ui";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
+import { EmptyState } from "@/components/ui";
+import { normalizeApplicationStatus } from "@/lib/applications/commitment";
 import { StudentProfileAvatar } from "@/components/profile/StudentProfileAvatar";
 import { ColoredChips, ProfileField, ProfileSectionCard } from "@/components/profile/StudentProfileUi";
 import { normalizeProfileGender, type ProfileGender } from "@/lib/profile/gender";
@@ -13,9 +15,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import {
-  applicationStatusBadgeVariant,
   deriveStudentPlacementStatus,
-  placementStatusBadgeVariant,
+  placementStatusTextClass,
   type StudentPlacementStatus,
 } from "@/lib/supervisor/student-placement-status";
 
@@ -477,9 +478,9 @@ export default function StudentDetailsPage() {
                 }
               >
                 <div className="mb-4 flex flex-wrap items-center gap-2">
-                  <Badge variant={placementStatusBadgeVariant(placementStatus)}>
+                  <span className={`text-sm ${placementStatusTextClass(placementStatus)}`}>
                     {placementStatusLabel(placementStatus, t)}
-                  </Badge>
+                  </span>
                   <span className="text-sm text-slate-600 dark:text-slate-400">
                     {fmt(t("supervisor.studentDetail.applicationsTotal"), { count: applications.length })}
                   </span>
@@ -527,9 +528,10 @@ export default function StudentDetailsPage() {
                                   {application.internship_title}
                                 </p>
                               </div>
-                              <Badge variant={applicationStatusBadgeVariant(application.status)}>
-                                {appStatusLabel(application.status, t)}
-                              </Badge>
+                              <ApplicationStatusBadge
+                                status={normalizeApplicationStatus(application.status)}
+                                label={appStatusLabel(application.status, t)}
+                              />
                             </div>
 
                             <dl className="mt-3 space-y-2 text-sm">

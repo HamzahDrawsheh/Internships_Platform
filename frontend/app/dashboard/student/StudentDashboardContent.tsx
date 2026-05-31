@@ -10,6 +10,7 @@ import { StudentDashboardWidgetsSection } from "@/components/dashboard/student/S
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
 import { DashboardPageSkeleton } from "@/components/loading";
 import { Button, Modal } from "@/components/ui";
+import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import { canStudentSubmitReport } from "@/lib/internship-reports/helpers";
 import { buildInternshipTrackSummary } from "@/lib/internship-reports/track-summary";
 import type { MonthlyReportRow } from "@/lib/internship-reports/types";
@@ -290,23 +291,13 @@ export default function StudentDashboardContent() {
 
   const applicationStatusLabel = (status: Application["status"]) => {
     if (status === "pending") return t("dashboard.student.statusPending");
+    if (status === "accepted_pending_commit") return t("browse.appConfirmRequired");
     if (status === "accepted") return t("dashboard.student.statusAccepted");
     if (status === "rejected") return t("dashboard.student.statusRejected");
     if (status === "completed") return t("dashboard.student.statusCompletedApp");
+    if (status === "commitment_expired") return t("browse.appOfferExpired");
+    if (status === "withdrawn") return t("browse.appWithdrawn");
     return status;
-  };
-
-  const getStatusClasses = (status: Application["status"]) => {
-    if (status === "accepted") {
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300";
-    }
-    if (status === "completed") {
-      return "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300";
-    }
-    if (status === "rejected") {
-      return "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300";
-    }
-    return "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300";
   };
 
   return (
@@ -532,9 +523,7 @@ export default function StudentDashboardContent() {
                       {new Date(app.applied_at).toLocaleDateString()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(app.status)}`}
-                      >
+                      <span className={`text-xs ${applicationStatusTextClass(app.status)}`}>
                         {applicationStatusLabel(app.status)}
                       </span>
                     </td>

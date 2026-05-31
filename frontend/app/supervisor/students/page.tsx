@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { CardGridSkeleton } from "@/components/loading";
-import { Badge, EmptyState, Input } from "@/components/ui";
+import { EmptyState, Input } from "@/components/ui";
 import { StudentProfileAvatar } from "@/components/profile/StudentProfileAvatar";
 import { normalizeProfileGender, type ProfileGender } from "@/lib/profile/gender";
 import { createClient } from "@/lib/supabase/client";
@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import {
   deriveStudentPlacementStatus,
-  placementStatusBadgeVariant,
+  placementStatusTextClass,
   type StudentPlacementStatus,
 } from "@/lib/supervisor/student-placement-status";
 
@@ -355,9 +355,9 @@ export default function StudentsListPage() {
                               </h2>
                               <p className="mt-0.5 truncate text-sm text-slate-500 dark:text-slate-400">{student.email}</p>
                             </div>
-                            <Badge variant={placementStatusBadgeVariant(student.status)}>
+                            <span className={`text-xs ${placementStatusTextClass(student.status)}`}>
                               {placementStatusLabel(student.status, t)}
-                            </Badge>
+                            </span>
                           </div>
                           {student.major !== "—" ? (
                             <p className="mt-2 truncate text-sm font-medium text-violet-700/90 dark:text-violet-300/90">

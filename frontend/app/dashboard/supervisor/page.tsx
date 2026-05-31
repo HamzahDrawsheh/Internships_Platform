@@ -8,7 +8,7 @@ import { SupervisorAiInsights } from "@/components/supervisor/SupervisorAiInsigh
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
 import { DashboardStatCard, DashboardStatGrid } from "@/components/dashboard/DashboardStatCard";
 import { RoleOverviewTrackCard } from "@/components/dashboard/RoleOverviewTrackCard";
-import { DashboardPageSkeleton } from "@/components/loading";
+import { DashboardPageSkeleton, StatCardsSkeleton } from "@/components/loading";
 import { Button, EmptyState, Modal, Table } from "@/components/ui";
 import { SmartActionCenter } from "@/components/supervisor/SmartActionCenter";
 import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
@@ -428,6 +428,53 @@ export default function SupervisorDashboardPage() {
           />
         </div>
 
+        {loading ? (
+          <StatCardsSkeleton className="mt-6" />
+        ) : errorKey ? null : (
+          <>
+            {!hasDepartment && supervisorDepartment !== undefined ? (
+              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                <p className="font-medium">{t("supervisor.dashboard.finishSetupTitle")}</p>
+                <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
+                  {t("supervisor.dashboard.finishSetupDesc")}
+                </p>
+                <Link
+                  href="/supervisor/profile"
+                  className="mt-3 inline-flex text-sm font-semibold text-amber-950 underline underline-offset-2 hover:no-underline dark:text-amber-200"
+                >
+                  {t("supervisor.dashboard.openSupervisorProfile")}
+                </Link>
+              </div>
+            ) : null}
+
+            <section className="mt-6">
+              <DashboardStatGrid>
+                <DashboardStatCard
+                  label={t("supervisor.dashboard.studentsDepartment")}
+                  value={assignedStudents}
+                  tone="purple"
+                />
+                <DashboardStatCard
+                  label={t("supervisor.dashboard.pending")}
+                  value={pendingApplications}
+                  tone="amber"
+                  href={pendingApplications > 0 ? pendingReportsHref : undefined}
+                />
+                <DashboardStatCard
+                  label={t("supervisor.dashboard.active")}
+                  value={acceptedApplications}
+                  tone="green"
+                />
+                <DashboardStatCard
+                  label={t("supervisor.dashboard.completed")}
+                  value={completedInternships}
+                  tone="sky"
+                />
+              </DashboardStatGrid>
+            </section>
+          </>
+        )}
+
         <SupervisorQuickFilters
           hasDepartment={hasDepartment}
           supervisorDepartmentLabel={supervisorDepartment ?? ""}
@@ -534,54 +581,13 @@ export default function SupervisorDashboardPage() {
         </Modal>
 
         {loading ? (
-          <DashboardPageSkeleton showWelcome={false} showTrack showTable statCount={4} className="mt-8" />
+          <DashboardPageSkeleton showWelcome={false} showTrack showTable statCount={0} className="mt-8" />
         ) : errorKey ? (
           <p className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             {t(`supervisor.dashboard.${errorKey}`)}
           </p>
         ) : (
           <>
-            {!hasDepartment && supervisorDepartment !== undefined ? (
-              <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                <p className="font-medium">{t("supervisor.dashboard.finishSetupTitle")}</p>
-                <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
-                  {t("supervisor.dashboard.finishSetupDesc")}
-                </p>
-                <Link
-                  href="/supervisor/profile"
-                  className="mt-3 inline-flex text-sm font-semibold text-amber-950 underline underline-offset-2 hover:no-underline dark:text-amber-200"
-                >
-                  {t("supervisor.dashboard.openSupervisorProfile")}
-                </Link>
-              </div>
-            ) : null}
-
-            <section className="mt-8">
-              <DashboardStatGrid>
-                <DashboardStatCard
-                  label={t("supervisor.dashboard.studentsDepartment")}
-                  value={assignedStudents}
-                  cardClass="bg-purple-100 text-purple-900 dark:bg-purple-500/10 dark:text-purple-300"
-                />
-                <DashboardStatCard
-                  label={t("supervisor.dashboard.pending")}
-                  value={pendingApplications}
-                  cardClass="bg-yellow-100 text-yellow-900 dark:bg-yellow-500/10 dark:text-yellow-300"
-                  href={pendingApplications > 0 ? pendingReportsHref : undefined}
-                />
-                <DashboardStatCard
-                  label={t("supervisor.dashboard.active")}
-                  value={acceptedApplications}
-                  cardClass="bg-green-100 text-green-900 dark:bg-green-500/10 dark:text-green-300"
-                />
-                <DashboardStatCard
-                  label={t("supervisor.dashboard.completed")}
-                  value={completedInternships}
-                  cardClass="bg-sky-100 text-sky-900 dark:bg-sky-500/10 dark:text-sky-300"
-                />
-              </DashboardStatGrid>
-            </section>
-
             {departmentProgress ? (
               <section className="mt-8">
                 <RoleOverviewTrackCard

@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { DetailPageSkeleton } from "@/components/loading";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
 import { Badge, Button, Modal, Textarea, EmptyState } from "@/components/ui";
+import { statusTextVariantClass } from "@/lib/ui/status-text";
 import { CompanyEvaluationPanel } from "@/components/companies/CompanyEvaluationPanel";
 import { AICoverLetterGenerator } from "@/components/student/AICoverLetterGenerator";
 import { SkillGapLearningPlanCard } from "@/components/students/SkillGapLearningPlanCard";
@@ -232,14 +234,6 @@ export default function InternshipDetailsPage() {
     setSubmitting(false);
   };
 
-  const applicationStatusBadgeVariant = (status: ApplicationStatus): "warning" | "success" | "danger" | "info" => {
-    if (status === "accepted") return "success";
-    if (status === "accepted_pending_commit") return "warning";
-    if (status === "rejected" || status === "commitment_expired" || status === "withdrawn") return "danger";
-    if (status === "completed") return "info";
-    return "warning";
-  };
-
   const applicationStatusLabel = (status: ApplicationStatus): string => {
     if (status === "pending") return "Applied · Pending review";
     if (status === "accepted_pending_commit") return "Accepted · Confirm within 3 days";
@@ -321,11 +315,13 @@ export default function InternshipDetailsPage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             {existingApplicationStatus ? (
-              <Badge variant={applicationStatusBadgeVariant(existingApplicationStatus)}>
-                {applicationStatusLabel(existingApplicationStatus)}
-              </Badge>
+              <ApplicationStatusBadge
+                status={existingApplicationStatus}
+                label={applicationStatusLabel(existingApplicationStatus)}
+                className="text-sm"
+              />
             ) : isEnrolledInTraining ? (
-              <Badge variant="success">Enrolled in training</Badge>
+              <span className={`text-sm ${statusTextVariantClass("success")}`}>Enrolled in training</span>
             ) : null}
             <div className="flex flex-col items-stretch gap-2 sm:items-end">
               {isStudentViewer ? (

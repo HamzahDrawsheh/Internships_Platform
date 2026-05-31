@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { TableSectionSkeleton } from "@/components/loading";
-import { Table, Badge } from "@/components/ui";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
+import { Table } from "@/components/ui";
+import { normalizeApplicationStatus } from "@/lib/applications/commitment";
 import { CompanyAiFeedbackSummary } from "@/components/companies/CompanyAiFeedbackSummary";
 import { CompanyDashboardWidgetsSection } from "@/components/dashboard/company/CompanyDashboardWidgetsSection";
 import { DashboardReportWidget } from "@/components/internship-reports/DashboardReportWidget";
@@ -262,13 +264,14 @@ export default function CompanyDashboardContent({ onSummary }: Props) {
                 <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600 dark:text-slate-300">{a.internship_title ?? "—"}</td>
                 <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600 dark:text-slate-300">{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : "—"}</td>
                 <td className="whitespace-nowrap px-4 py-4 text-sm capitalize">
-                  <Badge
-                    variant={
-                      a.status === "accepted" ? "success" : a.status === "completed" ? "info" : a.status === "rejected" ? "danger" : "warning"
+                  <ApplicationStatusBadge
+                    status={normalizeApplicationStatus(a.status)}
+                    label={
+                      a.status === "accepted"
+                        ? "Active"
+                        : String(a.status).replace(/_/g, " ")
                     }
-                  >
-                    {a.status === "accepted" ? "active" : String(a.status).replace("_", " ")}
-                  </Badge>
+                  />
                 </td>
               </tr>
             ))}

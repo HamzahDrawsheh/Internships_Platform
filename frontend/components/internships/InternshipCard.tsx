@@ -4,22 +4,8 @@ import Link from "next/link";
 import type { ApplicationStatus } from "@/lib/types";
 import { CompanyLogo } from "@/components/companies/CompanyLogo";
 import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
+import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import { useI18n } from "@/lib/i18n/context";
-
-function applicationStatusBadgeClasses(status: ApplicationStatus): string {
-  switch (status) {
-    case "pending":
-      return "bg-amber-100 text-amber-900 ring-1 ring-amber-200/80 dark:bg-amber-500/25 dark:text-amber-200 dark:ring-amber-500/30";
-    case "accepted":
-      return "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-500/25 dark:text-emerald-200 dark:ring-emerald-500/30";
-    case "rejected":
-      return "bg-rose-100 text-rose-900 ring-1 ring-rose-200/80 dark:bg-rose-500/25 dark:text-rose-200 dark:ring-rose-500/30";
-    case "completed":
-      return "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-500/25 dark:text-sky-200 dark:ring-sky-500/30";
-    default:
-      return "bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200";
-  }
-}
 
 const SKILL_CHIP_CLASSES = [
   "bg-violet-100 text-violet-800 ring-violet-200/70 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-500/30",
@@ -100,7 +86,7 @@ export function InternshipCard({
             <div className="flex shrink-0 flex-col items-end gap-2">
               {applicationStatus ? (
                 <span
-                  className={`max-w-[11rem] truncate rounded-full px-2.5 py-1 text-center text-[10px] font-semibold leading-tight ring-1 ${applicationStatusBadgeClasses(applicationStatus)}`}
+                  className={`max-w-[11rem] truncate text-center text-[10px] leading-tight ${applicationStatusTextClass(applicationStatus)}`}
                   title={applicationStatusLabel(applicationStatus)}
                 >
                   {applicationStatusLabel(applicationStatus)}

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TableListPageSkeleton } from "@/components/loading";
-import { Badge, EmptyState, Input, Table } from "@/components/ui";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
+import { EmptyState, Input, Table } from "@/components/ui";
 import { useAdminAccess } from "@/lib/admin/use-admin-access";
 import { createClient } from "@/lib/supabase/client";
 
@@ -39,24 +40,16 @@ const STATUSES: ApplicationStatus[] = [
 ];
 
 function statusBadge(status: ApplicationStatus) {
-  switch (status) {
-    case "pending":
-      return <Badge variant="warning">Pending</Badge>;
-    case "accepted_pending_commit":
-      return <Badge variant="warning">Awaiting confirmation</Badge>;
-    case "accepted":
-      return <Badge variant="success">Accepted</Badge>;
-    case "completed":
-      return <Badge variant="info">Completed</Badge>;
-    case "rejected":
-      return <Badge variant="danger">Rejected</Badge>;
-    case "commitment_expired":
-      return <Badge variant="danger">Offer expired</Badge>;
-    case "withdrawn":
-      return <Badge variant="default">Withdrawn</Badge>;
-    default:
-      return <Badge>{status}</Badge>;
-  }
+  const labels: Record<ApplicationStatus, string> = {
+    pending: "Pending",
+    accepted_pending_commit: "Awaiting confirmation",
+    accepted: "Accepted",
+    completed: "Completed",
+    rejected: "Rejected",
+    commitment_expired: "Offer expired",
+    withdrawn: "Withdrawn",
+  };
+  return <ApplicationStatusBadge status={status} label={labels[status]} />;
 }
 
 export default function AdminApplicationsPage() {

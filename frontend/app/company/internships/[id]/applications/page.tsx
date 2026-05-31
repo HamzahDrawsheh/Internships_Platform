@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TableListPageSkeleton } from "@/components/loading";
-import { Badge, Button, Input, Modal, Select, Table, EmptyState } from "@/components/ui";
+import ApplicationStatusBadge from "@/components/applications/ApplicationStatusBadge";
+import { Button, Input, Modal, Select, Table, EmptyState } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
 import {
   buildCompanyApplicationStatusNotification,
@@ -260,15 +261,6 @@ export default function ApplicantsPage() {
     });
   }, [rows, search, statusFilter, hasCvFilter]);
 
-  const statusVariant = (status: ApplicationStatus) => {
-    if (status === "accepted") return "success";
-    if (status === COMMITMENT_PENDING_STATUS) return "warning";
-    if (status === "rejected" || status === "commitment_expired") return "danger";
-    if (status === "completed") return "info";
-    if (status === "withdrawn") return "default";
-    return "warning";
-  };
-
   const handleOpenApplicantCv = async (applicationId: string) => {
     setCvOpeningId(applicationId);
     setActionMessage(null);
@@ -521,7 +513,10 @@ export default function ApplicantsPage() {
                   {app.technical_skills.length ? app.technical_skills.join(", ") : "—"}
                 </td>
                 <td className="px-4 py-3 text-sm capitalize">
-                  <Badge variant={statusVariant(app.status)}>{app.status}</Badge>
+                  <ApplicationStatusBadge
+                    status={app.status}
+                    label={app.status.charAt(0).toUpperCase() + app.status.slice(1).replace(/_/g, " ")}
+                  />
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {app.cv_path?.trim() ? (

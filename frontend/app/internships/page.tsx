@@ -21,6 +21,7 @@ import {
 } from "@/lib/recommendations/location-prefs";
 import { createClient } from "@/lib/supabase/client";
 import type { ApplicationStatus } from "@/lib/types";
+import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import { InternshipCard } from "@/components/internships/InternshipCard";
 import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
 
@@ -520,22 +521,6 @@ export default function BrowseInternshipsPage() {
     }
   };
 
-  const recommendedApplicationBadgeClass = (status: ApplicationStatus): string => {
-    switch (status) {
-      case "pending":
-        return "bg-amber-100 text-amber-900 dark:bg-amber-500/25 dark:text-amber-200";
-      case "accepted_pending_commit":
-        return "bg-orange-100 text-orange-900 dark:bg-orange-500/25 dark:text-orange-200";
-      case "accepted":
-        return "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/25 dark:text-emerald-200";
-      case "rejected":
-        return "bg-rose-100 text-rose-900 dark:bg-rose-500/25 dark:text-rose-200";
-      case "completed":
-        return "bg-blue-100 text-blue-900 dark:bg-blue-500/25 dark:text-blue-200";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200";
-    }
-  };
 
   const filteredRecommended = useMemo(() => {
     const clamped = Math.max(0, Math.min(100, minMatchPct));
@@ -555,40 +540,25 @@ export default function BrowseInternshipsPage() {
 
   type FilterKey = "location" | "skill" | "posted" | "company" | "companyLevel" | "match";
 
-  const filterChipStyles: Record<
-    FilterKey,
-    { idle: string; active: string; dot: string }
-  > = {
-    location: {
-      idle: "border-sky-200/80 bg-sky-50/80 text-sky-800 hover:bg-sky-100 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200 dark:hover:bg-sky-500/20",
-      active: "border-sky-400 bg-sky-100 text-sky-900 shadow-sm shadow-sky-200/60 dark:border-sky-400/50 dark:bg-sky-500/25 dark:text-sky-100 dark:shadow-sky-900/40",
-      dot: "bg-sky-500",
-    },
-    skill: {
-      idle: "border-emerald-200/80 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/20",
-      active: "border-emerald-400 bg-emerald-100 text-emerald-900 shadow-sm shadow-emerald-200/60 dark:border-emerald-400/50 dark:bg-emerald-500/25 dark:text-emerald-100",
-      dot: "bg-emerald-500",
-    },
-    posted: {
-      idle: "border-amber-200/80 bg-amber-50/80 text-amber-800 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/20",
-      active: "border-amber-400 bg-amber-100 text-amber-900 shadow-sm shadow-amber-200/60 dark:border-amber-400/50 dark:bg-amber-500/25 dark:text-amber-100",
-      dot: "bg-amber-500",
-    },
-    company: {
-      idle: "border-violet-200/80 bg-violet-50/80 text-violet-800 hover:bg-violet-100 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/20",
-      active: "border-violet-400 bg-violet-100 text-violet-900 shadow-sm shadow-violet-200/60 dark:border-violet-400/50 dark:bg-violet-500/25 dark:text-violet-100",
-      dot: "bg-violet-500",
-    },
-    companyLevel: {
-      idle: "border-indigo-200/80 bg-indigo-50/80 text-indigo-800 hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20",
-      active: "border-indigo-400 bg-indigo-100 text-indigo-900 shadow-sm shadow-indigo-200/60 dark:border-indigo-400/50 dark:bg-indigo-500/25 dark:text-indigo-100",
-      dot: "bg-indigo-500",
-    },
-    match: {
-      idle: "border-fuchsia-200/80 bg-fuchsia-50/80 text-fuchsia-800 hover:bg-fuchsia-100 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200 dark:hover:bg-fuchsia-500/20",
-      active: "border-fuchsia-400 bg-fuchsia-100 text-fuchsia-900 shadow-sm shadow-fuchsia-200/60 dark:border-fuchsia-400/50 dark:bg-fuchsia-500/25 dark:text-fuchsia-100",
-      dot: "bg-fuchsia-500",
-    },
+  const filterChipBase =
+    "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-white dark:border-slate-600 dark:bg-white dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-white";
+
+  const filterChipActiveText: Record<FilterKey, string> = {
+    location: "border-slate-300 text-sky-700 shadow-sm dark:border-slate-500 dark:text-sky-400",
+    skill: "border-slate-300 text-emerald-700 shadow-sm dark:border-slate-500 dark:text-emerald-400",
+    posted: "border-slate-300 text-amber-800 shadow-sm dark:border-slate-500 dark:text-amber-400",
+    company: "border-slate-300 text-violet-700 shadow-sm dark:border-slate-500 dark:text-violet-400",
+    companyLevel: "border-slate-300 text-indigo-700 shadow-sm dark:border-slate-500 dark:text-indigo-400",
+    match: "border-slate-300 text-fuchsia-700 shadow-sm dark:border-slate-500 dark:text-fuchsia-400",
+  };
+
+  const filterChipDot: Record<FilterKey, string> = {
+    location: "bg-sky-500",
+    skill: "bg-emerald-500",
+    posted: "bg-amber-500",
+    company: "bg-violet-500",
+    companyLevel: "bg-indigo-500",
+    match: "bg-fuchsia-500",
   };
 
   const filterIsActive: Record<FilterKey, boolean> = {
@@ -601,10 +571,9 @@ export default function BrowseInternshipsPage() {
   };
 
   const filterChipClass = (key: FilterKey, open: boolean) => {
-    const styles = filterChipStyles[key];
     const active = filterIsActive[key] || open;
     return `inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
-      active ? styles.active : styles.idle
+      active ? filterChipActiveText[key] : filterChipBase
     }`;
   };
 
@@ -773,7 +742,7 @@ export default function BrowseInternshipsPage() {
                 onClick={() => setOpenDrilldown((v) => (v === "location" ? null : "location"))}
               >
                 {filterIsActive.location ? (
-                  <span className={`h-2 w-2 rounded-full ${filterChipStyles.location.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${filterChipDot.location}`} />
                 ) : null}
                 {t("browse.filterLocation")}
               </button>
@@ -796,7 +765,7 @@ export default function BrowseInternshipsPage() {
                 onClick={() => setOpenDrilldown((v) => (v === "skill" ? null : "skill"))}
               >
                 {filterIsActive.skill ? (
-                  <span className={`h-2 w-2 rounded-full ${filterChipStyles.skill.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${filterChipDot.skill}`} />
                 ) : null}
                 {t("browse.filterSkill")}
               </button>
@@ -819,7 +788,7 @@ export default function BrowseInternshipsPage() {
                 onClick={() => setOpenDrilldown((v) => (v === "posted" ? null : "posted"))}
               >
                 {filterIsActive.posted ? (
-                  <span className={`h-2 w-2 rounded-full ${filterChipStyles.posted.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${filterChipDot.posted}`} />
                 ) : null}
                 {t("browse.filterPostedBefore")}
               </button>
@@ -845,7 +814,7 @@ export default function BrowseInternshipsPage() {
                 onClick={() => setOpenDrilldown((v) => (v === "company" ? null : "company"))}
               >
                 {filterIsActive.company ? (
-                  <span className={`h-2 w-2 rounded-full ${filterChipStyles.company.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${filterChipDot.company}`} />
                 ) : null}
                 {t("browse.filterCompany")}
               </button>
@@ -868,7 +837,7 @@ export default function BrowseInternshipsPage() {
                 onClick={() => setOpenDrilldown((v) => (v === "companyLevel" ? null : "companyLevel"))}
               >
                 {filterIsActive.companyLevel ? (
-                  <span className={`h-2 w-2 rounded-full ${filterChipStyles.companyLevel.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${filterChipDot.companyLevel}`} />
                 ) : null}
                 {t("browse.filterCompanyLevel")}
               </button>
@@ -896,7 +865,7 @@ export default function BrowseInternshipsPage() {
                 onClick={() => setOpenDrilldown((v) => (v === "match" ? null : "match"))}
               >
                 {filterIsActive.match ? (
-                  <span className={`h-2 w-2 rounded-full ${filterChipStyles.match.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${filterChipDot.match}`} />
                 ) : null}
                 {t("browse.minMatch")}
                 {minMatchPct > 0 ? ` · ${minMatchPct}%` : ""}
@@ -1083,7 +1052,7 @@ export default function BrowseInternshipsPage() {
                       <div className="mt-3 flex flex-wrap items-center gap-1.5">
                         {appStatus ? (
                           <span
-                            className={`inline-flex max-w-full items-center truncate rounded-full px-2.5 py-1 text-[10px] font-semibold ${recommendedApplicationBadgeClass(appStatus)}`}
+                            className={`inline-flex max-w-full items-center truncate text-[10px] ${applicationStatusTextClass(appStatus)}`}
                             title={recommendedApplicationLabel(appStatus)}
                           >
                             {recommendedApplicationLabel(appStatus)}
