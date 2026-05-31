@@ -79,9 +79,59 @@ function IconEyeOff(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+function IconMail(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden className="h-5 w-5" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+    </svg>
+  );
+}
+
+function IconLock(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden className="h-5 w-5" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+    </svg>
+  );
+}
+
+function IconShieldCheck(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden className="h-6 w-6" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+    </svg>
+  );
+}
+
+function IconCheckCircle(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden className="h-4 w-4" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+  );
+}
+
+function IconGoogle(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden className="h-5 w-5" {...props}>
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+    </svg>
+  );
+}
+
+function LoginSpinner() {
+  return <span className="login-spinner" aria-hidden="true" />;
+}
+
+const LOGIN_FIELD_CLASS =
+  "login-input-field block w-full rounded-xl border border-slate-200 bg-white py-2.5 ps-10 pe-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-400 dark:focus:bg-white/10";
+
 export default function LoginPage() {
   const { theme, setTheme } = useTheme();
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -94,14 +144,20 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     setThemeMounted(true);
     const params = new URLSearchParams(window.location.search);
     if (params.get("reset") === "success") {
-      setSuccessMessage("Your password has been updated. You can now sign in.");
+      setSuccessMessage(t("auth.login.passwordUpdated"));
     }
-  }, []);
+    const oauthError = params.get("error");
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError));
+    }
+  }, [t]);
 
   const openForgotPassword = () => {
     setResetEmail(email.trim());
@@ -117,11 +173,11 @@ export default function LoginPage() {
 
     const trimmedEmail = resetEmail.trim();
     if (!trimmedEmail) {
-      setResetError("Please enter your email address.");
+      setResetError(t("auth.login.resetEmailRequired"));
       return;
     }
     if (!isValidEmail(trimmedEmail)) {
-      setResetError("Please enter a valid email address.");
+      setResetError(t("auth.login.resetEmailInvalid"));
       return;
     }
 
@@ -137,14 +193,52 @@ export default function LoginPage() {
         return;
       }
 
-      setResetSuccess("Password reset link has been sent to your email.");
+      setResetSuccess(t("auth.login.resetSuccess"));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to send reset link. Please try again.";
+      const message = err instanceof Error ? err.message : t("auth.login.resetErrorGeneric");
       setResetError(message);
     } finally {
       setResetLoading(false);
     }
   };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const supabase = createClient();
+      const nextParam = new URLSearchParams(window.location.search).get("next");
+      const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+      if (
+        nextParam &&
+        nextParam.startsWith("/") &&
+        !nextParam.startsWith("//")
+      ) {
+        callbackUrl.searchParams.set("next", nextParam);
+      }
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: callbackUrl.toString(),
+        },
+      });
+      if (oauthError) {
+        setError(oauthError.message);
+        setGoogleLoading(false);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t("auth.login.googleError");
+      setError(message);
+      setGoogleLoading(false);
+    }
+  };
+
+  const heroFeatures = [
+    t("auth.login.featureSecurity"),
+    t("auth.login.featurePrivate"),
+    t("auth.login.featureTrusted"),
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -358,24 +452,70 @@ export default function LoginPage() {
       </nav>
       <div className={NAVBAR_HEIGHT_CLASS} aria-hidden />
 
-      <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-3 transition-colors duration-300 sm:p-4 lg:p-5 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-center">
-          <div className="w-full overflow-hidden rounded-2xl border border-purple-100 bg-white/80 shadow-xl backdrop-blur-xl transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900/85">
-            <div className="relative h-[120px] w-full overflow-hidden sm:h-[150px] lg:h-[180px]">
+      <main
+        dir={dir}
+        className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-gradient-to-br from-purple-50 via-white to-indigo-50 px-3 py-6 transition-colors duration-300 sm:px-4 sm:py-8 lg:px-8 dark:from-[#07050f] dark:via-[#07050f] dark:to-[#0a0614]"
+      >
+        <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-purple-400/20 blur-3xl dark:bg-purple-600/20" />
+        <div className="pointer-events-none absolute -right-16 bottom-10 h-80 w-80 rounded-full bg-violet-400/15 blur-3xl dark:bg-violet-500/15" />
+        <div className="pointer-events-none absolute left-1/2 top-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-indigo-400/10 blur-3xl dark:bg-indigo-600/10" />
+
+        <div className="relative mx-auto flex max-w-6xl items-center justify-center">
+          <div className="grid w-full overflow-hidden rounded-3xl border border-purple-200/80 bg-white/85 shadow-xl backdrop-blur-xl transition-colors duration-300 dark:border-purple-500/20 dark:bg-slate-950/60 dark:shadow-[0_0_60px_rgba(124,58,237,0.15)] lg:min-h-[680px] lg:grid-cols-2">
+            {/* Left visual panel */}
+            <div className="relative min-h-[240px] sm:min-h-[320px] lg:min-h-full">
               <Image
-                src="/registration-banner-v2.png"
-                alt="AI internship platform preview"
+                src="/login_png.png"
+                alt={t("auth.login.imageAlt")}
                 fill
-                sizes="(min-width: 1024px) 1024px, 100vw"
-                className="object-cover object-top"
-                unoptimized
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
                 priority
               />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-purple-900/40 to-purple-800/20 dark:from-[#07050f]/95 dark:via-[#12081f]/50 dark:to-[#1a0b2e]/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-white/20 lg:to-white/40 dark:to-[#07050f]/30 dark:lg:to-[#07050f]/60" />
+
+              <div className="relative flex h-full flex-col justify-between p-6 sm:p-8 lg:p-10">
+                <div>
+                  <p className="inline-flex items-center gap-2 rounded-full border border-purple-300/40 bg-purple-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-purple-100 backdrop-blur-sm dark:border-purple-400/30 dark:bg-purple-500/10 dark:text-purple-200">
+                    <span className="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" aria-hidden />
+                    {t("auth.login.brandName")}
+                  </p>
+                </div>
+
+                <div className="mt-auto max-w-md">
+                  <h2 className="text-2xl font-bold leading-tight text-white sm:text-3xl lg:text-4xl">
+                    {t("auth.login.heroHeadline")}
+                  </h2>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-200 sm:text-base dark:text-slate-300">
+                    {t("auth.login.heroSubtitle")}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2 login-animate-float">
+                    {heroFeatures.map((label) => (
+                      <span
+                        key={label}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-slate-100 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                      >
+                        <IconCheckCircle className="text-purple-200 dark:text-purple-300" />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="p-5 sm:p-6 lg:p-7">
-              <div className="mx-auto max-w-md">
-                <h1 className="text-2xl font-bold text-[#0F172A] transition-colors duration-300 dark:text-white">Welcome back</h1>
-                <p className="mt-2 text-sm text-[#475569] transition-colors duration-300 dark:text-slate-400">Sign in with your email and password.</p>
+
+            {/* Right login form */}
+            <div className="flex items-center justify-center p-6 sm:p-8 lg:p-10">
+              <div className="w-full max-w-md rounded-2xl border border-purple-100 bg-white/90 p-6 shadow-lg shadow-purple-100/50 backdrop-blur-md transition-colors duration-300 dark:border-white/10 dark:bg-white/[0.04] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-8">
+                <div className="login-animate-float mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-600 shadow-md shadow-purple-200/50 transition-colors duration-300 dark:border-purple-400/30 dark:bg-purple-500/10 dark:text-purple-300 dark:shadow-[0_0_20px_rgba(124,58,237,0.25)]">
+                  <IconShieldCheck />
+                </div>
+
+                <div className="text-center">
+                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-white">{t("auth.login.welcomeBack")}</h1>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{t("auth.login.subtitle")}</p>
+                </div>
 
                 {successMessage && (
                   <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200" role="status">
@@ -384,66 +524,113 @@ export default function LoginPage() {
                 )}
 
                 {error && (
-                  <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300" role="alert">
+                  <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" role="alert">
                     {error}
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-                  <Input
-                    label="Email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="rounded-xl border-[#E2E8F0] transition-all duration-300 focus:border-[#7C3AED] focus:ring-[#7C3AED]/20"
-                  />
-                  <div className="w-full">
-                    <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700 transition-colors duration-300 dark:text-slate-300">
-                      Password
+                <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                  <div>
+                    <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      {t("auth.email")}
                     </label>
                     <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-slate-400">
+                        <IconMail />
+                      </span>
+                      <input
+                        id="email"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={t("auth.login.emailPlaceholder")}
+                        className={LOGIN_FIELD_CLASS}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      {t("auth.password")}
+                    </label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-slate-400">
+                        <IconLock />
+                      </span>
                       <input
                         id="password"
                         type={showPassword ? "text" : "password"}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="block w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 pr-10 text-gray-900 shadow-sm transition-all duration-300 focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+                        className={`${LOGIN_FIELD_CLASS} pe-10`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((visible) => !visible)}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 transition-colors duration-300 hover:text-gray-700 focus:outline-none dark:text-slate-400 dark:hover:text-slate-200"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        className="absolute inset-y-0 end-0 flex items-center pe-3 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none dark:hover:text-slate-200"
+                        aria-label={showPassword ? t("auth.login.hidePassword") : t("auth.login.showPassword")}
                       >
                         {showPassword ? <IconEyeOff /> : <IconEye />}
                       </button>
                     </div>
                   </div>
-                  <div className="flex justify-end">
+
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 bg-white text-purple-600 focus:ring-purple-500/40 dark:border-white/20 dark:bg-white/5"
+                      />
+                      {t("auth.login.rememberMe")}
+                    </label>
                     <button
                       type="button"
                       onClick={openForgotPassword}
-                      className="text-sm font-medium text-[#7C3AED] transition-colors duration-300 hover:text-[#6D28D9] hover:underline"
+                      className="text-sm font-medium text-purple-600 transition-colors hover:text-purple-700 hover:underline dark:text-purple-300 dark:hover:text-purple-200"
                     >
-                      Forgot password?
+                      {t("auth.login.forgotPassword")}
                     </button>
                   </div>
+
                   <Button
                     type="submit"
                     variant="primary"
-                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 py-3 shadow-purple-500/30 transition-all duration-300 hover:scale-105 hover:shadow-lg"
-                    disabled={loading}
+                    className="login-btn-glow flex w-full items-center justify-center gap-2 border-0 bg-gradient-to-r from-[#7C3AED] to-[#6366F1] py-3"
+                    disabled={loading || googleLoading}
                   >
-                    {loading ? "Signing in…" : "Login"}
+                    {loading && <LoginSpinner />}
+                    {loading ? t("auth.login.loggingIn") : t("auth.login.loginButton")}
                   </Button>
                 </form>
 
-                <p className="mt-5 text-center text-sm text-[#0F172A]/70 transition-colors duration-300 dark:text-slate-400">
-                  Don&apos;t have an account?{" "}
-                  <Link href="/auth/signup" className="font-medium text-[#7C3AED] transition-colors duration-300 hover:text-[#6D28D9] hover:underline">Sign up</Link>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center" aria-hidden>
+                    <div className="w-full border-t border-slate-200 dark:border-white/10" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase tracking-wider">
+                    <span className="bg-white px-3 text-slate-500 dark:bg-transparent dark:text-slate-500">{t("auth.login.or")}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading || loading}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition-all duration-300 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/10"
+                >
+                  {googleLoading ? <LoginSpinner /> : <IconGoogle />}
+                  {googleLoading ? t("auth.login.connectingGoogle") : t("auth.login.continueGoogle")}
+                </button>
+
+                <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+                  {t("auth.login.noAccount")}{" "}
+                  <Link href="/auth/signup" className="font-medium text-purple-600 transition-colors hover:text-purple-700 hover:underline dark:text-purple-300 dark:hover:text-purple-200">
+                    {t("auth.login.createAccount")}
+                  </Link>
                 </p>
               </div>
             </div>
@@ -454,28 +641,28 @@ export default function LoginPage() {
       <Modal
         isOpen={forgotOpen}
         onClose={() => setForgotOpen(false)}
-        title="Reset your password"
+        title={t("auth.login.resetTitle")}
         footer={
           <>
             <Button variant="secondary" onClick={() => setForgotOpen(false)} disabled={resetLoading}>
-              Cancel
+              {t("auth.login.resetCancel")}
             </Button>
             <Button variant="primary" onClick={handleForgotPassword} disabled={resetLoading}>
-              {resetLoading ? "Sending…" : "Send reset link"}
+              {resetLoading ? t("auth.login.resetSending") : t("auth.login.resetSend")}
             </Button>
           </>
         }
       >
         <form onSubmit={handleForgotPassword} className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-slate-400">
-            Enter your email and we&apos;ll send you a link to reset your password.
+            {t("auth.login.resetDescription")}
           </p>
           <Input
-            label="Email"
+            label={t("auth.email")}
             type="email"
             value={resetEmail}
             onChange={(e) => setResetEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder={t("auth.login.emailPlaceholder")}
             className="rounded-xl border-[#E2E8F0] transition-all duration-300 focus:border-[#7C3AED] focus:ring-[#7C3AED]/20"
           />
           {resetError && (

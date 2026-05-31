@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/layout/BrandMark";
 
-const APP_NAME = "AI Intern Jordan";
+const APP_NAME = "InternConnect Jordan";
 
 type AppBrandProps = {
   href?: string;
