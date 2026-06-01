@@ -47,7 +47,14 @@ export function CompanyCard({
       <Link href={detailHref} className="block flex-1">
         <div className="relative h-20 bg-gradient-to-r from-violet-600/90 via-purple-600/80 to-indigo-600/90 px-5 dark:from-violet-700/80 dark:via-purple-700/70 dark:to-indigo-700/80">
           <div className="absolute -bottom-8 left-5">
-            <CompanyLogo name={name} logoUrl={logoUrl} size="lg" className="ring-4 ring-white dark:ring-slate-900" />
+            <div className="relative">
+              <CompanyLogo name={name} logoUrl={logoUrl} size="lg" className="ring-4 ring-white dark:ring-slate-900" />
+              {isNew ? (
+                <span className="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/2 rounded-full border border-amber-200/90 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 shadow-sm ring-2 ring-white dark:border-amber-500/50 dark:bg-amber-500/25 dark:text-amber-100 dark:ring-slate-900">
+                  New
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -63,11 +70,14 @@ export function CompanyCard({
                   {industryLabel}
                 </Badge>
               ) : null}
-              {isNew ? (
-                <Badge variant="warning">New</Badge>
-              ) : showRating ? (
-                <Badge variant="success">★ {rating?.toFixed(1)}</Badge>
-              ) : !evaluationEnabled ? (
+              {!isNew && showRating ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+                  <span className="text-amber-500 dark:text-amber-400" aria-hidden>
+                    ★
+                  </span>
+                  {rating?.toFixed(1)}
+                </span>
+              ) : !isNew && !evaluationEnabled ? (
                 <span className="text-xs text-slate-500 dark:text-slate-400">No ratings yet</span>
               ) : null}
             </div>

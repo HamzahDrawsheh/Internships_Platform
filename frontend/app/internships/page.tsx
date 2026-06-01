@@ -8,6 +8,11 @@ import { Input, Select, Button, EmptyState, SearchBar } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { invokeAutoCompleteExpiredTrainings } from "@/lib/auto-complete-expired-trainings";
 import { invokeExpireStaleApplicationCommitments } from "@/lib/expire-commitment-deadlines";
+import { invokeExpireInternshipApplicationDeadlines } from "@/lib/expire-internship-deadlines";
+import {
+  isApplicationDeadlinePassed,
+  todayIsoDate,
+} from "@/lib/internships/application-deadline";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import { formatMissingSkillsCount, type SkillGapAnalysis } from "@/lib/skill-match";
@@ -75,13 +80,15 @@ export default function BrowseInternshipsPage() {
   const [postedBefore, setPostedBefore] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [companyLevel, setCompanyLevel] = useState<"" | "white" | "gray" | "black">("");
+  /** When true (default), hide listings past application deadline. */
+  const [openForApplicationsOnly, setOpenForApplicationsOnly] = useState(true);
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [minMatchPct, setMinMatchPct] = useState(0);
   const [recWorkType, setRecWorkType] = useState<WorkArrangement | "">("");
   const [recCity, setRecCity] = useState("");
   const [recPrefsHydrated, setRecPrefsHydrated] = useState(false);
   const [openDrilldown, setOpenDrilldown] = useState<
-    "location" | "skill" | "posted" | "company" | "companyLevel" | "match" | null
+    "location" | "skill" | "posted" | "company" | "companyLevel" | "availability" | "match" | null
   >(null);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -94,6 +101,9 @@ export default function BrowseInternshipsPage() {
       location: string | null;
       requirements: string | null;
       created_at: string;
+      application_deadline: string | null;
+      start_date: string | null;
+      end_date: string | null;
       company_id: string;
       company_name?: string;
       company_logo_url?: string | null;
@@ -117,6 +127,7 @@ export default function BrowseInternshipsPage() {
     setPostedBefore("");
     setCompanyId("");
     setCompanyLevel("");
+    setOpenForApplicationsOnly(true);
     setSort("newest");
     setMinMatchPct(0);
     setOpenDrilldown(null);
@@ -204,6 +215,7 @@ export default function BrowseInternshipsPage() {
 
       await invokeAutoCompleteExpiredTrainings(supabase);
       await invokeExpireStaleApplicationCommitments(supabase);
+      await invokeExpireInternshipApplicationDeadlines(supabase);
 
       const { data: apps } = await supabase
         .from("applications")
@@ -390,11 +402,17 @@ export default function BrowseInternshipsPage() {
       setLoading(true);
       if (page === 0) setHasMore(true);
 
+      const today = todayIsoDate();
+
       let query = supabase
         .from("internship_positions")
-        .select("id, title, location, requirements, created_at, company_id")
+        .select("id, title, location, requirements, created_at, application_deadline, start_date, end_date, company_id")
         .eq("is_active", true)
         .order("created_at", { ascending: sort === "oldest" });
+
+      if (openForApplicationsOnly) {
+        query = query.or(`application_deadline.is.null,application_deadline.gte.${today}`);
+      }
 
       if (search.trim()) {
         query = query.ilike("title", `%${search.trim()}%`);
@@ -478,7 +496,7 @@ export default function BrowseInternshipsPage() {
 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows is intentionally excluded to avoid reload loops
-  }, [search, locationType, skill, postedBefore, companyId, sort, page]);
+  }, [search, locationType, skill, postedBefore, companyId, openForApplicationsOnly, sort, page]);
 
   const cards = useMemo(
     () =>
@@ -494,10 +512,14 @@ export default function BrowseInternshipsPage() {
               .map((s) => s.trim())
               .filter(Boolean)
           : [],
-        deadline: row.created_at ? new Date(row.created_at).toLocaleDateString() : undefined,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        applicationDeadline: row.application_deadline,
+        isExpired: isApplicationDeadlinePassed(row.application_deadline),
+        openForApplications: !isApplicationDeadlinePassed(row.application_deadline),
         applicationStatus: studentApplicationByPositionId[row.id] ?? null,
       })),
-    [rows, studentApplicationByPositionId, t]
+    [rows, studentApplicationByPositionId]
   );
 
   const recommendedApplicationLabel = (status: ApplicationStatus): string => {
@@ -535,10 +557,11 @@ export default function BrowseInternshipsPage() {
     Boolean(postedBefore) ||
     Boolean(companyId) ||
     Boolean(companyLevel) ||
+    !openForApplicationsOnly ||
     sort !== "newest" ||
     minMatchPct > 0;
 
-  type FilterKey = "location" | "skill" | "posted" | "company" | "companyLevel" | "match";
+  type FilterKey = "location" | "skill" | "posted" | "company" | "companyLevel" | "availability" | "match";
 
   /** Shared chip surface: white in light mode, slate-800 in dark (not white + light text). */
   const filterChipSurface =
@@ -552,6 +575,7 @@ export default function BrowseInternshipsPage() {
     posted: "text-amber-800 dark:text-amber-300",
     company: "text-violet-700 dark:text-violet-300",
     companyLevel: "text-indigo-700 dark:text-indigo-300",
+    availability: "text-teal-700 dark:text-teal-300",
     match: "text-fuchsia-700 dark:text-fuchsia-300",
   };
 
@@ -561,6 +585,7 @@ export default function BrowseInternshipsPage() {
     posted: "bg-amber-500",
     company: "bg-violet-500",
     companyLevel: "bg-indigo-500",
+    availability: "bg-teal-500",
     match: "bg-fuchsia-500",
   };
 
@@ -570,6 +595,7 @@ export default function BrowseInternshipsPage() {
     posted: Boolean(postedBefore),
     company: Boolean(companyId),
     companyLevel: Boolean(companyLevel),
+    availability: openForApplicationsOnly,
     match: minMatchPct > 0,
   };
 
@@ -860,6 +886,21 @@ export default function BrowseInternshipsPage() {
                 </div>
               ) : null}
             </div>
+
+            <button
+              type="button"
+              className={filterChipClass("availability", false)}
+              onClick={() => {
+                setOpenForApplicationsOnly((v) => !v);
+                setPage(0);
+              }}
+              aria-pressed={openForApplicationsOnly}
+            >
+              {filterIsActive.availability ? (
+                <span className={`h-2 w-2 rounded-full ${filterChipDot.availability}`} />
+              ) : null}
+              {t("browse.filterOpenOnly")}
+            </button>
 
             <div className="relative">
               <button
@@ -1237,7 +1278,11 @@ export default function BrowseInternshipsPage() {
                     companyLogoUrl={card.companyLogoUrl}
                     locationType={card.locationType}
                     skills={card.skills}
-                    deadline={card.deadline}
+                    startDate={card.startDate}
+                    endDate={card.endDate}
+                    applicationDeadline={card.applicationDeadline}
+                    isExpired={card.isExpired}
+                    openForApplications={card.openForApplications}
                     applicationStatus={card.applicationStatus ?? undefined}
                   />
                 ))}

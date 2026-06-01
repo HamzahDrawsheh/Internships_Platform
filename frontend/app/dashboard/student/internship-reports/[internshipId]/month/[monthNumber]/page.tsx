@@ -198,23 +198,6 @@ export default function StudentMonthlyReportFormPage() {
       return;
     }
 
-    const { data: company } = await supabase
-      .from("internships")
-      .select("company_id, companies(user_id)")
-      .eq("id", internshipId)
-      .maybeSingle();
-    const companyUserId = (company?.companies as { user_id?: string } | null)?.user_id;
-    if (companyUserId) {
-      await supabase.from("notifications").insert({
-        user_id: companyUserId,
-        title: "Monthly report awaiting evaluation",
-        message: `Month ${monthNumber} internship report submitted. Please complete employer evaluation.`,
-        type: "monthly_report_pending_employer",
-        is_read: false,
-        related_internship_id: internshipId,
-        related_monthly_report_id: report.id,
-      });
-    }
     setReport((prev) =>
       prev
         ? {

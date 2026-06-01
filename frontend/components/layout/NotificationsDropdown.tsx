@@ -103,6 +103,53 @@ export default function NotificationsDropdown({ enabled }: Props) {
     return () => subscription.unsubscribe();
   }, [enabled, refreshUnreadCount]);
 
+  useEffect(() => {
+    if (!enabled) return;
+    const supabase = createClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const subscribe = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase
+        .channel(`notifications-live:${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            void refreshUnreadCount();
+            if (open) void loadPanel();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            void refreshUnreadCount();
+          }
+        )
+        .subscribe();
+    };
+
+    void subscribe();
+    return () => {
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [enabled, open, refreshUnreadCount, loadPanel]);
+
   const markAllRead = async () => {
     if (!enabled || unreadCount === 0) return;
 

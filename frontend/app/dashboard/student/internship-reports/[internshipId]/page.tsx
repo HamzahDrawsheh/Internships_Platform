@@ -14,6 +14,7 @@ import { formatIsoDate } from "@/lib/internship-reports/helpers";
 import { FINAL_REPORT_BUCKET, MAX_FINAL_REPORT_BYTES } from "@/lib/internship-reports/constants";
 import { syncInternshipReportStatuses } from "@/lib/internship-reports/sync-status";
 import type { FinalReportRow, InternshipRow, MonthlyReportRow } from "@/lib/internship-reports/types";
+import { fetchStudentEnrolledCompanyMeta, fetchStudentEnrolledPositionTitle } from "@/lib/internships/student-enrolled-meta";
 import { createClient } from "@/lib/supabase/client";
 
 export default function StudentInternshipDetailPage() {
@@ -32,24 +33,35 @@ export default function StudentInternshipDetailPage() {
     const supabase = createClient();
     const load = async () => {
       setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       await syncInternshipReportStatuses(supabase, internshipId);
-      const [{ data: i }, { data: reps }, { data: fr }] = await Promise.all([
+      const [{ data: i }, { data: reps }, { data: fr }, { data: student }] = await Promise.all([
         supabase.from("internships").select("*").eq("id", internshipId).maybeSingle(),
         supabase.from("internship_monthly_reports").select("*").eq("internship_id", internshipId).order("month_number"),
         supabase.from("internship_final_reports").select("*").eq("internship_id", internshipId).maybeSingle(),
+        user
+          ? supabase.from("students").select("id").eq("user_id", user.id).maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
       setInternship(i as InternshipRow | null);
       setReports((reps ?? []) as MonthlyReportRow[]);
       setFinalReport((fr ?? null) as FinalReportRow | null);
 
-      if (i?.application_id) {
-        const { data: app } = await supabase
-          .from("applications")
-          .select("internship_positions(title, companies(company_name))")
-          .eq("id", i.application_id)
-          .maybeSingle();
-        const pos = app?.internship_positions as { title?: string; companies?: { company_name?: string } } | null;
-        setMeta({ company: pos?.companies?.company_name ?? "", title: pos?.title ?? "" });
+      if (i) {
+        const internship = i as InternshipRow & { company_id?: string | null };
+        const [{ companyName }, title] = await Promise.all([
+          fetchStudentEnrolledCompanyMeta(supabase, internship.company_id ?? null),
+          student?.id
+            ? fetchStudentEnrolledPositionTitle(supabase, {
+                studentId: student.id,
+                applicationId: internship.application_id,
+                companyId: internship.company_id ?? null,
+              })
+            : Promise.resolve(""),
+        ]);
+        setMeta({ company: companyName, title });
       }
       setLoading(false);
     };
@@ -99,14 +111,6 @@ export default function StudentInternshipDetailPage() {
         uploaded_at: new Date().toISOString(),
         reviewed_at: null,
         reviewer_notes: null,
-      });
-      await supabase.from("notifications").insert({
-        user_id: user.id,
-        title: "Final report submitted",
-        message: "Your final internship report has been uploaded.",
-        type: "final_report_submitted",
-        is_read: false,
-        related_internship_id: internship.id,
       });
     }
     setUploading(false);

@@ -18,6 +18,10 @@ import { ensureStudentInternshipTracking } from "@/lib/internship-reports/sync-s
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
 import { localizeTrackHint } from "@/lib/i18n/track-display";
+import {
+  fetchStudentEnrolledCompanyMeta,
+  fetchStudentEnrolledPositionTitle,
+} from "@/lib/internships/student-enrolled-meta";
 
 type EnrolledInternship = {
   id: string;
@@ -115,7 +119,7 @@ export default function StudentDashboardContent() {
           await ensureStudentInternshipTracking(supabase);
           const { data: internships } = await supabase
             .from("internships")
-            .select("id, status, start_date, end_date, application_id")
+            .select("id, status, start_date, end_date, application_id, company_id")
             .eq("student_id", student.id)
             .neq("status", "cancelled")
             .order("created_at", { ascending: false });
@@ -140,15 +144,14 @@ export default function StudentDashboardContent() {
           }
           setReportsDueCount(due);
 
-          const { data: app } = await supabase
-            .from("applications")
-            .select("position_id, internship_positions(title, companies(company_name, logo_url))")
-            .eq("id", primary.application_id)
-            .maybeSingle();
-          const pos = app?.internship_positions as {
-            title?: string;
-            companies?: { company_name?: string; logo_url?: string | null };
-          } | null;
+          const [{ companyName, companyLogoUrl }, positionTitle] = await Promise.all([
+            fetchStudentEnrolledCompanyMeta(supabase, primary.company_id),
+            fetchStudentEnrolledPositionTitle(supabase, {
+              studentId: student.id,
+              applicationId: primary.application_id,
+              companyId: primary.company_id,
+            }),
+          ]);
 
           const { data: reps } = await supabase
             .from("internship_monthly_reports")
@@ -162,9 +165,9 @@ export default function StudentDashboardContent() {
             status: primary.status,
             start_date: primary.start_date,
             end_date: primary.end_date,
-            position_title: pos?.title ?? "Internship",
-            company_name: pos?.companies?.company_name ?? "Company",
-            company_logo_url: pos?.companies?.logo_url ?? null,
+            position_title: positionTitle,
+            company_name: companyName,
+            company_logo_url: companyLogoUrl,
             track: buildInternshipTrackSummary(
               reports,
               primary.start_date,
@@ -342,6 +345,7 @@ export default function StudentDashboardContent() {
                 internshipStatus: enrolledInternship.status,
                 positionTitle: enrolledInternship.position_title,
                 companyName: enrolledInternship.company_name,
+                companyLogoUrl: enrolledInternship.company_logo_url,
                 startDate: enrolledInternship.start_date,
                 endDate: enrolledInternship.end_date,
                 track: enrolledInternship.track,

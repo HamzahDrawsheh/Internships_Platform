@@ -50,7 +50,7 @@ export function StudentInternshipTrackCard({
             <CompanyLogo
               name={companyName}
               logoUrl={companyLogoUrl}
-              size="xs"
+              size="sm"
               className="ring-1 ring-violet-200/80 dark:ring-violet-500/30"
             />
             <h2 className="min-w-0 truncate text-lg font-semibold text-gray-900 dark:text-white">

@@ -49,14 +49,6 @@ type MonthlyReportRow = {
   supervisor_approval_date?: string | null;
 };
 
-type RiskSourceCounts = {
-  pendingApplications: number;
-  missingReports: number;
-  lowScore: number;
-  missingSkills: number;
-  noRecentActivity: number;
-};
-
 function priorityLabelKey(p: RiskPriority): string {
   if (p === "high") return "supervisor.dashboard.radarPriority.high";
   if (p === "medium") return "supervisor.dashboard.radarPriority.medium";
@@ -93,22 +85,16 @@ export function SupervisorRiskRadar({
 }: SupervisorRiskRadarProps) {
   const { t } = useI18n();
 
-  if (!hasDepartment) {
-    return null;
-  }
-
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [rows, setRows] = useState<RiskRow[]>([]);
-  const [sourceCounts, setSourceCounts] = useState<RiskSourceCounts>({
-    pendingApplications: 0,
-    missingReports: 0,
-    lowScore: 0,
-    missingSkills: 0,
-    noRecentActivity: 0,
-  });
-
   useEffect(() => {
+    if (!hasDepartment) {
+      setLoading(false);
+      setRows([]);
+      return;
+    }
+
     const supabase = createClient();
     let cancelled = false;
 
@@ -191,13 +177,6 @@ export function SupervisorRiskRadar({
         }
 
         const riskRows: RiskRow[] = [];
-        const counts: RiskSourceCounts = {
-          pendingApplications: 0,
-          missingReports: 0,
-          lowScore: 0,
-          missingSkills: 0,
-          noRecentActivity: 0,
-        };
 
         // Low score / missing skills are included ONLY if data is accessible under RLS.
         // This project currently exposes only department-level aggregates to supervisors; per-student rows are typically hidden.
@@ -241,7 +220,6 @@ export function SupervisorRiskRadar({
             });
             priority = "medium";
             suggestedAction = t("supervisor.dashboard.radarActionReviewPending");
-            counts.pendingApplications += 1;
           }
 
           const activeInternshipForStudent = activeInternships.find((i) => i.student_id === st.id);
@@ -262,7 +240,6 @@ export function SupervisorRiskRadar({
               });
               priority = "high";
               suggestedAction = t("supervisor.dashboard.radarActionReviewMonthly");
-              counts.missingReports += 1;
             } else if (awaitingSupervisor) {
               reasons.unshift({
                 type: "monthly_report_awaiting_approval",
@@ -271,7 +248,6 @@ export function SupervisorRiskRadar({
               // At this point `priority` can only be "low" or "medium" (no other sources raise it to "high" yet).
               priority = "medium";
               suggestedAction = t("supervisor.dashboard.radarActionReviewMonthly");
-              counts.missingReports += 1;
             }
           }
 
@@ -282,7 +258,6 @@ export function SupervisorRiskRadar({
             else if (p === "medium" && priority !== "high") priority = "medium";
             reasons.push({ type: "low_score", label: fmt(t("supervisor.dashboard.radarReasonLowScore"), { score: lowScore.toFixed(2) }) });
             suggestedAction = t("supervisor.dashboard.radarActionViewStudent");
-            counts.lowScore += 1;
           }
 
           const missingSkills = missingSkillsByStudent.get(st.id);
@@ -294,7 +269,6 @@ export function SupervisorRiskRadar({
               label: fmt(t("supervisor.dashboard.radarReasonMissingSkills"), { count: missingSkills }),
             });
             suggestedAction = t("supervisor.dashboard.radarActionViewStudent");
-            counts.missingSkills += 1;
           }
 
           const lastActivity = lastActivityByStudent.get(st.id) ?? 0;
@@ -304,7 +278,6 @@ export function SupervisorRiskRadar({
               label: fmt(t("supervisor.dashboard.radarReasonNoRecentActivity"), { days: 14 }),
             });
             if (priority === "low") priority = "low";
-            counts.noRecentActivity += 1;
           }
 
           if (reasons.length === 0) continue;
@@ -322,7 +295,6 @@ export function SupervisorRiskRadar({
 
         if (!cancelled) {
           setRows(riskRows);
-          setSourceCounts(counts);
           setLoading(false);
         }
       } catch (e) {
@@ -339,7 +311,7 @@ export function SupervisorRiskRadar({
     return () => {
       cancelled = true;
     };
-  }, [supervisorDepartment, t]);
+  }, [hasDepartment, supervisorDepartment, t]);
 
   const filteredRows = useMemo(() => {
     if (selectedFilter === "all") return rows;
@@ -362,6 +334,10 @@ export function SupervisorRiskRadar({
     return { high, medium, total };
   }, [filteredRows]);
 
+  if (!hasDepartment) {
+    return null;
+  }
+
   return (
     <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900/90">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
@@ -372,16 +348,6 @@ export function SupervisorRiskRadar({
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {t("supervisor.dashboard.riskRadarSubtitleStudents")}
           </p>
-          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-300">
-            <p className="font-medium text-gray-700 dark:text-gray-200">Debug (risk sources)</p>
-            <div className="mt-1 grid gap-1 sm:grid-cols-2">
-              <p>Pending application risks: {sourceCounts.pendingApplications}</p>
-              <p>Missing report risks: {sourceCounts.missingReports}</p>
-              <p>Low score risks: {sourceCounts.lowScore}</p>
-              <p>Missing skills risks: {sourceCounts.missingSkills}</p>
-              <p>No recent activity risks: {sourceCounts.noRecentActivity}</p>
-            </div>
-          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusText variant="danger">

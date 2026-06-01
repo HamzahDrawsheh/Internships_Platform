@@ -87,6 +87,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
       return (
         pathname === "/dashboard/supervisor" ||
         pathname.startsWith("/supervisor") ||
+        pathname.startsWith("/internships") ||
         pathname.startsWith("/notifications")
       );
     case "admin":

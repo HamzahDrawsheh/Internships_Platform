@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Modal } from "@/components/ui";
 import {
   fetchCompanyEvaluation,
   formatOverallScore,
@@ -34,6 +35,70 @@ function levelLabel(level: "white" | "gray" | "black"): string {
     case "black":
       return "Black Level";
   }
+}
+
+function CompanyLevelInfoButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-[11px] font-bold leading-none text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700 dark:hover:text-white dark:focus:ring-offset-slate-900"
+        aria-label="About company levels (White, Gray, Black)"
+        title="About company levels"
+      >
+        !
+      </button>
+      <Modal isOpen={open} onClose={() => setOpen(false)} title="Company levels (W / G / B)">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Levels summarize a company&apos;s track record from completed student training evaluations,
+          acceptance ratio, and internship completion rate. They are performance bands—not related to race
+          or ethnicity.
+        </p>
+        <ul className="mt-4 space-y-3 text-sm">
+          <li className="flex gap-3">
+            <span
+              className={`mt-0.5 inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelBadgeClasses("white")}`}
+            >
+              W · White
+            </span>
+            <span className="text-slate-700 dark:text-slate-200">
+              <strong className="font-semibold text-slate-900 dark:text-white">Strong track record.</strong>{" "}
+              Combined score is 60% or higher—reliable acceptance, completion, and student feedback.
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span
+              className={`mt-0.5 inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelBadgeClasses("gray")}`}
+            >
+              G · Gray
+            </span>
+            <span className="text-slate-700 dark:text-slate-200">
+              <strong className="font-semibold text-slate-900 dark:text-white">Average track record.</strong>{" "}
+              Combined score is between 40% and 59%.
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span
+              className={`mt-0.5 inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelBadgeClasses("black")}`}
+            >
+              B · Black
+            </span>
+            <span className="text-slate-700 dark:text-slate-200">
+              <strong className="font-semibold text-slate-900 dark:text-white">Weaker track record.</strong>{" "}
+              Combined score is below 40%—students may want extra due diligence.
+            </span>
+          </li>
+        </ul>
+        <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+          New companies or those without enough completed evaluations show no level until public scores are
+          available.
+        </p>
+      </Modal>
+    </>
+  );
 }
 
 function NewCompanyBadge({ className = "" }: { className?: string }) {
@@ -147,10 +212,13 @@ export function CompanyEvaluationDisplay({
         {overallScore != null && (
           <p className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">⭐ {overallScore}</p>
         )}
-        <span
-          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${levelBadgeClasses(level)}`}
-        >
-          {levelLabel(level)}
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${levelBadgeClasses(level)}`}
+          >
+            {levelLabel(level)}
+          </span>
+          <CompanyLevelInfoButton />
         </span>
       </div>
 

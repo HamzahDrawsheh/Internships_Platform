@@ -11,6 +11,10 @@ import { CompanyLogo } from "@/components/companies/CompanyLogo";
 import { Badge } from "@/components/ui";
 import { MessageCompanyButton } from "@/components/messaging/MessageCompanyButton";
 import { formatIndustryLabel } from "@/lib/companies/industry";
+import {
+  getInternshipListingStatus,
+  type InternshipListingStatus,
+} from "@/lib/internships/application-deadline";
 import { createClient } from "@/lib/supabase/client";
 
 const locationLabel: Record<string, string> = { remote: "Remote", onsite: "On-site", hybrid: "Hybrid" };
@@ -35,9 +39,20 @@ export function CompanyPublicProfileContent({ listHref }: Props) {
     is_new_company: boolean | null;
   } | null>(null);
   const [positions, setPositions] = useState<
-    { id: string; title: string; location: string | null; type: string | null; requirements: string | null }[]
+    {
+      id: string;
+      title: string;
+      location: string | null;
+      type: string | null;
+      requirements: string | null;
+      application_deadline: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      listingStatus: InternshipListingStatus;
+    }[]
   >([]);
   const [canViewEvaluation, setCanViewEvaluation] = useState(false);
+  const [isSupervisorViewer, setIsSupervisorViewer] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -47,6 +62,15 @@ export function CompanyPublicProfileContent({ listHref }: Props) {
         data: { user },
       } = await supabase.auth.getUser();
       setCanViewEvaluation(Boolean(user));
+
+      let viewerRole: string | null = null;
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+        viewerRole = profile?.role ?? null;
+      }
+      const supervisorView = viewerRole === "supervisor" || viewerRole === "admin";
+      setIsSupervisorViewer(supervisorView);
+
       if (!id) {
         setCompany(null);
         setPositions([]);
@@ -69,14 +93,40 @@ export function CompanyPublicProfileContent({ listHref }: Props) {
 
       setCompany(row);
 
-      const { data: posRows } = await supabase
+      let posQuery = supabase
         .from("internship_positions")
-        .select("id, title, location, type, requirements")
+        .select("id, title, location, type, requirements, is_active, application_deadline, start_date, end_date")
         .eq("company_id", id)
-        .eq("is_active", true)
         .order("created_at", { ascending: false });
 
-      setPositions((posRows ?? []) as typeof positions);
+      if (!supervisorView) {
+        const today = new Date().toISOString().slice(0, 10);
+        posQuery = posQuery
+          .eq("is_active", true)
+          .or(`application_deadline.is.null,application_deadline.gte.${today}`);
+      }
+
+      const { data: posRows } = await posQuery;
+
+      setPositions(
+        (posRows ?? []).map((row) => {
+          const listingStatus = getInternshipListingStatus({
+            is_active: row.is_active,
+            application_deadline: row.application_deadline,
+          });
+          return {
+            id: row.id,
+            title: row.title,
+            location: row.location,
+            type: row.type,
+            requirements: row.requirements,
+            application_deadline: row.application_deadline,
+            start_date: row.start_date,
+            end_date: row.end_date,
+            listingStatus,
+          };
+        })
+      );
       setLoading(false);
     };
 
@@ -178,11 +228,19 @@ export function CompanyPublicProfileContent({ listHref }: Props) {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-[#0F172A] dark:text-white">Open internships</h2>
-          <p className="mt-1 text-sm text-[#0F172A]/70 dark:text-slate-400">Current openings at this company.</p>
+          <h2 className="text-lg font-semibold text-[#0F172A] dark:text-white">
+            {isSupervisorViewer ? "Internships" : "Open internships"}
+          </h2>
+          <p className="mt-1 text-sm text-[#0F172A]/70 dark:text-slate-400">
+            {isSupervisorViewer
+              ? "All listings at this company, including active, expired, and paused."
+              : "Current openings at this company."}
+          </p>
           {positions.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-[#E2E8F0] bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-sm text-[#0F172A]/60 dark:text-slate-500">No open internships at the moment.</p>
+              <p className="text-sm text-[#0F172A]/60 dark:text-slate-500">
+                {isSupervisorViewer ? "No internships listed for this company." : "No open internships at the moment."}
+              </p>
             </div>
           ) : (
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -203,6 +261,12 @@ export function CompanyPublicProfileContent({ listHref }: Props) {
                     companyLogoUrl={company.logo_url ?? undefined}
                     locationType={loc}
                     skills={skills}
+                    startDate={i.start_date}
+                    endDate={i.end_date}
+                    applicationDeadline={i.application_deadline}
+                    listingStatus={isSupervisorViewer ? i.listingStatus : undefined}
+                    openForApplications={i.listingStatus === "active"}
+                    isExpired={i.listingStatus === "expired"}
                   />
                 );
               })}

@@ -6,10 +6,16 @@ import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ProfileFormSkeleton } from "@/components/loading";
-import { Input, Select, Textarea, Button, Card } from "@/components/ui";
+import { Input, Select, Textarea, Button, Card, Modal } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-import { buildInternshipScheduleFields, validateInternshipDates } from "@/lib/internships/dates";
+import {
+  isApplicationDeadlinePassed,
+  todayIsoDate,
+} from "@/lib/internships/application-deadline";
+import { countEnrolledApplicationsForPosition } from "@/lib/internships/enrollment";
+import { suggestExtendedApplicationDeadline } from "@/lib/internships/extend-listing";
+import { normalizeDateInputValue } from "@/lib/internships/dates";
 
 const locationOptions: SelectOption[] = [
   { value: "remote", label: "Remote" },
@@ -27,12 +33,18 @@ export default function EditInternshipPage() {
   const [skills, setSkills] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [applicationDeadline, setApplicationDeadline] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [currentIsActive, setCurrentIsActive] = useState<boolean>(true);
+  const [enrolledCount, setEnrolledCount] = useState(0);
+  const [listingExpired, setListingExpired] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendDeadline, setExtendDeadline] = useState("");
+  const [extending, setExtending] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -101,7 +113,7 @@ export default function EditInternshipPage() {
 
       const { data: position, error: positionError } = await supabase
         .from("internship_positions")
-        .select("id, title, description, requirements, duration, duration_weeks, location, is_active, start_date, end_date, additional_notes")
+        .select("id, title, description, requirements, duration, duration_weeks, location, is_active, start_date, end_date, application_deadline, additional_notes")
         .eq("id", id)
         .eq("company_id", company.id)
         .maybeSingle();
@@ -123,16 +135,63 @@ export default function EditInternshipPage() {
       setSkills(position.requirements ?? "");
       const loc = typeof position.location === "string" && position.location.trim() ? position.location.trim() : "hybrid";
       setLocationType(loc);
-      setStartDate(typeof position.start_date === "string" ? position.start_date : "");
-      setEndDate(typeof position.end_date === "string" ? position.end_date : "");
+
+      const loadedStart = normalizeDateInputValue(position.start_date);
+      const loadedEnd = normalizeDateInputValue(position.end_date);
+      const loadedDeadline =
+        normalizeDateInputValue(position.application_deadline) || loadedStart;
+
+      setStartDate(loadedStart);
+      setEndDate(loadedEnd);
+      setApplicationDeadline(loadedDeadline);
+      setExtendDeadline(suggestExtendedApplicationDeadline(loadedStart));
+      setListingExpired(isApplicationDeadlinePassed(loadedDeadline));
       setAdditionalNotes(typeof position.additional_notes === "string" ? position.additional_notes : "");
       setCurrentIsActive(Boolean(position.is_active));
+
+      const enrolled = await countEnrolledApplicationsForPosition(supabase, id);
+      setEnrolledCount(enrolled);
 
       setLoading(false);
     };
 
     void load();
   }, [id]);
+
+  const hasEnrolledStudents = enrolledCount > 0;
+
+  const extendApplicationPeriod = async () => {
+    setError(null);
+    setSuccess(null);
+    setExtending(true);
+    try {
+      const res = await fetch(`/api/company/internships/${id}/extend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ application_deadline: extendDeadline }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        application_deadline?: string;
+      };
+      if (!res.ok) {
+        setError(data.error ?? "Failed to extend application period.");
+        return;
+      }
+      const newDeadline = data.application_deadline ?? extendDeadline;
+      setApplicationDeadline(newDeadline);
+      setListingExpired(false);
+      setCurrentIsActive(true);
+      setExtendOpen(false);
+      setSuccess("Application period extended — new students can apply.");
+    } catch (err) {
+      console.error("extend application period:", err);
+      setError("Unexpected error while extending.");
+    } finally {
+      setExtending(false);
+    }
+  };
 
   const updateInternship = async (nextIsActive: boolean) => {
     setError(null);
@@ -145,59 +204,29 @@ export default function EditInternshipPage() {
       return;
     }
 
-    const dateError = validateInternshipDates(startDate, endDate);
-    if (dateError) {
-      setError(dateError);
-      return;
-    }
-
     setSaving(true);
-    const supabase = createClient();
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const res = await fetch(`/api/company/internships/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          title: trimmedTitle,
+          description: trimmedDescription,
+          requirements: skills.trim() || null,
+          additional_notes: additionalNotes.trim() || null,
+          location: locationType || null,
+          is_active: nextIsActive,
+          start_date: startDate,
+          end_date: endDate,
+          application_deadline: applicationDeadline || startDate,
+        }),
+      });
 
-      if (userError || !user) {
-        if (userError) console.error("edit internship save getUser error:", userError);
-        setError("You must be logged in to update an internship.");
-        return;
-      }
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
 
-      const { data: company, error: companyError } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (companyError || !company) {
-        if (companyError) console.error("edit internship save company lookup error:", companyError);
-        setError("Unable to verify your company profile.");
-        return;
-      }
-
-      const schedule = buildInternshipScheduleFields(startDate, endDate);
-
-      const payload = {
-        title: trimmedTitle,
-        description: trimmedDescription,
-        requirements: skills.trim() || null,
-        ...schedule,
-        additional_notes: additionalNotes.trim() || null,
-        location: locationType || null,
-        is_active: nextIsActive,
-      };
-
-      const { error: updateError } = await supabase
-        .from("internship_positions")
-        .update(payload)
-        .eq("id", id)
-        .eq("company_id", company.id);
-
-      if (updateError) {
-        console.error("edit internship update error:", updateError);
-        setError("Failed to update internship. Please try again.");
+      if (!res.ok) {
+        setError(data.error ?? "Failed to update internship. Please try again.");
         return;
       }
 
@@ -209,6 +238,9 @@ export default function EditInternshipPage() {
       }).catch(() => {});
 
       setCurrentIsActive(nextIsActive);
+      if (!isApplicationDeadlinePassed(applicationDeadline || startDate)) {
+        setListingExpired(false);
+      }
       setSuccess(nextIsActive ? "Internship updated & published." : "Internship updated (saved as draft).");
       router.push("/company/internships");
       router.refresh();
@@ -256,6 +288,33 @@ export default function EditInternshipPage() {
         {loading ? (
           <ProfileFormSkeleton />
         ) : (
+        <>
+        {listingExpired && (
+          <div
+            className="mb-4 flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+            role="status"
+          >
+            <p>
+              The application deadline has passed. Use <strong>Extend</strong> to set a new apply-by date so more
+              students can apply. Existing trainees are not affected.
+            </p>
+            <Button type="button" variant="primary" onClick={() => setExtendOpen(true)} disabled={extending}>
+              Extend applications
+            </Button>
+          </div>
+        )}
+        {hasEnrolledStudents && (
+          <div
+            className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300"
+            role="status"
+          >
+            <strong>
+              {enrolledCount} trainee{enrolledCount === 1 ? "" : "s"} linked to this listing.
+            </strong>{" "}
+            Listing start/end dates are for the posting and future applicants. Each enrolled student&apos;s training
+            period is set individually from their accept/commit date and is not changed when you edit this form.
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -274,7 +333,21 @@ export default function EditInternshipPage() {
                 type="date"
                 required
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setStartDate(next);
+                  if (!applicationDeadline || applicationDeadline > next) {
+                    setApplicationDeadline(next);
+                  }
+                }}
+              />
+              <Input
+                label="Application deadline"
+                type="date"
+                required
+                value={applicationDeadline}
+                max={startDate || undefined}
+                onChange={(e) => setApplicationDeadline(e.target.value)}
               />
               <Input
                 label="End date"
@@ -283,6 +356,7 @@ export default function EditInternshipPage() {
                 value={endDate}
                 min={startDate || undefined}
                 onChange={(e) => setEndDate(e.target.value)}
+                className="sm:col-span-2"
               />
             </div>
             <Textarea
@@ -303,6 +377,41 @@ export default function EditInternshipPage() {
             </Button>
           </div>
         </form>
+
+        <Modal
+          isOpen={extendOpen}
+          onClose={() => setExtendOpen(false)}
+          title="Extend application period"
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setExtendOpen(false)} disabled={extending}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => void extendApplicationPeriod()}
+                disabled={extending || !extendDeadline}
+              >
+                {extending ? "Saving…" : "Reopen for applications"}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-gray-700 dark:text-slate-300">
+            Choose a new application deadline. Trainees already enrolled keep their own schedule.
+          </p>
+          <Input
+            label="New application deadline"
+            type="date"
+            required
+            className="mt-4"
+            value={extendDeadline}
+            min={todayIsoDate()}
+            max={startDate || undefined}
+            onChange={(e) => setExtendDeadline(e.target.value)}
+          />
+        </Modal>
+        </>
         )}
       </Container>
     </main>
