@@ -112,6 +112,145 @@ body {
   }
 }
 
+/* Login page — subtle animations */
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.login-animate-float {
+  animation: float-soft 5s ease-in-out infinite;
+}
+
+.login-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: login-spin 0.65s linear infinite;
+}
+
+.login-input-field {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+}
+
+.login-input-field:hover:not(:focus-visible) {
+  border-color: rgb(196 181 253 / 0.85);
+}
+
+.dark .login-input-field:hover:not(:focus-visible) {
+  border-color: rgb(192 132 252 / 0.45);
+}
+
+.login-input-field:focus-visible {
+  border-color: rgb(124 58 237);
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 0.14);
+  outline: none;
+}
+
+.dark .login-input-field:focus-visible {
+  border-color: rgb(167 139 250);
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 0.22);
+}
+
+.login-btn-glow {
+  transition: all 0.25s ease;
+  box-shadow:
+    0 4px 14px rgb(124 58 237 / 0.28),
+    0 0 22px rgb(124 58 237 / 0.18);
+}
+
+.dark .login-btn-glow {
+  box-shadow:
+    0 4px 16px rgb(124 58 237 / 0.38),
+    0 0 26px rgb(124 58 237 / 0.24);
+}
+
+.login-btn-glow:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 22px rgb(124 58 237 / 0.36),
+    0 0 32px rgb(124 58 237 / 0.28);
+}
+
+.dark .login-btn-glow:hover:not(:disabled) {
+  box-shadow:
+    0 8px 24px rgb(124 58 237 / 0.46),
+    0 0 36px rgb(124 58 237 / 0.34);
+}
+
+.login-btn-glow:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow:
+    0 2px 10px rgb(124 58 237 / 0.24),
+    0 0 18px rgb(124 58 237 / 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-animate-float {
+    animation: none;
+  }
+
+  .login-btn-glow:hover:not(:disabled),
+  .login-btn-glow:active:not(:disabled) {
+    transform: none;
+  }
+
+  .login-spinner {
+    animation-duration: 1.2s;
+  }
+}
+
+.signup-role-card {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, background-color 0.25s ease;
+}
+
+.signup-role-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(124 58 237 / 0.45);
+  box-shadow: 0 6px 20px rgb(124 58 237 / 0.12);
+}
+
+.signup-role-card:focus-visible {
+  outline: none;
+  border-color: rgb(124 58 237);
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 0.18);
+}
+
+.signup-role-card-selected {
+  border-color: rgb(124 58 237);
+  background: linear-gradient(135deg, rgb(124 58 237 / 0.18), rgb(99 102 241 / 0.12));
+  box-shadow:
+    0 8px 24px rgb(124 58 237 / 0.22),
+    0 0 28px rgb(124 58 237 / 0.14);
+}
+
+.dark .signup-role-card-selected {
+  background: linear-gradient(135deg, rgb(124 58 237 / 0.28), rgb(99 102 241 / 0.16));
+  box-shadow:
+    0 8px 28px rgb(124 58 237 / 0.32),
+    0 0 32px rgb(124 58 237 / 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signup-role-card:hover {
+    transform: none;
+  }
+}
+
 @keyframes chat-shimmer {
   0% {
     background-position: 200% 0;

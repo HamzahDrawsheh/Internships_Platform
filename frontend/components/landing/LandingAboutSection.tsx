@@ -80,7 +80,7 @@ export function LandingAboutSection({ stats }: { stats: PlatformStats }) {
               {t("landing.aboutBadge")}
             </span>
             <h2 className="mt-5 text-3xl font-extrabold tracking-tight text-[#0F172A] sm:text-4xl dark:text-white">
-              AI Intern{" "}
+              InternConnect{" "}
               <span className="bg-gradient-to-r from-[#7C3AED] to-[#6366F1] bg-clip-text text-transparent dark:from-purple-400 dark:to-indigo-400">
                 Jordan
               </span>

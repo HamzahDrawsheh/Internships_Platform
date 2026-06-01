@@ -3,13 +3,13 @@ export const legalEn = {
   termsBtn: "Terms",
   close: "Close",
   lastUpdated: "Last updated: May 2026",
-  sectionFooter: "Last reviewed: May 2026 | All rights reserved © AI Intern Jordan 2026",
+  sectionFooter: "Last reviewed: May 2026 | All rights reserved © InternConnect Jordan 2026",
   privacy: {
     title: "Privacy Policy",
     badge: "Privacy Policy",
     introTitle: "Introduction",
     intro1:
-      "AI Intern Jordan is committed to protecting your privacy. This policy explains how we collect, use, and protect your personal data when you use our platform or website. We comply with applicable Jordanian data protection and privacy regulations.",
+      "InternConnect Jordan is committed to protecting your privacy. This policy explains how we collect, use, and protect your personal data when you use our platform or website. We comply with applicable Jordanian data protection and privacy regulations.",
     intro2: "",
     collectedTitle: "Collected Data",
     collect1: "Full name, email address, and phone number when you register",
@@ -41,10 +41,10 @@ export const legalEn = {
     title: "Terms of Use",
     badge: "Terms of Use",
     intro:
-      "These Terms govern your access to and use of AI Intern Jordan. By creating an account or using the platform, you agree to comply with these Terms.",
+      "These Terms govern your access to and use of InternConnect Jordan. By creating an account or using the platform, you agree to comply with these Terms.",
     acceptanceTitle: "Acceptance of Terms",
     acceptanceBody:
-      "By using AI Intern Jordan, you explicitly agree to these Terms and Conditions. If you do not agree with any part of these Terms, please stop using our services immediately.",
+      "By using InternConnect Jordan, you explicitly agree to these Terms and Conditions. If you do not agree with any part of these Terms, please stop using our services immediately.",
     registrationTitle: "Registration Terms",
     registration1: "You must be at least 16 years old to use the platform",
     registration2: "Provide accurate and up-to-date information when creating your account",
@@ -59,10 +59,10 @@ export const legalEn = {
     prohibited5: "Publishing offensive or inappropriate content",
     liabilityTitle: "Legal Liability",
     liabilityBody:
-      "AI Intern Jordan is a technical intermediary connecting students, companies, and supervisors. We are not directly responsible for hiring decisions or the content of published opportunities. Users are legally responsible for the accuracy of information they provide and for agreements made with organizations.",
+      "InternConnect Jordan is a technical intermediary connecting students, companies, and supervisors. We are not directly responsible for hiring decisions or the content of published opportunities. Users are legally responsible for the accuracy of information they provide and for agreements made with organizations.",
     ipTitle: "Intellectual Property",
     ipBody:
-      "All platform content including design, logo, code, and images is the exclusive property of AI Intern Jordan and protected by intellectual property laws. Copying or redistributing any content without explicit written permission is prohibited.",
+      "All platform content including design, logo, code, and images is the exclusive property of InternConnect Jordan and protected by intellectual property laws. Copying or redistributing any content without explicit written permission is prohibited.",
     contactTitle: "Contact & Support",
     contactBody:
       "For questions or complaints regarding these Terms, email contact@aiintern.jo. We aim to respond to legitimate inquiries within 48 business hours.",

@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "AI Intern Jordan",
+  title: "InternConnect Jordan",
   description: "AI & Data Science Internship Platform — Launch your AI Career in Jordan",
   icons: {
     icon: "/brand-mark.svg",
