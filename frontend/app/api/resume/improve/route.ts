@@ -80,10 +80,19 @@ export async function POST(request: Request) {
 Rules:
 - Stay truthful. Do NOT invent employers, job titles, degrees, certifications, dates, projects, or skills not supported by the input.
 - Rephrase for clarity, impact, and ATS keywords using only facts implied by the user's text.
-- Use concise professional English.
-- For experience and projects, prefer bullet lines starting with "- " (one bullet per line).
-- Skills: deduplicate case-insensitively; output one comma-separated line unless empty.
-- Summary: 2–4 short sentences professional profile; only if you can derive it from the provided facts; otherwise return an empty string for summary.
+- Use concise professional English suitable for internships and junior data science roles.
+- Summary: exactly 2–4 sentences. Include role keywords (e.g. Data Science student), technical keywords (Python, SQL, machine learning, data analysis), and real strengths from the input. No exaggeration.
+- Skills: output ATS-friendly category lines, one per line, using this format exactly:
+  Programming Languages: ...
+  Data Analysis: ...
+  Machine Learning: ...
+  Deep Learning: ...
+  Data Visualization: ...
+  Databases: ...
+  Tools & Platforms: ...
+  Omit empty categories. Do not use bullet icons.
+- For experience and projects, prefer bullet lines starting with "- " (one bullet per line). Projects should include Technologies: line when tools are known from input.
+- Do not invent certifications; only mention credentials present in the input.
 
 Respond with JSON ONLY and exactly these keys: "summary", "skills", "experience", "projects" (all strings).`;
 

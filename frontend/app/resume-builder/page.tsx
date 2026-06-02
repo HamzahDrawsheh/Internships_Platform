@@ -2,21 +2,43 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCvPdf } from "@/lib/cv/build-cv-pdf";
+import {
+  createEmptyProjectSlots,
+  mergeSkillCategories,
+  mergeStructuredProjectSlots,
+  parseProjectSlotsFromText,
+  parseSkillCategoriesFromStored,
+  parseSkillCategoriesFromText,
+  serializeProjectSlots,
+  serializeSkillCategories,
+} from "@/lib/cv/cv-field-serialization";
 import { buildCvPreferencesPayload } from "@/lib/cv/student-cv-preferences";
 import { persistStudentCvFields, parseCvStudentPreferences } from "@/lib/cv/persist-student-cv";
-import type { AiCvSuggestion, CvPdfFields } from "@/lib/cv/types";
+import type { AiCvSuggestion, CvPdfFields, CvProjectSlot, CvSkillCategories, CvSkillCategoryKey } from "@/lib/cv/types";
+import { CV_SKILL_CATEGORY_KEYS } from "@/lib/cv/types";
+import { CvAtsChecklist } from "@/components/cv/CvAtsChecklist";
 import { CvLivePreview } from "@/components/cv/CvLivePreview";
 import { Container } from "@/components/layout/Container";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ProfileFormSkeleton } from "@/components/loading";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 import { notifyStudentProfileUpdated } from "@/lib/dashboard/student-dashboard-sync";
+import { fmt } from "@/lib/i18n/format";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
 
 const CV_BUCKET = "student-cvs";
-
 const DOWNLOAD_CV_FILENAME = "internconnect-cv.pdf";
+
+const SKILL_LABEL_KEYS: Record<CvSkillCategoryKey, string> = {
+  programmingLanguages: "cvBuilder.skillProgramming",
+  dataAnalysis: "cvBuilder.skillDataAnalysis",
+  machineLearning: "cvBuilder.skillMachineLearning",
+  deepLearning: "cvBuilder.skillDeepLearning",
+  dataVisualization: "cvBuilder.skillDataViz",
+  databases: "cvBuilder.skillDatabases",
+  toolsPlatforms: "cvBuilder.skillTools",
+};
 
 export type { CvPdfFields, AiCvSuggestion } from "@/lib/cv/types";
 
@@ -37,10 +59,13 @@ export default function ResumeBuilderPage() {
   const [major, setMajor] = useState("");
   const [department, setDepartment] = useState("");
   const [summary, setSummary] = useState("");
-  const [skills, setSkills] = useState("");
-  const [education, setEducation] = useState("");
-  const [projects, setProjects] = useState("");
+  const [skillCategories, setSkillCategories] = useState<CvSkillCategories>(() => mergeSkillCategories(null));
   const [experience, setExperience] = useState("");
+  const [projectSlots, setProjectSlots] = useState<CvProjectSlot[]>(() => createEmptyProjectSlots(3));
+  const [gpa, setGpa] = useState("");
+  const [expectedGraduation, setExpectedGraduation] = useState("");
+  const [optionalCoursework, setOptionalCoursework] = useState("");
+  const [certifications, setCertifications] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [githubPortfolio, setGithubPortfolio] = useState("");
 
@@ -53,6 +78,16 @@ export default function ResumeBuilderPage() {
   const [improving, setImproving] = useState(false);
   const [improveError, setImproveError] = useState<string | null>(null);
   const [pendingAi, setPendingAi] = useState<AiCvSuggestion | null>(null);
+
+  const updateSkillCategory = (key: CvSkillCategoryKey, value: string) => {
+    setSkillCategories((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateProjectSlot = (index: number, patch: Partial<CvProjectSlot>) => {
+    setProjectSlots((prev) =>
+      prev.map((slot, i) => (i === index ? { ...slot, ...patch } : slot))
+    );
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -120,59 +155,39 @@ export default function ResumeBuilderPage() {
 
       const cvPrefs = parseCvStudentPreferences(studentRow.preferences);
       setSummary(cvPrefs.summary);
-      setProjects(cvPrefs.projects);
       setLinkedin(cvPrefs.linkedin);
       setGithubPortfolio(cvPrefs.github);
       setPhone(cvPrefs.phone);
+      setCertifications(cvPrefs.certifications);
+      setExpectedGraduation(cvPrefs.year);
+      setOptionalCoursework(cvPrefs.optionalCoursework);
 
-      const baseSkills = (studentRow.skills ?? "").trim();
-      setSkills(baseSkills);
+      setSkillCategories(
+        parseSkillCategoriesFromStored(cvPrefs.skillCategories, studentRow.skills ?? "")
+      );
+      setProjectSlots(mergeStructuredProjectSlots(cvPrefs.structuredProjects, cvPrefs.projects));
 
       const { data: extra } = await supabase
         .from("student_additional_info")
-        .select(
-          "gpa, technical_skills, soft_skills, taken_courses, preferred_location"
-        )
+        .select("gpa, preferred_location")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (extra) {
         setCity(extra.preferred_location?.trim() ?? "");
-        const tech = (extra.technical_skills ?? []).join(", ");
-        const soft = (extra.soft_skills ?? []).join(", ");
-        if (baseSkills) {
-          setSkills(baseSkills);
-        } else {
-          setSkills([tech, soft].filter(Boolean).join(", "));
-        }
-
-        const gpaStr = extra.gpa != null ? String(extra.gpa) : "";
-        const courses = (extra.taken_courses ?? []).filter(Boolean).join(", ");
-        const eduLines = [
-          studentRow.university && `University: ${studentRow.university}`,
-          studentRow.major && `Major: ${studentRow.major}`,
-          studentRow.department && `Department: ${studentRow.department}`,
-          gpaStr && `GPA: ${gpaStr}`,
-          courses && `Courses: ${courses}`,
-        ].filter(Boolean);
-        setEducation(eduLines.join("\n"));
-
-        if (cvPrefs.bio) setExperience(cvPrefs.bio);
-      } else {
-        const eduLines = [
-          studentRow.university && `University: ${studentRow.university}`,
-          studentRow.major && `Major: ${studentRow.major}`,
-          studentRow.department && `Department: ${studentRow.department}`,
-        ].filter(Boolean);
-        setEducation(eduLines.join("\n"));
-        if (cvPrefs.bio) setExperience(cvPrefs.bio);
+        if (extra.gpa != null) setGpa(String(extra.gpa));
       }
+
+      if (cvPrefs.bio) setExperience(cvPrefs.bio);
 
       setLoading(false);
     };
 
     void load();
   }, [t]);
+
+  const serializedSkills = useMemo(() => serializeSkillCategories(skillCategories), [skillCategories]);
+  const serializedProjects = useMemo(() => serializeProjectSlots(projectSlots), [projectSlots]);
 
   const cvFields = useMemo<CvPdfFields>(
     () => ({
@@ -184,12 +199,18 @@ export default function ResumeBuilderPage() {
       university,
       major,
       department,
-      education,
-      skills,
+      education: "",
+      skills: serializedSkills,
       experience,
-      projects,
+      projects: serializedProjects,
       linkedin,
       githubPortfolio,
+      gpa,
+      expectedGraduation,
+      optionalCoursework,
+      certifications,
+      skillCategories,
+      projectSlots,
     }),
     [
       fullName,
@@ -200,12 +221,17 @@ export default function ResumeBuilderPage() {
       university,
       major,
       department,
-      education,
-      skills,
+      serializedSkills,
       experience,
-      projects,
+      serializedProjects,
       linkedin,
       githubPortfolio,
+      gpa,
+      expectedGraduation,
+      optionalCoursework,
+      certifications,
+      skillCategories,
+      projectSlots,
     ]
   );
 
@@ -234,11 +260,16 @@ export default function ResumeBuilderPage() {
           major,
           department,
           summary,
-          skills,
+          skills: serializedSkills,
           experience,
-          projects,
+          projects: serializedProjects,
           linkedin,
           githubPortfolio,
+          certifications,
+          expectedGraduation,
+          optionalCoursework,
+          skillCategories,
+          projectSlots,
         },
         existingPreferences,
       );
@@ -278,10 +309,15 @@ export default function ResumeBuilderPage() {
       const nextPrefsRaw = buildCvPreferencesPayload(existingPreferences, {
         experience,
         summary,
-        projects,
+        projects: serializedProjects,
         linkedin,
-        githubPortfolio,
+        githubPortfolio: githubPortfolio,
         phone,
+        certifications,
+        expectedGraduation,
+        optionalCoursework,
+        skillCategories,
+        structuredProjects: projectSlots.filter((slot) => slot.name.trim()),
       });
       setExistingPreferences(nextPrefsRaw ? JSON.parse(nextPrefsRaw) : null);
 
@@ -312,11 +348,16 @@ export default function ResumeBuilderPage() {
     major,
     department,
     summary,
-    skills,
+    serializedSkills,
     experience,
-    projects,
+    serializedProjects,
     linkedin,
     githubPortfolio,
+    certifications,
+    expectedGraduation,
+    optionalCoursework,
+    skillCategories,
+    projectSlots,
     t,
   ]);
 
@@ -332,12 +373,20 @@ export default function ResumeBuilderPage() {
           fullName,
           university,
           major,
-          skills,
-          education,
+          skills: serializedSkills,
+          education: [
+            university && `University: ${university}`,
+            major && `Major: ${major}`,
+            gpa && `GPA: ${gpa}`,
+            expectedGraduation && `Expected Graduation: ${expectedGraduation}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
           experience,
-          projects,
+          projects: serializedProjects,
           linkedin,
           github: githubPortfolio,
+          certifications,
         }),
       });
       const data = (await res.json()) as {
@@ -376,14 +425,27 @@ export default function ResumeBuilderPage() {
       setImproveError(t("cvBuilder.errors.aiNetwork"));
     }
     setImproving(false);
-  }, [fullName, university, major, skills, education, experience, projects, linkedin, githubPortfolio, t]);
+  }, [
+    fullName,
+    university,
+    major,
+    gpa,
+    expectedGraduation,
+    serializedSkills,
+    experience,
+    serializedProjects,
+    linkedin,
+    githubPortfolio,
+    certifications,
+    t,
+  ]);
 
   const handleApplyAiSuggestions = useCallback(() => {
     if (!pendingAi) return;
     setSummary(pendingAi.summary);
-    setSkills(pendingAi.skills);
+    setSkillCategories(parseSkillCategoriesFromText(pendingAi.skills));
     setExperience(pendingAi.experience);
-    setProjects(pendingAi.projects);
+    setProjectSlots(parseProjectSlotsFromText(pendingAi.projects, 3));
     setPendingAi(null);
     setImproveError(null);
     setMessage(t("cvBuilder.aiAppliedMessage"));
@@ -433,10 +495,7 @@ export default function ResumeBuilderPage() {
   return (
     <main className="py-8 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
       <Container className="max-w-6xl">
-        <PageHeader
-          title={t("cvBuilder.title")}
-          description={t("cvBuilder.desc")}
-        />
+        <PageHeader title={t("cvBuilder.title")} description={t("cvBuilder.desc")} />
 
         {message && (
           <div
@@ -491,9 +550,7 @@ export default function ResumeBuilderPage() {
 
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.professionalSummary")}</h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                {t("cvBuilder.summaryHint")}
-              </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{t("cvBuilder.summaryHint")}</p>
               <Textarea
                 className="mt-4"
                 label={t("cvBuilder.summary")}
@@ -505,39 +562,112 @@ export default function ResumeBuilderPage() {
             </Card>
 
             <Card>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.technicalSkills")}</h2>
+              <div className="mt-4 grid gap-4">
+                {CV_SKILL_CATEGORY_KEYS.map((key) => (
+                  <Input
+                    key={key}
+                    label={t(SKILL_LABEL_KEYS[key])}
+                    value={skillCategories[key]}
+                    onChange={(e) => updateSkillCategory(key, e.target.value)}
+                    placeholder={t("cvBuilder.phSkillCategory")}
+                  />
+                ))}
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.projects")}</h2>
+              <div className="mt-4 space-y-6">
+                {projectSlots.map((slot, index) => (
+                  <div key={index} className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-slate-700">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                      {fmt(t("cvBuilder.projectSlot"), { n: index + 1 })}
+                    </p>
+                    <Input
+                      label={t("cvBuilder.projectName")}
+                      value={slot.name}
+                      onChange={(e) => updateProjectSlot(index, { name: e.target.value })}
+                      placeholder={t("cvBuilder.phProjectName")}
+                    />
+                    <Input
+                      label={t("cvBuilder.projectTechnologies")}
+                      value={slot.technologies}
+                      onChange={(e) => updateProjectSlot(index, { technologies: e.target.value })}
+                      placeholder={t("cvBuilder.phProjectTech")}
+                    />
+                    <Textarea
+                      label={t("cvBuilder.projectDescription")}
+                      rows={2}
+                      value={slot.description}
+                      onChange={(e) => updateProjectSlot(index, { description: e.target.value })}
+                      placeholder={t("cvBuilder.phProjectDesc")}
+                    />
+                    <Textarea
+                      label={t("cvBuilder.projectAchievements")}
+                      rows={3}
+                      value={slot.achievements}
+                      onChange={(e) => updateProjectSlot(index, { achievements: e.target.value })}
+                      placeholder={t("cvBuilder.phProjectAchievements")}
+                    />
+                    <Input
+                      label={t("cvBuilder.projectLink")}
+                      value={slot.link}
+                      onChange={(e) => updateProjectSlot(index, { link: e.target.value })}
+                      placeholder={t("cvBuilder.phGithub")}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.experience")}</h2>
+              <Textarea
+                className="mt-4"
+                label={t("cvBuilder.experience")}
+                rows={5}
+                value={experience}
+                onChange={(e) => setExperience(e.target.value)}
+              />
+            </Card>
+
+            <Card>
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.education")}</h2>
               <div className="mt-4 grid gap-4">
                 <Input label={t("cvBuilder.university")} value={university} onChange={(e) => setUniversity(e.target.value)} />
                 <Input label={t("cvBuilder.major")} value={major} onChange={(e) => setMajor(e.target.value)} />
                 <Input label={t("cvBuilder.department")} value={department} onChange={(e) => setDepartment(e.target.value)} />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input label={t("cvBuilder.gpa")} value={gpa} onChange={(e) => setGpa(e.target.value)} placeholder={t("cvBuilder.phGpa")} />
+                  <Input
+                    label={t("cvBuilder.expectedGraduation")}
+                    value={expectedGraduation}
+                    onChange={(e) => setExpectedGraduation(e.target.value)}
+                    placeholder={t("cvBuilder.phGraduation")}
+                  />
+                </div>
                 <Textarea
-                  label={t("cvBuilder.educationDetail")}
-                  rows={5}
-                  value={education}
-                  onChange={(e) => setEducation(e.target.value)}
-                  placeholder={t("cvBuilder.phEducation")}
+                  label={t("cvBuilder.optionalCoursework")}
+                  rows={2}
+                  value={optionalCoursework}
+                  onChange={(e) => setOptionalCoursework(e.target.value)}
+                  placeholder={t("cvBuilder.phCoursework")}
                 />
               </div>
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.skillsExperience")}</h2>
-              <div className="mt-4 grid gap-4">
-                <Textarea
-                  label={t("cvBuilder.skills")}
-                  rows={3}
-                  value={skills}
-                  onChange={(e) => setSkills(e.target.value)}
-                  placeholder={t("cvBuilder.phSkills")}
-                />
-                <Textarea
-                  label={t("cvBuilder.experience")}
-                  rows={5}
-                  value={experience}
-                  onChange={(e) => setExperience(e.target.value)}
-                />
-                <Textarea label={t("cvBuilder.projects")} rows={5} value={projects} onChange={(e) => setProjects(e.target.value)} />
-              </div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.certifications")}</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{t("cvBuilder.certificationsHint")}</p>
+              <Textarea
+                className="mt-4"
+                label={t("cvBuilder.certifications")}
+                rows={4}
+                value={certifications}
+                onChange={(e) => setCertifications(e.target.value)}
+                placeholder={t("cvBuilder.phCertifications")}
+              />
             </Card>
 
             <Card>
@@ -560,9 +690,7 @@ export default function ResumeBuilderPage() {
 
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.aiAssistant")}</h2>
-              <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                {t("cvBuilder.aiHint")}
-              </p>
+              <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">{t("cvBuilder.aiHint")}</p>
               <div className="mt-4">
                 <Button
                   type="button"
@@ -585,7 +713,7 @@ export default function ResumeBuilderPage() {
                   />
                   <Textarea
                     label={t("cvBuilder.suggestedSkills")}
-                    rows={3}
+                    rows={5}
                     value={pendingAi.skills}
                     onChange={(e) => setPendingAi({ ...pendingAi, skills: e.target.value })}
                   />
@@ -637,21 +765,23 @@ export default function ResumeBuilderPage() {
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-500">
               {t("cvBuilder.livePreview")}
             </p>
-            {/* Preview is visual-only; exported PDF is generated from form fields (ATS-friendly text PDF). */}
             <div className="max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-200 bg-gray-100 p-3 dark:border-slate-700 dark:bg-slate-900">
               <CvLivePreview
                 {...cvFields}
                 previewNameFallback={t("cvBuilder.previewName")}
                 sectionLabels={{
                   summary: t("cvBuilder.professionalSummary"),
+                  technicalSkills: t("cvBuilder.technicalSkills"),
                   education: t("cvBuilder.education"),
-                  skills: t("cvBuilder.skills"),
                   experience: t("cvBuilder.experience"),
                   projects: t("cvBuilder.projects"),
+                  certifications: t("cvBuilder.certifications"),
+                  links: t("cvBuilder.links"),
                   coursework: t("cvBuilder.coursework"),
                 }}
               />
             </div>
+            <CvAtsChecklist fields={cvFields} />
           </div>
         </div>
       </Container>

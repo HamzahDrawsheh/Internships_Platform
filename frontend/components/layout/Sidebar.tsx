@@ -10,6 +10,7 @@ const studentLinks: SidebarLink[] = [
   { labelKey: "nav.myApplications", href: "/applications", icon: "document" },
   { labelKey: "nav.monthlyReports", href: "/dashboard/student/internship-reports", icon: "calendar" },
   { labelKey: "nav.cvBuilder", href: "/resume-builder", icon: "clipboard" },
+  { labelKey: "nav.interviewSimulator", href: "/dashboard/student/interview-simulator", icon: "message" },
   { labelKey: "nav.profile", href: "/profile/student", icon: "user" },
 ];
 

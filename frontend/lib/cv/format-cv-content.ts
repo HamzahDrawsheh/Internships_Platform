@@ -1,5 +1,12 @@
 /** Shared CV text formatting for PDF export and live preview. */
 
+import {
+  CV_SKILL_CATEGORY_KEYS,
+  CV_SKILL_CATEGORY_LABELS,
+  type CvSkillCategories,
+} from "@/lib/cv/types";
+import { mergeSkillCategories, parseSkillCategoriesFromText } from "@/lib/cv/cv-field-serialization";
+
 const SKILL_LABELS: Record<string, string> = {
   python: "Python",
   sql: "SQL",
@@ -162,7 +169,15 @@ export function experienceToBullets(raw: string): string[] {
     .map((l) => trimMax(l, 500));
 }
 
-export function parseProjectBlocks(raw: string): { title: string; body: string }[] {
+export type CvProjectDisplay = {
+  title: string;
+  technologies: string;
+  description: string;
+  bullets: string[];
+  link: string;
+};
+
+export function parseProjectBlocks(raw: string): CvProjectDisplay[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
 
@@ -173,9 +188,43 @@ export function parseProjectBlocks(raw: string): { title: string; body: string }
     .map((chunk) => {
       const lines = chunk.split(/\n/).map((l) => l.trim()).filter(Boolean);
       const title = trimMax(lines[0] ?? "", 100);
-      const body = trimMax(lines.slice(1).join("\n"), 900);
-      return { title, body };
+      let technologies = "";
+      let link = "";
+      const bullets: string[] = [];
+      const descriptionLines: string[] = [];
+
+      for (const line of lines.slice(1)) {
+        const techMatch = /^technologies\s*:\s*(.+)$/i.exec(line);
+        const linkMatch = /^link\s*:\s*(.+)$/i.exec(line);
+        const bulletMatch = /^[•\-*–]\s*(.+)$/.exec(line);
+        if (techMatch) technologies = trimMax(techMatch[1], 200);
+        else if (linkMatch) link = trimMax(linkMatch[1], 200);
+        else if (bulletMatch) bullets.push(trimMax(bulletMatch[1], 500));
+        else descriptionLines.push(line);
+      }
+
+      return {
+        title,
+        technologies,
+        description: trimMax(descriptionLines.join("\n"), 900),
+        bullets,
+        link,
+      };
     });
+}
+
+export function buildSkillCategoryLines(
+  categories: CvSkillCategories | undefined,
+  legacySkills: string
+): { label: string; values: string }[] {
+  const merged = categories
+    ? mergeSkillCategories(categories)
+    : parseSkillCategoriesFromText(legacySkills);
+
+  return CV_SKILL_CATEGORY_KEYS.map((key) => ({
+    label: CV_SKILL_CATEGORY_LABELS[key],
+    values: merged[key]?.trim() ?? "",
+  })).filter((line) => line.values);
 }
 
 export function buildEducationHeadline(university: string, major: string): string {
@@ -188,17 +237,34 @@ export function buildEducationHeadline(university: string, major: string): strin
 export type CvDisplayModel = {
   displayName: string;
   contactLine: string;
-  linksLine: string;
   summary: string;
-  educationHeadline: string;
-  department: string;
-  gpa: string;
-  courses: string[];
-  educationExtra: string[];
-  skills: string[];
+  skillCategoryLines: { label: string; values: string }[];
+  projects: CvProjectDisplay[];
   experienceBullets: string[];
-  projects: { title: string; body: string }[];
+  educationUniversity: string;
+  educationDegreeLine: string;
+  educationGpa: string;
+  educationGraduation: string;
+  educationDepartment: string;
+  coursework: string[];
+  certifications: string[];
+  linksLine: string;
 };
+
+function parseCertificationLines(raw: string): string[] {
+  return raw
+    .split(/\n+/)
+    .map((line) => line.replace(/^[\s•\-*–]+/, "").trim())
+    .filter(Boolean)
+    .map((line) => trimMax(line, 200));
+}
+
+function parseOptionalCoursework(raw: string): string[] {
+  return raw
+    .split(/[,;\n]+/)
+    .map((c) => formatCourseLabel(c))
+    .filter(Boolean);
+}
 
 export function buildCvDisplayModel(f: {
   fullName: string;
@@ -215,6 +281,11 @@ export function buildCvDisplayModel(f: {
   linkedin: string;
   githubPortfolio: string;
   department?: string;
+  gpa?: string;
+  expectedGraduation?: string;
+  optionalCoursework?: string;
+  certifications?: string;
+  skillCategories?: CvSkillCategories;
 }): CvDisplayModel {
   const parsed = parseEducationFields(f.education);
   const department = f.department?.trim() || parsed.department;
@@ -227,18 +298,36 @@ export function buildCvDisplayModel(f: {
 
   const linkBits = [f.linkedin.trim(), f.githubPortfolio.trim()].filter(Boolean);
 
+  const gpa = f.gpa?.trim() || parsed.gpa;
+  const graduation = f.expectedGraduation?.trim() || "";
+  const courseworkSource = f.optionalCoursework?.trim() || "";
+  const coursework = courseworkSource
+    ? parseOptionalCoursework(courseworkSource)
+    : parsed.courses;
+
+  const uni = toDisplayInstitution(f.university.trim());
+  const major = f.major.trim();
+  let degreeLine = "";
+  if (major) {
+    degreeLine = /degree|bachelor|master|diploma/i.test(major)
+      ? major
+      : `Bachelor's Degree in ${major}`;
+  }
+
   return {
     displayName: toDisplayName(f.fullName.trim() || "Applicant"),
     contactLine: contactBits.join("  ·  "),
-    linksLine: linkBits.join("  ·  "),
     summary: f.summary.trim(),
-    educationHeadline: buildEducationHeadline(f.university, f.major),
-    department: department ? toDisplayInstitution(department) : "",
-    gpa: parsed.gpa,
-    courses: parsed.courses,
-    educationExtra: parsed.extraLines,
-    skills: parseSkillsList(f.skills),
-    experienceBullets: experienceToBullets(f.experience),
+    skillCategoryLines: buildSkillCategoryLines(f.skillCategories, f.skills),
     projects: parseProjectBlocks(f.projects),
+    experienceBullets: experienceToBullets(f.experience),
+    educationUniversity: uni,
+    educationDegreeLine: degreeLine,
+    educationGpa: gpa,
+    educationGraduation: graduation,
+    educationDepartment: department ? toDisplayInstitution(department) : "",
+    coursework,
+    certifications: parseCertificationLines(f.certifications ?? ""),
+    linksLine: linkBits.join("  ·  "),
   };
 }
