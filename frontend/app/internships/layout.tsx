@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { RoleShell } from "@/components/layout/RoleShell";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { InternshipsLayoutShell } from "@/components/layout/InternshipsLayoutShell";
 
 export default function InternshipsLayout({ children }: { children: ReactNode }) {
-  return <RoleShell sidebar={<Sidebar />}>{children}</RoleShell>;
+  return <InternshipsLayoutShell>{children}</InternshipsLayoutShell>;
 }

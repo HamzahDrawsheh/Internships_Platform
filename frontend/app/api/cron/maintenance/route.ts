@@ -28,9 +28,10 @@ export async function POST(request: Request) {
 
   try {
     const admin = createAdminClient();
-    const [expiredCommitments, completedTrainings, emailQueue] = await Promise.all([
+    const [expiredCommitments, completedTrainings, expiredListings, emailQueue] = await Promise.all([
       runRpc(admin, "expire_stale_application_commitments"),
       runRpc(admin, "auto_complete_expired_trainings"),
+      runRpc(admin, "expire_internship_application_deadlines"),
       processTransactionalEmailQueue(admin, { limit: 100, maxAttempts: 5 }),
     ]);
     logger.info("cron.maintenance.completed", {
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       ok: true,
       expiredCommitments,
       completedTrainings,
+      expiredListings,
       emailQueue,
     });
   } catch (error) {

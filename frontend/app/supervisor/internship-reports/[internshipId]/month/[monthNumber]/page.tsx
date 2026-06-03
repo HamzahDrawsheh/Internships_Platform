@@ -101,20 +101,6 @@ export default function SupervisorMonthlyReviewPage() {
       })
       .eq("id", report.id);
 
-    const { data: i } = await supabase.from("internships").select("student_id, students(user_id)").eq("id", internshipId).maybeSingle();
-    const studentUserId = (i?.students as { user_id?: string } | null)?.user_id;
-    if (studentUserId) {
-      await supabase.from("notifications").insert({
-        user_id: studentUserId,
-        title: "Monthly report approved",
-        message: `Month ${monthNumber} internship report was approved by your supervisor.`,
-        type: "monthly_report_approved",
-        is_read: false,
-        related_internship_id: internshipId,
-        related_monthly_report_id: report.id,
-      });
-    }
-
     await fetch(`/api/internship-reports/${report.id}/pdf`);
     setSaving(false);
     setActionMessage("Report approved.");
@@ -139,19 +125,6 @@ export default function SupervisorMonthlyReviewPage() {
       })
       .eq("id", report.id);
 
-    const { data: i } = await supabase.from("internships").select("student_id, students(user_id)").eq("id", internshipId).maybeSingle();
-    const studentUserId = (i?.students as { user_id?: string } | null)?.user_id;
-    if (studentUserId) {
-      await supabase.from("notifications").insert({
-        user_id: studentUserId,
-        title: "Monthly report needs revision",
-        message: rejectionReason.trim(),
-        type: "monthly_report_rejected",
-        is_read: false,
-        related_internship_id: internshipId,
-        related_monthly_report_id: report.id,
-      });
-    }
     setSaving(false);
     router.push("/supervisor/internship-reports");
   };

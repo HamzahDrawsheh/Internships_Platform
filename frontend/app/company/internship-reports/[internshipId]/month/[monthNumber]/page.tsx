@@ -145,41 +145,6 @@ export default function CompanyMonthlyEvaluationPage() {
       })
       .eq("id", report.id);
 
-    const { data: i } = await supabase
-      .from("internships")
-      .select("student_id, students(user_id, department)")
-      .eq("id", internshipId)
-      .maybeSingle();
-    const studentUserId = (i?.students as { user_id?: string; department?: string } | null)?.user_id;
-    const dept = (i?.students as { department?: string } | null)?.department;
-
-    if (studentUserId) {
-      await supabase.from("notifications").insert({
-        user_id: studentUserId,
-        title: "Employer evaluation submitted",
-        message: `Month ${monthNumber} report is now awaiting university supervisor approval.`,
-        type: "monthly_report_pending_supervisor",
-        is_read: false,
-        related_internship_id: internshipId,
-        related_monthly_report_id: report.id,
-      });
-    }
-
-    if (dept) {
-      const { data: supervisors } = await supabase.from("supervisors").select("user_id").eq("department", dept);
-      for (const s of supervisors ?? []) {
-        await supabase.from("notifications").insert({
-          user_id: s.user_id,
-          title: "Monthly report pending approval",
-          message: `Month ${monthNumber} report ready for supervisor review.`,
-          type: "monthly_report_pending_supervisor",
-          is_read: false,
-          related_internship_id: internshipId,
-          related_monthly_report_id: report.id,
-        });
-      }
-    }
-
     try {
       localStorage.removeItem(draftKey(report.id));
     } catch {

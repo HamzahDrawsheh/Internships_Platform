@@ -17,9 +17,11 @@ import { analyzeSkillGapWithPlan, type SkillGapAnalysis } from "@/lib/skill-matc
 import type { MatchScoreBreakdown } from "@/lib/recommendations/match-score-breakdown";
 import { fetchStudentEnrolledInTraining } from "@/lib/applications/commitment";
 import { createClient } from "@/lib/supabase/client";
-import { formatInternshipDateRange } from "@/lib/internships/dates";
+import { isInternshipOpenForApplications } from "@/lib/internships/application-deadline";
 import type { ApplicationStatus } from "@/lib/types";
+import { InternshipScheduleSummary } from "@/components/internships/InternshipScheduleSummary";
 import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
+import { getInternshipListingStatus } from "@/lib/internships/application-deadline";
 import { formatWorkArrangementLabel } from "@/lib/recommendations/location-prefs";
 
 export default function InternshipDetailsPage() {
@@ -44,6 +46,7 @@ export default function InternshipDetailsPage() {
     location: string | null;
     type: string | null;
     is_active: boolean;
+    application_deadline: string | null;
     created_at: string;
     company_id: string;
   } | null>(null);
@@ -53,6 +56,7 @@ export default function InternshipDetailsPage() {
   const [existingApplicationStatus, setExistingApplicationStatus] = useState<ApplicationStatus | null>(null);
   const [isEnrolledInTraining, setIsEnrolledInTraining] = useState(false);
   const [isStudentViewer, setIsStudentViewer] = useState(false);
+  const [isSupervisorViewer, setIsSupervisorViewer] = useState(false);
   const [skillGapLoading, setSkillGapLoading] = useState(false);
   const [skillGapAnalysis, setSkillGapAnalysis] = useState<SkillGapAnalysis | null>(null);
   const [matchBreakdown, setMatchBreakdown] = useState<MatchScoreBreakdown | null>(null);
@@ -64,12 +68,13 @@ export default function InternshipDetailsPage() {
       setLoading(true);
       setExistingApplicationStatus(null);
       setIsStudentViewer(false);
+      setIsSupervisorViewer(false);
       setSkillGapAnalysis(null);
       setMatchBreakdown(null);
       setSkillGapLoading(false);
       const { data: pos } = await supabase
         .from("internship_positions")
-        .select("id, title, description, requirements, duration, start_date, end_date, additional_notes, location, type, is_active, created_at, company_id")
+        .select("id, title, description, requirements, duration, start_date, end_date, application_deadline, additional_notes, location, type, is_active, created_at, company_id")
         .eq("id", id)
         .single();
 
@@ -95,7 +100,9 @@ export default function InternshipDetailsPage() {
       } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-        if (profile?.role === "student") {
+        if (profile?.role === "supervisor") {
+          setIsSupervisorViewer(true);
+        } else if (profile?.role === "student") {
           setIsStudentViewer(true);
           setSkillGapLoading(true);
           const { data: student } = await supabase
@@ -180,9 +187,14 @@ export default function InternshipDetailsPage() {
     [position]
   );
 
-  const dateRangeLabel = useMemo(
-    () => formatInternshipDateRange(position?.start_date, position?.end_date),
-    [position?.start_date, position?.end_date]
+  const openForApplications = useMemo(
+    () => isInternshipOpenForApplications(position),
+    [position]
+  );
+
+  const listingStatus = useMemo(
+    () => (position ? getInternshipListingStatus(position) : null),
+    [position]
   );
 
   const handleApply = async () => {
@@ -255,6 +267,13 @@ export default function InternshipDetailsPage() {
     );
   }
 
+  const backHref = isSupervisorViewer
+    ? position
+      ? `/supervisor/companies/${position.company_id}`
+      : "/supervisor/companies"
+    : "/internships";
+  const backLabel = isSupervisorViewer ? "← Back to company" : "← Back to listings";
+
   if (!position) {
     return (
       <main className="py-8">
@@ -262,8 +281,8 @@ export default function InternshipDetailsPage() {
           <EmptyState
             title="Internship not found"
             description="This internship may be unavailable or no longer active."
-            actionLabel="Back to listings"
-            actionHref="/internships"
+            actionLabel={isSupervisorViewer ? "Back to companies" : "Back to listings"}
+            actionHref={backHref}
           />
         </Container>
       </main>
@@ -278,7 +297,7 @@ export default function InternshipDetailsPage() {
             {error}
           </div>
         )}
-        {isEnrolledInTraining && !existingApplicationStatus ? (
+        {isStudentViewer && isEnrolledInTraining && !existingApplicationStatus ? (
           <div className="mb-4 rounded-md bg-indigo-50 p-3 text-sm text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-200" role="status">
             You are already enrolled in a training opportunity. You cannot apply to other internships until
             that placement is completed.
@@ -311,39 +330,61 @@ export default function InternshipDetailsPage() {
               ) : (
                 <Badge variant="default">Work arrangement not specified</Badge>
               )}
+              {listingStatus === "active" ? (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200">
+                  {t("browse.listingActive")}
+                </span>
+              ) : listingStatus === "expired" ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200">
+                  {t("browse.expired")}
+                </span>
+              ) : listingStatus === "inactive" ? (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {t("browse.listingPaused")}
+                </span>
+              ) : null}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            {existingApplicationStatus ? (
-              <ApplicationStatusBadge
-                status={existingApplicationStatus}
-                label={applicationStatusLabel(existingApplicationStatus)}
-                className="text-sm"
-              />
-            ) : isEnrolledInTraining ? (
-              <span className={`text-sm ${statusTextVariantClass("success")}`}>Enrolled in training</span>
-            ) : null}
-            <div className="flex flex-col items-stretch gap-2 sm:items-end">
-              {isStudentViewer ? (
+          {isStudentViewer ? (
+            <div className="flex flex-col items-end gap-2">
+              {!openForApplications && !existingApplicationStatus ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200">
+                  {t("browse.deadlinePassed")}
+                </span>
+              ) : openForApplications && !existingApplicationStatus ? (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200">
+                  {t("browse.listingActive")}
+                </span>
+              ) : null}
+              {existingApplicationStatus ? (
+                <ApplicationStatusBadge
+                  status={existingApplicationStatus}
+                  label={applicationStatusLabel(existingApplicationStatus)}
+                  className="text-sm"
+                />
+              ) : isEnrolledInTraining ? (
+                <span className={`text-sm ${statusTextVariantClass("success")}`}>Enrolled in training</span>
+              ) : null}
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
                 <AICoverLetterGenerator
                   positionId={position.id}
                   enabled
-                  disabled={!position.is_active || Boolean(existingApplicationStatus) || isEnrolledInTraining}
+                  disabled={!openForApplications || Boolean(existingApplicationStatus) || isEnrolledInTraining}
                 />
-              ) : null}
-              <Button
-                variant="primary"
-                onClick={() => setApplyOpen(true)}
-                disabled={!position.is_active || Boolean(existingApplicationStatus) || isEnrolledInTraining}
-              >
-                {existingApplicationStatus
-                  ? "Already applied"
-                  : isEnrolledInTraining
-                    ? "Already enrolled"
-                    : "Apply"}
-              </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => setApplyOpen(true)}
+                  disabled={!openForApplications || Boolean(existingApplicationStatus) || isEnrolledInTraining}
+                >
+                  {existingApplicationStatus
+                    ? "Already applied"
+                    : isEnrolledInTraining
+                      ? "Already enrolled"
+                      : "Apply"}
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-900">
@@ -369,7 +410,22 @@ export default function InternshipDetailsPage() {
               <p className="mt-2 whitespace-pre-wrap text-gray-600 dark:text-gray-300">{position.additional_notes}</p>
             </section>
           ) : null}
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("browse.internshipPeriod")}</h2>
+            <InternshipScheduleSummary
+              className="mt-3"
+              variant="detail"
+              startDate={position.start_date}
+              endDate={position.end_date}
+              applicationDeadline={position.application_deadline}
+            />
+            {position.duration?.trim() ? (
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium text-gray-700 dark:text-gray-300">Duration</span> {position.duration}
+              </p>
+            ) : null}
+          </section>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <span className="text-sm text-gray-500 dark:text-gray-400">Work arrangement</span>
               <div className="mt-1.5">
@@ -386,14 +442,18 @@ export default function InternshipDetailsPage() {
               </div>
             ) : null}
             <div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Schedule</span>
-              <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">
-                {dateRangeLabel ?? position.duration ?? "Not specified"}
-              </p>
-            </div>
-            <div>
               <span className="text-sm text-gray-500 dark:text-gray-400">Posted</span>
               <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">{new Date(position.created_at).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{t("browse.availabilityLabel")}</span>
+              <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">
+                {listingStatus === "active"
+                  ? t("browse.listingActive")
+                  : listingStatus === "expired"
+                    ? t("browse.expired")
+                    : t("browse.listingPaused")}
+              </p>
             </div>
           </section>
           <section className="rounded border border-gray-100 bg-gray-50/50 p-4 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800/60">
@@ -416,11 +476,12 @@ export default function InternshipDetailsPage() {
         )}
 
         <p className="mt-4">
-          <Link href="/internships" className="text-sm font-medium text-gray-900 hover:underline dark:text-gray-100">
-            ← Back to listings
+          <Link href={backHref} className="text-sm font-medium text-gray-900 hover:underline dark:text-gray-100">
+            {backLabel}
           </Link>
         </p>
 
+        {isStudentViewer ? (
         <Modal
           isOpen={applyOpen}
           onClose={() => setApplyOpen(false)}
@@ -443,6 +504,7 @@ export default function InternshipDetailsPage() {
             className="mt-4"
           />
         </Modal>
+        ) : null}
       </Container>
     </main>
   );

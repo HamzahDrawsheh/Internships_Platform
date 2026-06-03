@@ -13,6 +13,10 @@ import { Button } from "@/components/ui";
 import { syncInternshipReportStatuses, ensureStudentInternshipTracking, repairInternshipTracking } from "@/lib/internship-reports/sync-status";
 import { getStudentNextAction } from "@/lib/internship-reports/workflow";
 import type { InternshipRow, MonthlyReportRow } from "@/lib/internship-reports/types";
+import {
+  fetchStudentEnrolledCompanyMeta,
+  fetchStudentEnrolledPositionTitle,
+} from "@/lib/internships/student-enrolled-meta";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -77,23 +81,23 @@ export default function StudentInternshipReportsPage() {
       } catch {
         setSyncError("Some reports may be out of date.");
       }
-      const [{ data: reports }, { data: app }] = await Promise.all([
+      const [{ data: reports }, { companyName }, positionTitle] = await Promise.all([
         supabase
           .from("internship_monthly_reports")
           .select("*")
           .eq("internship_id", i.id)
           .order("month_number"),
-        supabase
-          .from("applications")
-          .select("position_id, internship_positions(title, companies(company_name))")
-          .eq("id", i.application_id)
-          .maybeSingle(),
+        fetchStudentEnrolledCompanyMeta(supabase, (i as InternshipRow & { company_id?: string }).company_id ?? null),
+        fetchStudentEnrolledPositionTitle(supabase, {
+          studentId: student.id,
+          applicationId: (i as InternshipRow).application_id,
+          companyId: (i as InternshipRow & { company_id?: string }).company_id ?? null,
+        }),
       ]);
-      const pos = app?.internship_positions as { title?: string; companies?: { company_name?: string } } | null;
       bundles.push({
         ...(i as InternshipRow),
-        company_name: pos?.companies?.company_name ?? "Company",
-        position_title: pos?.title ?? "Internship",
+        company_name: companyName,
+        position_title: positionTitle,
         reports: (reports ?? []) as MonthlyReportRow[],
       });
     }

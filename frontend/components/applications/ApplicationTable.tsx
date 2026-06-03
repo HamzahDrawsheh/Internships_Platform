@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Table from "@/components/common/Table";
+import { Button } from "@/components/ui";
 import ApplicationStatusBadge from "./ApplicationStatusBadge";
 import type { Application } from "@/lib/types";
 
@@ -55,11 +56,8 @@ export default function ApplicationTable({
           {showViewAction && (
             <td className="max-w-[14rem] px-4 py-3 align-top">
               <div className="flex flex-col gap-2 text-sm">
-                <Link
-                  href={`/internships/${app.position_id}`}
-                  className="font-medium text-gray-600 transition-colors duration-300 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white"
-                >
-                  View listing
+                <Link href={`/internships/${app.position_id}`}>
+                  <Button variant="primary">View listing</Button>
                 </Link>
                 {showTrainingEvalActions && app.status === "completed" ? (
                   trainingEvaluationSubmittedByAppId[app.id] ? (

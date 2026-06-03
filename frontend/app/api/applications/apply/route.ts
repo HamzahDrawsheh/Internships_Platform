@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isInternshipOpenForApplications } from "@/lib/internships/application-deadline";
 import { dispatchNotification } from "@/lib/notifications/dispatch";
 import { formatPostgrestError } from "@/lib/postgrest-error";
 import { createClient } from "@/lib/supabase/server";
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
 
     const { data: position, error: positionError } = await supabase
       .from("internship_positions")
-      .select("id, title, company_id, is_active")
+      .select("id, title, company_id, is_active, application_deadline")
       .eq("id", positionId)
       .maybeSingle();
 
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Internship not found." }, { status: 404 });
     }
 
-    if (position.is_active === false) {
+    if (!isInternshipOpenForApplications(position)) {
       return NextResponse.json(
         { ok: false, error: "This internship is no longer accepting applications." },
         { status: 400 }

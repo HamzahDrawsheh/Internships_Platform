@@ -9,6 +9,7 @@ import { Input, Select, Textarea, Button, Card } from "@/components/ui";
 import type { SelectOption } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { notifyCompanyDashboardUpdated } from "@/lib/dashboard/company-dashboard-sync";
+import { validateApplicationDeadline } from "@/lib/internships/application-deadline";
 import { buildInternshipScheduleFields, validateInternshipDates } from "@/lib/internships/dates";
 
 const locationOptions: SelectOption[] = [
@@ -25,6 +26,7 @@ export default function CreateInternshipPage() {
   const [skills, setSkills] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [applicationDeadline, setApplicationDeadline] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,15 @@ export default function CreateInternshipPage() {
     const dateError = validateInternshipDates(startDate, endDate);
     if (dateError) {
       setError(dateError);
+      return;
+    }
+
+    const deadlineError = validateApplicationDeadline(
+      applicationDeadline || startDate,
+      startDate
+    );
+    if (deadlineError) {
+      setError(deadlineError);
       return;
     }
 
@@ -98,7 +109,7 @@ export default function CreateInternshipPage() {
         return;
       }
 
-      const schedule = buildInternshipScheduleFields(startDate, endDate);
+      const schedule = buildInternshipScheduleFields(startDate, endDate, applicationDeadline || startDate);
 
       const payload = {
         company_id: company.id,
@@ -189,7 +200,21 @@ export default function CreateInternshipPage() {
                 type="date"
                 required
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setStartDate(next);
+                  if (!applicationDeadline || applicationDeadline > next) {
+                    setApplicationDeadline(next);
+                  }
+                }}
+              />
+              <Input
+                label="Application deadline"
+                type="date"
+                required
+                value={applicationDeadline}
+                max={startDate || undefined}
+                onChange={(e) => setApplicationDeadline(e.target.value)}
               />
               <Input
                 label="End date"

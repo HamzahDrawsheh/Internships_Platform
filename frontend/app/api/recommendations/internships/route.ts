@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { parsePgVector } from "@/lib/ai/vector-utils";
 import { deriveCompanyLevel, type CompanyLevel } from "@/lib/companies/evaluation";
+import { isInternshipOpenForApplications } from "@/lib/internships/application-deadline";
 import { scoreInternshipMatch, type InternshipMatchResult } from "@/lib/recommendations/internship-match";
 import { parseLocationPrefsFromSearchParams } from "@/lib/recommendations/location-prefs";
 
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
     admin
       .from("internship_positions")
       .select(
-        "id, title, embedding, company_id, requirements, description, location, additional_notes, is_active, embedding_updated_at"
+        "id, title, embedding, company_id, requirements, description, location, additional_notes, is_active, application_deadline, embedding_updated_at"
       )
       .eq("is_active", true)
       .not("embedding", "is", null)
@@ -159,6 +160,9 @@ export async function GET(request: Request) {
   const scored: InternshipMatchResult[] = [];
 
   for (const p of rows) {
+    if (!isInternshipOpenForApplications(p as { is_active?: boolean | null; application_deadline?: string | null })) {
+      continue;
+    }
     const pid = p.id as string;
     const companyId = p.company_id as string;
     const match = scoreInternshipMatch({

@@ -15,6 +15,7 @@ type Enrolled = {
   internshipStatus: string;
   positionTitle: string;
   companyName: string;
+  companyLogoUrl?: string | null;
   startDate: string;
   endDate: string;
   track: InternshipTrackSummary;
@@ -51,6 +52,7 @@ export function StudentDashboardWidgetsSection({
               internshipStatus={enrolledInternship.internshipStatus}
               positionTitle={enrolledInternship.positionTitle}
               companyName={enrolledInternship.companyName}
+              companyLogoUrl={enrolledInternship.companyLogoUrl}
               startDate={enrolledInternship.startDate}
               endDate={enrolledInternship.endDate}
               initialTrack={enrolledInternship.track}

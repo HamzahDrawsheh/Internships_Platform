@@ -53,11 +53,12 @@ export function LandingHeroSection() {
               <div className="pointer-events-none absolute -z-10 hidden h-64 w-64 rounded-full bg-[#C4B5FD]/30 blur-3xl dark:block dark:bg-purple-600/20" />
               <div className="group flex w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/60 ring-1 ring-slate-100 transition-all duration-300 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:ring-purple-900/40">
                 <Image
-                  src="/hero_png.jpg"
+                  src="/landing-hero.jpg"
                   alt={t("landing.heroImageAlt")}
-                  width={1024}
-                  height={683}
-                  className="h-auto w-full rounded-2xl object-contain transition-transform duration-300 group-hover:scale-105"
+                  width={1448}
+                  height={1086}
+                  className="h-auto w-full rounded-2xl object-cover transition-transform duration-300 group-hover:scale-105"
+                  unoptimized
                   priority
                 />
               </div>

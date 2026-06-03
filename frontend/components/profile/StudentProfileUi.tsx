@@ -86,7 +86,7 @@ export function ProfileField({
           {chips.map((chip) => (
             <span
               key={chip}
-              className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800 ring-1 ring-violet-200/70 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-500/30"
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300"
             >
               {chip}
             </span>
@@ -99,24 +99,18 @@ export function ProfileField({
   );
 }
 
-const CHIP_PALETTE = [
-  "bg-violet-100 text-violet-800 ring-violet-200/70 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-500/30",
-  "bg-cyan-100 text-cyan-800 ring-cyan-200/70 dark:bg-cyan-500/20 dark:text-cyan-200 dark:ring-cyan-500/30",
-  "bg-emerald-100 text-emerald-800 ring-emerald-200/70 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-500/30",
-  "bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-200/70 dark:bg-fuchsia-500/20 dark:text-fuchsia-200 dark:ring-fuchsia-500/30",
-];
+const SKILL_CHIP_CLASS =
+  "rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium leading-snug text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300";
 
+/** Neutral skill/course tags for profile read views (no rotating colors). */
 export function ColoredChips({ items }: { items: string[] }) {
   if (items.length === 0) {
-    return <p className="text-sm font-medium text-slate-900 dark:text-white">—</p>;
+    return <p className="text-sm font-medium text-slate-500 dark:text-slate-400">—</p>;
   }
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map((item, i) => (
-        <span
-          key={item}
-          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${CHIP_PALETTE[i % CHIP_PALETTE.length]}`}
-        >
+    <div className="flex flex-wrap gap-1.5" role="list">
+      {items.map((item) => (
+        <span key={item} role="listitem" className={SKILL_CHIP_CLASS}>
           {item}
         </span>
       ))}

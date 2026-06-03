@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
@@ -112,7 +112,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [continueLoading, setContinueLoading] = useState(false);
-  const [themeMounted, setThemeMounted] = useState(false);
+  const [themeMounted] = useState(() => typeof window !== "undefined");
 
   const onboardingNextPath =
     role === "company" ? "/onboarding/company" : role === "supervisor" ? "/onboarding/supervisor" : null;
@@ -122,10 +122,6 @@ export default function SignupPage() {
     t("auth.signup.chipVerifiedProfiles"),
     t("auth.signup.chipCareerGrowth"),
   ];
-
-  useEffect(() => {
-    setThemeMounted(true);
-  }, []);
 
   const handleContinue = () => {
     setContinueLoading(true);

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CompanyLogo } from "@/components/companies/CompanyLogo";
 import { CyclicWidget } from "@/components/dashboard/CyclicWidget";
 import { ProgressDonutChart } from "@/components/dashboard/ProgressDonutChart";
 import { TrainingProgressBreakdownChart } from "@/components/dashboard/TrainingProgressBreakdownChart";
@@ -24,6 +25,7 @@ type Props = {
   internshipId: string;
   positionTitle: string;
   companyName: string;
+  companyLogoUrl?: string | null;
   startDate: string;
   endDate: string;
   internshipStatus: string;
@@ -35,6 +37,7 @@ export function TrainingProgressCyclicWidget({
   internshipId,
   positionTitle,
   companyName,
+  companyLogoUrl,
   startDate,
   endDate,
   internshipStatus,
@@ -94,9 +97,17 @@ export function TrainingProgressCyclicWidget({
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 {t("dashboard.student.yourInternship")}
               </p>
-              <h4 className="mt-1 line-clamp-2 text-base font-semibold text-gray-900 dark:text-white">
-                {positionTitle}
-              </h4>
+              <div className="mt-1 flex min-w-0 items-center gap-2">
+                <CompanyLogo
+                  name={companyName}
+                  logoUrl={companyLogoUrl}
+                  size="xs"
+                  className="ring-1 ring-emerald-200/80 dark:ring-emerald-500/30"
+                />
+                <h4 className="line-clamp-2 text-base font-semibold text-gray-900 dark:text-white">
+                  {positionTitle}
+                </h4>
+              </div>
               <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
                 {companyName} · {duration}
               </p>
@@ -154,6 +165,7 @@ export function TrainingProgressCyclicWidget({
       t,
       positionTitle,
       companyName,
+      companyLogoUrl,
       duration,
       statusLabel,
       hint,

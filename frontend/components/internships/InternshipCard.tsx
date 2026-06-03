@@ -3,16 +3,14 @@
 import Link from "next/link";
 import type { ApplicationStatus } from "@/lib/types";
 import { CompanyLogo } from "@/components/companies/CompanyLogo";
+import { InternshipScheduleSummary } from "@/components/internships/InternshipScheduleSummary";
 import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBadge";
 import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import { useI18n } from "@/lib/i18n/context";
+import type { InternshipListingStatus } from "@/lib/internships/application-deadline";
 
-const SKILL_CHIP_CLASSES = [
-  "bg-violet-100 text-violet-800 ring-violet-200/70 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-500/30",
-  "bg-cyan-100 text-cyan-800 ring-cyan-200/70 dark:bg-cyan-500/20 dark:text-cyan-200 dark:ring-cyan-500/30",
-  "bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-200/70 dark:bg-fuchsia-500/20 dark:text-fuchsia-200 dark:ring-fuchsia-500/30",
-  "bg-indigo-100 text-indigo-800 ring-indigo-200/70 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-500/30",
-];
+const SKILL_CHIP_CLASS =
+  "rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium leading-snug text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300";
 
 interface InternshipCardProps {
   id: string;
@@ -21,7 +19,14 @@ interface InternshipCardProps {
   companyLogoUrl?: string;
   locationType?: string;
   skills?: string[];
-  deadline?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  applicationDeadline?: string | null;
+  isExpired?: boolean;
+  /** When set, shows Active / Expired / Paused on the card (e.g. supervisor company view). */
+  listingStatus?: InternshipListingStatus;
+  /** Student browse: show open vs expired when listingStatus is omitted. */
+  openForApplications?: boolean;
   applicationStatus?: ApplicationStatus | null;
 }
 
@@ -32,10 +37,32 @@ export function InternshipCard({
   companyLogoUrl,
   locationType,
   skills = [],
-  deadline,
+  startDate,
+  endDate,
+  applicationDeadline,
+  isExpired = false,
+  listingStatus,
+  openForApplications,
   applicationStatus,
 }: InternshipCardProps) {
   const { t } = useI18n();
+
+  const showExpiredBadge = listingStatus
+    ? listingStatus === "expired"
+    : isExpired || openForApplications === false;
+  const showActiveBadge =
+    !showExpiredBadge &&
+    (listingStatus === "active" || (listingStatus == null && openForApplications === true));
+  const listingStatusBadge =
+    showActiveBadge ? (
+      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200">
+        {t("browse.listingActive")}
+      </span>
+    ) : listingStatus === "inactive" && !showActiveBadge ? (
+      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        {t("browse.listingPaused")}
+      </span>
+    ) : null;
 
   const applicationStatusLabel = (status: ApplicationStatus): string => {
     switch (status) {
@@ -84,6 +111,11 @@ export function InternshipCard({
             </div>
 
             <div className="flex shrink-0 flex-col items-end gap-2">
+              {showExpiredBadge ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200">
+                  {t("browse.expired")}
+                </span>
+              ) : listingStatusBadge}
               {applicationStatus ? (
                 <span
                   className={`max-w-[11rem] truncate text-center text-[10px] leading-tight ${applicationStatusTextClass(applicationStatus)}`}
@@ -97,31 +129,28 @@ export function InternshipCard({
 
           <div className="mt-4 flex flex-wrap gap-2">
             <WorkArrangementBadge location={locationType} />
-            {skills.slice(0, 3).map((s, i) => (
-              <span
-                key={s}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${SKILL_CHIP_CLASSES[i % SKILL_CHIP_CLASSES.length]}`}
-              >
+            {skills.slice(0, 3).map((s) => (
+              <span key={s} className={SKILL_CHIP_CLASS}>
                 {s}
               </span>
             ))}
             {skills.length > 3 ? (
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">
+              <span className={`${SKILL_CHIP_CLASS} text-slate-500 dark:text-slate-400`}>
                 +{skills.length - 3}
               </span>
             ) : null}
           </div>
 
-          <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-            {deadline ? (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-medium text-slate-700 dark:text-slate-300">{t("browse.posted")}</span>{" "}
-                {deadline}
-              </p>
-            ) : (
-              <span />
-            )}
-            <span className="inline-flex items-center gap-1 text-sm font-medium text-violet-700 transition-transform group-hover:translate-x-0.5 dark:text-violet-300">
+          <div className="mt-auto flex flex-col gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <InternshipScheduleSummary
+              startDate={startDate}
+              endDate={endDate}
+              applicationDeadline={applicationDeadline}
+            />
+            {showExpiredBadge ? (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{t("browse.deadlinePassed")}</p>
+            ) : null}
+            <span className="inline-flex items-center gap-1 self-end text-sm font-medium text-violet-700 transition-transform group-hover:translate-x-0.5 dark:text-violet-300">
               {t("browse.viewRole")}
               <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path

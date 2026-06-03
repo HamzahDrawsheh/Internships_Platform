@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { dispatchNotification } from "@/lib/notifications/client";
+import { isApplicationDeadlinePassed, todayIsoDate } from "@/lib/internships/application-deadline";
+import { suggestExtendedApplicationDeadline } from "@/lib/internships/extend-listing";
+import { normalizeDateInputValue } from "@/lib/internships/dates";
 import { createClient } from "@/lib/supabase/client";
 import EmptyState from "@/components/common/EmptyState";
 import { CardGridSkeleton } from "@/components/loading";
-import { Modal, Button, StatusText } from "@/components/ui";
+import { Modal, Button, StatusText, Input } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
 
-type FilterKey = "all" | "active" | "paused";
+type FilterKey = "all" | "active" | "paused" | "expired";
 
 type ListingRow = {
   id: string;
@@ -18,6 +21,8 @@ type ListingRow = {
   status: string;
   created_at?: string;
   applicants_count?: number;
+  application_deadline?: string | null;
+  start_date?: string | null;
 };
 
 function formatPostedDate(iso?: string): string {
@@ -39,6 +44,9 @@ export default function CompanyInternshipsList() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendListing, setExtendListing] = useState<ListingRow | null>(null);
+  const [extendDeadline, setExtendDeadline] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -66,7 +74,7 @@ export default function CompanyInternshipsList() {
 
       const { data: positions, error } = await supabase
         .from("internship_positions")
-        .select("id, company_id, title, is_active, created_at")
+        .select("id, company_id, title, is_active, application_deadline, start_date, created_at")
         .eq("company_id", company.id)
         .order("created_at", { ascending: false });
 
@@ -87,14 +95,23 @@ export default function CompanyInternshipsList() {
         countByPositionId.set(app.position_id, (countByPositionId.get(app.position_id) ?? 0) + 1);
       });
 
-      const withCount: ListingRow[] = positions.map((p) => ({
-        id: p.id,
-        company_id: p.company_id,
-        title: p.title,
-        status: p.is_active ? "active" : "inactive",
-        created_at: p.created_at,
-        applicants_count: countByPositionId.get(p.id) ?? 0,
-      }));
+      const withCount: ListingRow[] = positions.map((p) => {
+        const deadline =
+          typeof p.application_deadline === "string" ? p.application_deadline : null;
+        const expired = isApplicationDeadlinePassed(deadline);
+        const status = expired ? "expired" : !p.is_active ? "inactive" : "active";
+        return {
+          id: p.id,
+          company_id: p.company_id,
+          title: p.title,
+          status,
+          created_at: p.created_at,
+          applicants_count: countByPositionId.get(p.id) ?? 0,
+          application_deadline: deadline,
+          start_date:
+            typeof p.start_date === "string" ? normalizeDateInputValue(p.start_date) : null,
+        };
+      });
 
       setListings(withCount);
       setLoading(false);
@@ -103,13 +120,16 @@ export default function CompanyInternshipsList() {
 
   const stats = useMemo(() => {
     const active = listings.filter((l) => l.status === "active").length;
+    const expired = listings.filter((l) => l.status === "expired").length;
+    const paused = listings.filter((l) => l.status === "inactive").length;
     const applicants = listings.reduce((sum, l) => sum + (l.applicants_count ?? 0), 0);
-    return { total: listings.length, active, paused: listings.length - active, applicants };
+    return { total: listings.length, active, expired, paused, applicants };
   }, [listings]);
 
   const visibleListings = useMemo(() => {
     if (filter === "active") return listings.filter((l) => l.status === "active");
-    if (filter === "paused") return listings.filter((l) => l.status !== "active");
+    if (filter === "expired") return listings.filter((l) => l.status === "expired");
+    if (filter === "paused") return listings.filter((l) => l.status === "inactive");
     return listings;
   }, [listings, filter]);
 
@@ -183,9 +203,52 @@ export default function CompanyInternshipsList() {
     }
   };
 
+  const openExtendModal = (listing: ListingRow) => {
+    setExtendListing(listing);
+    setExtendDeadline(suggestExtendedApplicationDeadline(listing.start_date));
+    setExtendOpen(true);
+  };
+
+  const extendApplicationPeriod = async () => {
+    if (!extendListing) return;
+    setActionError(null);
+    setActionMessage(null);
+    setActionLoadingId(extendListing.id);
+    try {
+      const res = await fetch(`/api/company/internships/${extendListing.id}/extend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ application_deadline: extendDeadline }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        application_deadline?: string;
+      };
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to extend application period.");
+        return;
+      }
+      const newDeadline = data.application_deadline ?? extendDeadline;
+      setListings((prev) =>
+        prev.map((l) =>
+          l.id === extendListing.id
+            ? { ...l, status: "active", application_deadline: newDeadline }
+            : l
+        )
+      );
+      setActionMessage("Application period extended — new students can apply.");
+      setExtendOpen(false);
+      setExtendListing(null);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const filterOptions: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "All", count: stats.total },
     { key: "active", label: "Active", count: stats.active },
+    { key: "expired", label: "Expired", count: stats.expired },
     { key: "paused", label: "Paused", count: stats.paused },
   ];
 
@@ -311,13 +374,16 @@ export default function CompanyInternshipsList() {
 
       {visibleListings.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-900/50">
-          <p className="text-sm text-slate-600 dark:text-slate-400">No {filter === "paused" ? "paused" : filter} listings.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            No {filter === "all" ? "" : `${filter} `}listings.
+          </p>
         </div>
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {visibleListings.map((listing) => {
             const busy = actionLoadingId === listing.id;
-            const isActive = listing.status === "active";
+            const isOpen = listing.status === "active";
+            const isExpired = listing.status === "expired";
             const applicants = listing.applicants_count ?? 0;
 
             return (
@@ -331,8 +397,8 @@ export default function CompanyInternshipsList() {
                     <h2 className="line-clamp-2 text-base font-semibold leading-snug text-slate-900 dark:text-white">
                       {listing.title}
                     </h2>
-                    <StatusText variant={isActive ? "success" : "default"}>
-                      {isActive ? "Active" : "Paused"}
+                    <StatusText variant={isOpen ? "success" : isExpired ? "warning" : "default"}>
+                      {isOpen ? "Active" : isExpired ? "Expired" : "Paused"}
                     </StatusText>
                   </div>
 
@@ -362,23 +428,33 @@ export default function CompanyInternshipsList() {
                     >
                       Edit
                     </Link>
+                    {isExpired ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => openExtendModal(listing)}
+                        className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25"
+                      >
+                        {busy ? "…" : "Extend"}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void setListingActive(listing.id, !isActive)}
+                      onClick={() => void setListingActive(listing.id, !(isOpen || isExpired))}
                       className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      {busy ? "…" : isActive ? "Pause" : "Resume"}
+                      {busy ? "…" : isOpen || isExpired ? "Pause" : "Resume"}
                     </button>
                     <button
                       type="button"
-                      disabled={busy || !isActive}
+                      disabled={busy || (!isOpen && !isExpired)}
                       onClick={() => {
                         setConfirmCloseId(listing.id);
                         setConfirmCloseOpen(true);
                       }}
                       className="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
-                      title={!isActive ? "Already inactive" : "Close sets this listing inactive"}
+                      title={!isOpen && !isExpired ? "Already inactive" : "Close sets this listing inactive"}
                     >
                       Close
                     </button>
@@ -389,6 +465,52 @@ export default function CompanyInternshipsList() {
           })}
         </div>
       )}
+
+      <Modal
+        isOpen={extendOpen}
+        onClose={() => {
+          setExtendOpen(false);
+          setExtendListing(null);
+        }}
+        title="Extend application period"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setExtendOpen(false);
+                setExtendListing(null);
+              }}
+              disabled={Boolean(extendListing && actionLoadingId === extendListing.id)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void extendApplicationPeriod()}
+              disabled={Boolean(extendListing && actionLoadingId === extendListing.id) || !extendDeadline}
+            >
+              {extendListing && actionLoadingId === extendListing.id ? "Saving…" : "Reopen for applications"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-700 dark:text-slate-300">
+          Set a new application deadline for{" "}
+          <span className="font-medium">{extendListing?.title ?? "this listing"}</span>. Enrolled trainees keep
+          their own training schedule from when they committed; this only allows new applicants.
+        </p>
+        <Input
+          label="New application deadline"
+          type="date"
+          required
+          className="mt-4"
+          value={extendDeadline}
+          min={todayIsoDate()}
+          max={extendListing?.start_date || undefined}
+          onChange={(e) => setExtendDeadline(e.target.value)}
+        />
+      </Modal>
 
       <Modal
         isOpen={confirmCloseOpen}
