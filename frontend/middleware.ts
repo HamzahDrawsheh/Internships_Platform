@@ -71,6 +71,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname.startsWith("/companies") ||
         pathname.startsWith("/profile/student") ||
         pathname.startsWith("/notifications") ||
+        pathname.startsWith("/settings") ||
         pathname.startsWith("/resume-builder") ||
         pathname.startsWith("/onboarding") ||
         pathname === "/pending-approval"
@@ -81,14 +82,16 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname.startsWith("/company") ||
         pathname.startsWith("/companies") ||
         pathname.startsWith("/profile/company") ||
-        pathname.startsWith("/notifications")
+        pathname.startsWith("/notifications") ||
+        pathname.startsWith("/settings")
       );
     case "supervisor":
       return (
         pathname === "/dashboard/supervisor" ||
         pathname.startsWith("/supervisor") ||
         pathname.startsWith("/internships") ||
-        pathname.startsWith("/notifications")
+        pathname.startsWith("/notifications") ||
+        pathname.startsWith("/settings")
       );
     case "admin":
       return (
@@ -96,6 +99,7 @@ function isAllowedForRole(pathname: string, role: ProfileRole | null): boolean {
         pathname === "/dashboard/admin" ||
         pathname.startsWith("/companies") ||
         pathname.startsWith("/notifications") ||
+        pathname.startsWith("/settings") ||
         pathname === "/account-suspended"
       );
     default:

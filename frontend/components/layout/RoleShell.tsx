@@ -11,7 +11,7 @@ export const NAVBAR_CLASS =
   "fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white shadow-sm transition-[background-color,border-color] duration-300 dark:border-slate-800 dark:bg-slate-950";
 
 const SIDEBAR_PANEL_CLASS =
-  "fixed start-0 top-16 z-50 flex h-[calc(100vh-4rem)] w-64 shrink-0 flex-col overflow-hidden border-e border-gray-200 bg-white/95 py-6 backdrop-blur transition-transform duration-300 ease-out dark:border-gray-800 dark:bg-gray-900/95 lg:z-20";
+  "fixed start-0 top-16 z-50 flex h-[calc(100vh-4rem)] min-h-0 w-64 shrink-0 flex-col overflow-hidden border-e border-gray-200 bg-white/95 py-6 backdrop-blur transition-transform duration-300 ease-out dark:border-gray-800 dark:bg-gray-900/95 lg:z-20";
 
 const SIDEBAR_STORAGE_KEY = "sidebar-open";
 
@@ -53,7 +53,7 @@ export function RoleShell({ sidebar, children }: { sidebar: ReactNode; children:
             : "pointer-events-none -translate-x-full rtl:translate-x-full"
         }`}
       >
-        {sidebar}
+        <div className="flex h-full min-h-0 w-full flex-col">{sidebar}</div>
       </aside>
 
       <main

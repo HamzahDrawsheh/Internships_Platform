@@ -111,7 +111,7 @@ export default function NotificationSettingsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 transition-colors duration-300 dark:bg-gray-950">
+    <div className="min-w-0">
       <Container>
         <PageHeader
           title={t("settings.notifications.title")}
@@ -188,6 +188,6 @@ export default function NotificationSettingsPage() {
           </div>
         </Card>
       </Container>
-    </main>
+    </div>
   );
 }

@@ -41,7 +41,9 @@ export function SidebarNav({ links, rootHref, onNavigate, reserveAiSlot = false 
   const allHrefs = links.map((link) => link.href);
 
   return (
-    <nav className={`space-y-1.5 px-4 ${reserveAiSlot ? "pb-24" : ""}`}>
+    <nav
+      className={`h-full min-h-0 space-y-1.5 overflow-y-auto px-4 ${reserveAiSlot ? "pb-24" : ""}`}
+    >
       {links.map((link) => {
         const isActive = isLinkActive(pathname, link.href, allHrefs, rootHref);
         return (
@@ -69,7 +71,12 @@ export function SidebarNav({ links, rootHref, onNavigate, reserveAiSlot = false 
             : "text-gray-800 hover:bg-gray-100 hover:text-purple-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-purple-300"
         }`}
       >
-        <SidebarNavIcon icon="bell" active={pathname === "/settings/notifications" || pathname.startsWith("/settings/notifications/")} />
+        <SidebarNavIcon
+          icon="bell"
+          active={
+            pathname === "/settings/notifications" || pathname.startsWith("/settings/notifications/")
+          }
+        />
         {t("nav.notificationSettings")}
       </Link>
       <SidebarLogoutItem onNavigate={onNavigate} />
