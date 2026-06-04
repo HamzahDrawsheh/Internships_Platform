@@ -90,6 +90,58 @@ export default function Navbar() {
 
   const showNavbarSearch = !isHomePage && isAuthenticated && Boolean(userRole);
 
+  const navActions = (
+    <>
+      {isHomePage ? <LandingHomeNavMobileMenu /> : null}
+      <LanguageToggle className="max-md:scale-[0.92] max-md:origin-center" />
+      <button
+        type="button"
+        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        className={`${NAV_ICON_BUTTON_CLASS} max-md:px-2.5 max-md:py-2`}
+        aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
+      >
+        <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
+        <span className="hidden md:inline">{themeMounted && theme === "dark" ? t("common.light") : t("common.dark")}</span>
+      </button>
+      {!isHomePage && isAuthenticated && (
+        <Link
+          href={homeHref}
+          className={`${NAV_ICON_BUTTON_CLASS} max-md:px-2.5 max-md:py-2`}
+          title={t("nav.home")}
+          aria-label={t("nav.home")}
+        >
+          <SidebarIcon name="dashboard" />
+          <span className="hidden md:inline">{t("nav.home")}</span>
+        </Link>
+      )}
+      {isHomePage && (
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/auth/login"
+            className="rounded-xl px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 sm:px-4 dark:border dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+          >
+            {t("nav.login")}
+          </Link>
+          <Link
+            href="/auth/signup"
+            className="rounded-xl bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white shadow-md hover:bg-[#6D28D9] sm:px-4"
+          >
+            {t("nav.getStarted")}
+          </Link>
+        </div>
+      )}
+      {!isHomePage && <MessagesNavbarButton enabled={isAuthenticated} />}
+      {!isHomePage && <NotificationsDropdown enabled={isAuthenticated} />}
+    </>
+  );
+
+  const brandBlock = (
+    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      {!isHomePage ? <div id="navbar-sidebar-toggle-slot" className="flex shrink-0 items-center" /> : null}
+      <AppBrand href={brandHref} className="shrink-0" />
+    </div>
+  );
+
   return (
     <>
       <nav
@@ -98,82 +150,45 @@ export default function Navbar() {
         dir="ltr"
         className={`${NAVBAR_CLASS} ${showNavbarSearch ? "" : NAVBAR_HEIGHT_CLASS}`}
       >
-        <div
-          className={
-            showNavbarSearch
-              ? "grid w-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[4rem_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-x-4"
-              : isHomePage
-                ? `grid ${NAVBAR_HEIGHT_CLASS} w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 sm:gap-x-4`
-                : `flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`
-          }
-        >
-        <div
-          className={`flex h-16 shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3 ${
-            showNavbarSearch ? "md:col-start-1 md:row-start-1" : ""
-          }`}
-        >
-          {!isHomePage ? <div id="navbar-sidebar-toggle-slot" className="flex items-center" /> : null}
-          <AppBrand href={brandHref} className="shrink-0" />
-        </div>
-
-        {isHomePage ? (
-          <div className="flex min-w-0 items-center justify-center px-2">
-            <LandingHomeNavLinks />
-          </div>
-        ) : showNavbarSearch ? (
-          <div className="col-span-2 min-w-0 border-t border-slate-200 px-3 pb-3 pt-2 dark:border-slate-800 md:col-span-1 md:col-start-2 md:row-start-1 md:border-t-0 md:px-0 md:pb-0 md:pt-0">
-            <RoleNavbarSearch key={userRole} role={userRole!} />
+        {showNavbarSearch ? (
+          <div className="flex w-full flex-col md:grid md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:gap-x-4">
+            <div className="flex h-16 min-w-0 items-center justify-between gap-1 px-2 sm:gap-2 sm:px-3 md:contents">
+              <div className="flex min-w-0 items-center ps-0 md:col-start-1 md:row-start-1 md:ps-3">
+                {brandBlock}
+              </div>
+              <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2 md:col-start-3 md:row-start-1 md:pe-3 lg:pe-4">
+                {navActions}
+              </div>
+            </div>
+            <div className="min-w-0 border-t border-slate-200 px-3 pb-3 pt-2 dark:border-slate-800 md:col-start-2 md:row-start-1 md:border-t-0 md:px-0 md:pb-0 md:pt-0">
+              <RoleNavbarSearch key={userRole} role={userRole!} />
+            </div>
           </div>
         ) : (
-          <div className="hidden flex-1 lg:block" aria-hidden />
-        )}
+          <div
+            className={
+              isHomePage
+                ? `grid ${NAVBAR_HEIGHT_CLASS} w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 sm:gap-x-4`
+                : `flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`
+            }
+          >
+            <div className="flex h-16 shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3">
+              {brandBlock}
+            </div>
 
-        <div
-          className={`flex h-16 shrink-0 items-center justify-end gap-2 pe-2 sm:gap-3 sm:pe-3 lg:pe-4 ${
-            showNavbarSearch ? "md:col-start-3 md:row-start-1" : ""
-          }`}
-        >
-            {isHomePage ? <LandingHomeNavMobileMenu /> : null}
-            <LanguageToggle />
-
-            <button
-              type="button"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className={NAV_ICON_BUTTON_CLASS}
-              aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
-            >
-              <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
-              <span className="hidden md:inline">{themeMounted && theme === "dark" ? t("common.light") : t("common.dark")}</span>
-            </button>
-
-            {!isHomePage && isAuthenticated && (
-              <Link
-                href={homeHref}
-                className={NAV_ICON_BUTTON_CLASS}
-                title={t("nav.home")}
-                aria-label={t("nav.home")}
-              >
-                <SidebarIcon name="dashboard" />
-                <span className="hidden md:inline">{t("nav.home")}</span>
-              </Link>
-            )}
-
-            {isHomePage && (
-              <div className="flex items-center gap-2 sm:gap-3">
-                <Link href="/auth/login" className="rounded-xl px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 sm:px-4 dark:border dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700">
-                  {t("nav.login")}
-                </Link>
-                <Link href="/auth/signup" className="rounded-xl bg-[#7C3AED] px-3 py-2 text-sm font-medium text-white shadow-md hover:bg-[#6D28D9] sm:px-4">
-                  {t("nav.getStarted")}
-                </Link>
+            {isHomePage ? (
+              <div className="flex min-w-0 items-center justify-center px-2">
+                <LandingHomeNavLinks />
               </div>
+            ) : (
+              <div className="hidden flex-1 lg:block" aria-hidden />
             )}
 
-            {!isHomePage && <MessagesNavbarButton enabled={isAuthenticated} />}
-
-            {!isHomePage && <NotificationsDropdown enabled={isAuthenticated} />}
+            <div className="flex h-16 shrink-0 items-center justify-end gap-2 pe-2 sm:gap-3 sm:pe-3 lg:pe-4">
+              {navActions}
+            </div>
           </div>
-        </div>
+        )}
       </nav>
       <div
         className={showNavbarSearch ? NAVBAR_SPACER_WITH_SEARCH_CLASS : NAVBAR_HEIGHT_CLASS}
