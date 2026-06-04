@@ -7,7 +7,7 @@ import { useTheme } from "next-themes";
 import { LanguageToggle } from "@/components/i18n/LanguageToggle";
 import { MessagesNavbarButton } from "@/components/messaging/MessagesNavbarButton";
 import NotificationsDropdown from "@/components/layout/NotificationsDropdown";
-import { LandingHomeNav } from "@/components/landing/LandingHomeNav";
+import { LandingHomeNavLinks, LandingHomeNavMobileMenu } from "@/components/landing/LandingHomeNav";
 import { AppBrand } from "@/components/layout/AppBrand";
 import { SidebarIcon } from "@/components/layout/SidebarIcon";
 import {
@@ -84,7 +84,6 @@ export default function Navbar() {
   }, []);
 
   const isHomePage = pathname === "/";
-  const adminEntryHref = "/auth/login?next=%2Fdashboard%2Fadmin";
   const brandHref = isHomePage ? "/" : isAuthenticated ? homeHref : "/";
 
   if (pathname?.startsWith("/auth")) return null;
@@ -103,17 +102,23 @@ export default function Navbar() {
           className={
             showNavbarSearch
               ? "grid w-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[4rem_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-x-4"
-              : `flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`
+              : isHomePage
+                ? `grid ${NAVBAR_HEIGHT_CLASS} w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 sm:gap-x-4`
+                : `flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`
           }
         >
-        <div className="flex h-16 shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3 md:col-start-1 md:row-start-1">
-          <div id="navbar-sidebar-toggle-slot" className="flex items-center" />
+        <div
+          className={`flex h-16 shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3 ${
+            showNavbarSearch ? "md:col-start-1 md:row-start-1" : ""
+          }`}
+        >
+          {!isHomePage ? <div id="navbar-sidebar-toggle-slot" className="flex items-center" /> : null}
           <AppBrand href={brandHref} className="shrink-0" />
         </div>
 
         {isHomePage ? (
-          <div className="col-span-2 flex h-16 items-center md:col-span-1 md:col-start-2">
-            <LandingHomeNav />
+          <div className="flex min-w-0 items-center justify-center px-2">
+            <LandingHomeNavLinks />
           </div>
         ) : showNavbarSearch ? (
           <div className="col-span-2 min-w-0 border-t border-slate-200 px-3 pb-3 pt-2 dark:border-slate-800 md:col-span-1 md:col-start-2 md:row-start-1 md:border-t-0 md:px-0 md:pb-0 md:pt-0">
@@ -123,7 +128,12 @@ export default function Navbar() {
           <div className="hidden flex-1 lg:block" aria-hidden />
         )}
 
-        <div className="flex h-16 shrink-0 items-center justify-end gap-2 pe-2 sm:gap-3 sm:pe-3 md:col-start-3 md:row-start-1 lg:pe-4">
+        <div
+          className={`flex h-16 shrink-0 items-center justify-end gap-2 pe-2 sm:gap-3 sm:pe-3 lg:pe-4 ${
+            showNavbarSearch ? "md:col-start-3 md:row-start-1" : ""
+          }`}
+        >
+            {isHomePage ? <LandingHomeNavMobileMenu /> : null}
             <LanguageToggle />
 
             <button
@@ -150,12 +160,6 @@ export default function Navbar() {
 
             {isHomePage && (
               <div className="flex items-center gap-2 sm:gap-3">
-                <Link
-                  href={adminEntryHref}
-                  className="hidden rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-medium text-purple-700 transition-colors duration-300 hover:bg-purple-100 sm:inline-flex dark:border-purple-400/40 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
-                >
-                  {t("nav.adminPortal")}
-                </Link>
                 <Link href="/auth/login" className="rounded-xl px-3 py-2 text-sm font-medium text-slate-900 transition-colors duration-300 hover:bg-slate-50 sm:px-4 dark:border dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700">
                   {t("nav.login")}
                 </Link>

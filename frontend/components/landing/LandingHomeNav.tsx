@@ -36,7 +36,24 @@ function NavAnchor({
   );
 }
 
-export function LandingHomeNav() {
+/** Desktop center links: Home, Features, About, Privacy, Terms */
+export function LandingHomeNavLinks() {
+  const { t } = useI18n();
+
+  return (
+    <nav
+      className="hidden items-center justify-center gap-1 lg:flex xl:gap-2"
+      aria-label="Landing"
+    >
+      {NAV_LINKS.map((link) => (
+        <NavAnchor key={link.href} href={link.href} label={t(link.labelKey)} />
+      ))}
+    </nav>
+  );
+}
+
+/** Mobile hamburger + slide-down panel (render in navbar actions column). */
+export function LandingHomeNavMobileMenu() {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -60,12 +77,6 @@ export function LandingHomeNav() {
 
   return (
     <>
-      <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex xl:gap-2" aria-label="Landing">
-        {NAV_LINKS.map((link) => (
-          <NavAnchor key={link.href} href={link.href} label={t(link.labelKey)} />
-        ))}
-      </nav>
-
       <button
         type="button"
         className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-700 transition-colors hover:bg-slate-50 lg:hidden dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
@@ -103,6 +114,16 @@ export function LandingHomeNav() {
           </div>
         </>
       ) : null}
+    </>
+  );
+}
+
+/** @deprecated Prefer LandingHomeNavLinks + LandingHomeNavMobileMenu in Navbar */
+export function LandingHomeNav() {
+  return (
+    <>
+      <LandingHomeNavLinks />
+      <LandingHomeNavMobileMenu />
     </>
   );
 }

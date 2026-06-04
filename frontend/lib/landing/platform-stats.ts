@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type PlatformStats = {
@@ -36,7 +36,7 @@ async function countWithAdmin(): Promise<PlatformStats> {
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   try {
-    const supabase = await createClient();
+    const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("get_public_platform_stats");
 
     if (!error && data) {

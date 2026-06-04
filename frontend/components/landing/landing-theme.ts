@@ -20,7 +20,7 @@ export const landingCardClass =
   "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-purple-200 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:backdrop-blur-sm dark:hover:border-purple-500/30 dark:hover:bg-white/[0.07]";
 
 export const landingIconClass =
-  "flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-xl ring-1 ring-purple-100 dark:bg-gradient-to-br dark:from-purple-600/30 dark:to-indigo-600/20 dark:ring-purple-500/20";
+  "flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 ring-1 ring-purple-100 dark:bg-gradient-to-br dark:from-purple-600/30 dark:to-indigo-600/20 dark:ring-purple-500/20";
 
 export const landingStepClass =
   "flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#6366F1] text-lg font-bold text-white shadow-md shadow-purple-500/25";

@@ -30,20 +30,20 @@ export function LandingHeroSection() {
               {t("landing.heroSubtitle")}
             </p>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
-              <Link href="/auth/signup">
-                <Button
-                  variant="primary"
-                  className="bg-gradient-to-r from-[#7C3AED] to-[#6366F1] px-7 py-3 shadow-lg shadow-purple-500/25 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
-                >
-                  {t("nav.getStarted")}
-                </Button>
-              </Link>
               <Link href="/auth/login">
                 <Button
                   variant="secondary"
                   className="border-[#C4B5FD] px-7 py-3 text-[#6D28D9] transition-all duration-300 hover:scale-105 hover:border-[#A78BFA] hover:bg-[#F5F3FF] hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                 >
                   {t("nav.login")}
+                </Button>
+              </Link>
+              <Link href="/auth/signup">
+                <Button
+                  variant="primary"
+                  className="bg-gradient-to-r from-[#7C3AED] to-[#6366F1] px-7 py-3 shadow-lg shadow-purple-500/25 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
+                >
+                  {t("nav.getStarted")}
                 </Button>
               </Link>
             </div>

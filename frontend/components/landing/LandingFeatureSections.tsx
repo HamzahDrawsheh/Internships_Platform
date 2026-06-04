@@ -2,12 +2,15 @@
 
 import { Container } from "@/components/layout/Container";
 import {
+  LandingFeatureIcon,
+  type LandingFeatureIconName,
+} from "@/components/landing/LandingFeatureIcon";
+import {
   landingCardBodyClass,
   landingCardClass,
   landingCardTitleClass,
   landingGlowBottom,
   landingGlowTop,
-  landingIconClass,
   landingSectionClass,
   landingSectionSubtitleClass,
   landingSectionTitleClass,
@@ -18,10 +21,10 @@ import { useI18n } from "@/lib/i18n/context";
 export function LandingFeatureSections() {
   const { t } = useI18n();
 
-  const whyItems = [
-    { icon: "🚀", title: t("landing.why1Title"), body: t("landing.why1Body") },
-    { icon: "⚡", title: t("landing.why2Title"), body: t("landing.why2Body") },
-    { icon: "🔔", title: t("landing.why3Title"), body: t("landing.why3Body") },
+  const whyItems: { icon: LandingFeatureIconName; title: string; body: string }[] = [
+    { icon: "opportunities", title: t("landing.why1Title"), body: t("landing.why1Body") },
+    { icon: "applications", title: t("landing.why2Title"), body: t("landing.why2Body") },
+    { icon: "updates", title: t("landing.why3Title"), body: t("landing.why3Body") },
   ];
 
   const howSteps = [
@@ -41,9 +44,7 @@ export function LandingFeatureSections() {
           <div className="mt-8 grid gap-6 sm:grid-cols-3">
             {whyItems.map((item) => (
               <article key={item.title} className={landingCardClass}>
-                <span className={landingIconClass} aria-hidden>
-                  {item.icon}
-                </span>
+                <LandingFeatureIcon name={item.icon} />
                 <h3 className={landingCardTitleClass}>{item.title}</h3>
                 <p className={landingCardBodyClass}>{item.body}</p>
               </article>
