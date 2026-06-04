@@ -93,11 +93,11 @@ export default function Navbar() {
   const navActions = (
     <>
       {isHomePage ? <LandingHomeNavMobileMenu /> : null}
-      <LanguageToggle className="max-md:scale-[0.92] max-md:origin-center" />
+      <LanguageToggle className={showNavbarSearch ? "max-md:scale-[0.92] max-md:origin-center" : undefined} />
       <button
         type="button"
         onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        className={`${NAV_ICON_BUTTON_CLASS} max-md:px-2.5 max-md:py-2`}
+        className={showNavbarSearch ? `${NAV_ICON_BUTTON_CLASS} max-md:px-2.5 max-md:py-2` : NAV_ICON_BUTTON_CLASS}
         aria-label={themeMounted && theme === "dark" ? t("common.switchToLight") : t("common.switchToDark")}
       >
         <SidebarIcon name={themeMounted && theme === "dark" ? "sun" : "moon"} />
@@ -106,7 +106,7 @@ export default function Navbar() {
       {!isHomePage && isAuthenticated && (
         <Link
           href={homeHref}
-          className={`${NAV_ICON_BUTTON_CLASS} max-md:px-2.5 max-md:py-2`}
+          className={showNavbarSearch ? `${NAV_ICON_BUTTON_CLASS} max-md:px-2.5 max-md:py-2` : NAV_ICON_BUTTON_CLASS}
           title={t("nav.home")}
           aria-label={t("nav.home")}
         >
@@ -148,20 +148,20 @@ export default function Navbar() {
         id="site-navbar"
         data-i18n-skip
         dir="ltr"
-        className={`${NAVBAR_CLASS} ${showNavbarSearch ? "" : NAVBAR_HEIGHT_CLASS}`}
+        className={`${NAVBAR_CLASS} ${showNavbarSearch ? "md:h-16" : NAVBAR_HEIGHT_CLASS}`}
       >
         {showNavbarSearch ? (
-          <div className="flex w-full flex-col md:grid md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:gap-x-4">
-            <div className="flex h-16 min-w-0 items-center justify-between gap-1 px-2 sm:gap-2 sm:px-3 md:contents">
-              <div className="flex min-w-0 items-center ps-0 md:col-start-1 md:row-start-1 md:ps-3">
-                {brandBlock}
-              </div>
-              <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2 md:col-start-3 md:row-start-1 md:pe-3 lg:pe-4">
-                {navActions}
-              </div>
+          <div
+            className="grid w-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[4rem_auto] [grid-template-areas:'brand_actions'_'search_search'] md:grid-cols-[auto_minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-x-4 md:[grid-template-areas:'brand_search_actions']"
+          >
+            <div className="flex h-16 min-w-0 items-center gap-2 ps-2 [grid-area:brand] sm:gap-3 sm:ps-3 md:shrink-0">
+              {brandBlock}
             </div>
-            <div className="min-w-0 border-t border-slate-200 px-3 pb-3 pt-2 dark:border-slate-800 md:col-start-2 md:row-start-1 md:border-t-0 md:px-0 md:pb-0 md:pt-0">
+            <div className="min-w-0 border-t border-slate-200 px-3 pb-3 pt-2 [grid-area:search] dark:border-slate-800 md:border-t-0 md:px-0 md:pb-0 md:pt-0">
               <RoleNavbarSearch key={userRole} role={userRole!} />
+            </div>
+            <div className="flex h-16 shrink-0 items-center justify-end gap-1 pe-2 [grid-area:actions] sm:gap-2 sm:pe-3 md:gap-2 md:pe-3 lg:pe-4">
+              {navActions}
             </div>
           </div>
         ) : (
