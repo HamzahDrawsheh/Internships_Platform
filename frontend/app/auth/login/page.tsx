@@ -599,7 +599,8 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     variant="primary"
-                    className="login-btn-glow flex w-full items-center justify-center gap-2 border-0 bg-gradient-to-r from-[#7C3AED] to-[#6366F1] py-3"
+                    glow
+                    className="flex w-full items-center justify-center gap-2 border-0 py-3"
                     disabled={loading || googleLoading}
                   >
                     {loading && <LoginSpinner />}

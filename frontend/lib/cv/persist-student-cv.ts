@@ -1,9 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  flattenSkillCategories,
+  serializeProjectSlots,
+  serializeSkillCategories,
+} from "@/lib/cv/cv-field-serialization";
+import {
   buildCvPreferencesPayload,
   parseCsv,
   parseCvStudentPreferences,
 } from "@/lib/cv/student-cv-preferences";
+import type { CvProjectSlot, CvSkillCategories } from "@/lib/cv/types";
 import { mergeTechnicalSkills } from "@/lib/skills/technical-skills-merge";
 
 export type CvPersistFields = {
@@ -19,6 +25,11 @@ export type CvPersistFields = {
   projects: string;
   linkedin: string;
   githubPortfolio: string;
+  certifications: string;
+  expectedGraduation: string;
+  optionalCoursework: string;
+  skillCategories: CvSkillCategories;
+  projectSlots: CvProjectSlot[];
 };
 
 export type PersistStudentCvResult =
@@ -32,13 +43,22 @@ export async function persistStudentCvFields(
   fields: CvPersistFields,
   existingPreferences: unknown,
 ): Promise<PersistStudentCvResult> {
+  const serializedSkills = serializeSkillCategories(fields.skillCategories);
+  const serializedProjects = serializeProjectSlots(fields.projectSlots);
+  const flatSkills = flattenSkillCategories(fields.skillCategories) || fields.skills.trim();
+
   const preferencesPayload = buildCvPreferencesPayload(existingPreferences, {
     experience: fields.experience,
     summary: fields.summary,
-    projects: fields.projects,
+    projects: serializedProjects || fields.projects,
     linkedin: fields.linkedin,
     githubPortfolio: fields.githubPortfolio,
     phone: fields.phone,
+    certifications: fields.certifications,
+    expectedGraduation: fields.expectedGraduation,
+    optionalCoursework: fields.optionalCoursework,
+    skillCategories: fields.skillCategories,
+    structuredProjects: fields.projectSlots.filter((slot) => slot.name.trim()),
   });
 
   const { error: studentError } = await supabase
@@ -47,7 +67,7 @@ export async function persistStudentCvFields(
       university: fields.university.trim() || null,
       major: fields.major.trim() || null,
       department: fields.department.trim() || null,
-      skills: fields.skills.trim() || null,
+      skills: flatSkills || serializedSkills || null,
       preferences: preferencesPayload,
     })
     .eq("id", studentId);
@@ -74,7 +94,7 @@ export async function persistStudentCvFields(
     .eq("user_id", userId)
     .maybeSingle();
 
-  const parsedSkills = parseCsv(fields.skills);
+  const parsedSkills = parseCsv(flatSkills);
   const mergedTechnical = mergeTechnicalSkills(additional?.technical_skills ?? [], parsedSkills);
 
   const { error: additionalError } = await supabase.from("student_additional_info").upsert(

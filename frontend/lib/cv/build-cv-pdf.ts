@@ -2,11 +2,11 @@ import { jsPDF } from "jspdf";
 import { buildCvDisplayModel, trimMax } from "@/lib/cv/format-cv-content";
 import type { CvPdfFields } from "@/lib/cv/types";
 
-const SECTION_COLOR = { r: 80, g: 80, b: 80 } as const;
-const BODY_COLOR = { r: 30, g: 30, b: 30 } as const;
-const MUTED_COLOR = { r: 90, g: 90, b: 90 } as const;
+const SECTION_COLOR = { r: 60, g: 60, b: 60 } as const;
+const BODY_COLOR = { r: 20, g: 20, b: 20 } as const;
+const MUTED_COLOR = { r: 80, g: 80, b: 80 } as const;
 
-/** ATS-friendly PDF with formal section hierarchy and bullet lists. */
+/** ATS-friendly single-column PDF with formal section hierarchy. */
 export function buildCvPdf(f: CvPdfFields): jsPDF {
   const model = buildCvDisplayModel(f);
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -58,7 +58,7 @@ export function buildCvPdf(f: CvPdfFields): jsPDF {
     y += fontSize * 0.55;
   };
 
-  const writeBullet = (text: string, indent = 3) => {
+  const writeBullet = (text: string, indent = 2) => {
     writeBody(`•  ${text}`, 10, indent);
     y += 0.5;
   };
@@ -67,7 +67,7 @@ export function buildCvPdf(f: CvPdfFields): jsPDF {
     y += 5;
   };
 
-  // Header
+  // 1. Full name
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
@@ -75,16 +75,12 @@ export function buildCvPdf(f: CvPdfFields): jsPDF {
   doc.text(trimMax(model.displayName, 80), margin, y);
   y += 9;
 
+  // 2. Contact information
   if (model.contactLine) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     doc.setTextColor(MUTED_COLOR.r, MUTED_COLOR.g, MUTED_COLOR.b);
     writeBody(model.contactLine, 9.5);
-  }
-  if (model.linksLine) {
-    doc.setTextColor(75, 0, 130);
-    writeBody(model.linksLine, 9);
-    doc.setTextColor(BODY_COLOR.r, BODY_COLOR.g, BODY_COLOR.b);
   }
 
   y += 3;
@@ -92,57 +88,41 @@ export function buildCvPdf(f: CvPdfFields): jsPDF {
   doc.line(margin, y, pageW - margin, y);
   y += 7;
 
+  // 3. Professional summary
   if (model.summary) {
     drawSectionTitle("Professional Summary");
     writeBody(trimMax(model.summary, 1200));
     sectionGap();
   }
 
-  if (model.educationHeadline || model.department || model.gpa || model.courses.length) {
-    drawSectionTitle("Education");
-    if (model.educationHeadline) writeBoldLine(model.educationHeadline);
-    if (model.department) {
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(10);
-      doc.setTextColor(MUTED_COLOR.r, MUTED_COLOR.g, MUTED_COLOR.b);
-      writeBody(model.department, 10);
+  // 4. Technical skills
+  if (model.skillCategoryLines.length) {
+    drawSectionTitle("Technical Skills");
+    for (const line of model.skillCategoryLines) {
+      writeBody(`${line.label}: ${line.values}`, 10);
     }
-    if (model.gpa) writeBody(`GPA: ${model.gpa}`, 10);
-    for (const line of model.educationExtra) {
-      writeBody(line, 10);
-    }
-    if (model.courses.length) {
-      y += 1;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.5);
-      doc.setTextColor(MUTED_COLOR.r, MUTED_COLOR.g, MUTED_COLOR.b);
-      writeBody("Relevant coursework", 9.5);
-      for (const course of model.courses.slice(0, 18)) {
-        writeBullet(trimMax(course, 80), 2);
+    sectionGap();
+  }
+
+  // 5. Projects
+  if (model.projects.length) {
+    drawSectionTitle("Projects");
+    for (const block of model.projects) {
+      writeBoldLine(block.title, 10);
+      if (block.technologies) {
+        writeBody(`Technologies: ${block.technologies}`, 10, 1);
       }
+      if (block.description) writeBody(block.description, 10, 1);
+      for (const bullet of block.bullets) {
+        writeBullet(bullet, 2);
+      }
+      if (block.link) writeBody(block.link, 9, 1);
+      y += 2;
     }
     sectionGap();
   }
 
-  if (model.skills.length) {
-    drawSectionTitle("Skills");
-    const mid = Math.ceil(model.skills.length / 2);
-    const colW = (maxW - 6) / 2;
-    const left = model.skills.slice(0, mid);
-    const right = model.skills.slice(mid);
-    const rows = Math.max(left.length, right.length);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(BODY_COLOR.r, BODY_COLOR.g, BODY_COLOR.b);
-    for (let i = 0; i < rows; i += 1) {
-      ensureSpace(5);
-      if (left[i]) doc.text(`•  ${left[i]}`, margin, y);
-      if (right[i]) doc.text(`•  ${right[i]}`, margin + colW + 6, y);
-      y += 5;
-    }
-    sectionGap();
-  }
-
+  // 6. Experience
   if (model.experienceBullets.length) {
     drawSectionTitle("Experience");
     for (const bullet of model.experienceBullets) {
@@ -151,13 +131,50 @@ export function buildCvPdf(f: CvPdfFields): jsPDF {
     sectionGap();
   }
 
-  if (model.projects.length) {
-    drawSectionTitle("Projects");
-    for (const block of model.projects) {
-      writeBoldLine(block.title, 10);
-      if (block.body) writeBody(block.body, 10, 2);
-      y += 2;
+  // 7. Education
+  if (
+    model.educationUniversity ||
+    model.educationDegreeLine ||
+    model.educationGpa ||
+    model.educationGraduation ||
+    model.educationDepartment
+  ) {
+    drawSectionTitle("Education");
+    if (model.educationUniversity) writeBoldLine(model.educationUniversity);
+    if (model.educationDegreeLine) writeBody(model.educationDegreeLine, 10);
+    if (model.educationDepartment && model.educationDepartment !== model.educationDegreeLine) {
+      writeBody(model.educationDepartment, 10);
     }
+    if (model.educationGpa) writeBody(`GPA: ${model.educationGpa}`, 10);
+    if (model.educationGraduation) {
+      writeBody(`Expected Graduation: ${model.educationGraduation}`, 10);
+    }
+    if (model.coursework.length) {
+      y += 1;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(MUTED_COLOR.r, MUTED_COLOR.g, MUTED_COLOR.b);
+      writeBody("Relevant coursework", 9.5);
+      for (const course of model.coursework.slice(0, 12)) {
+        writeBullet(trimMax(course, 80), 2);
+      }
+    }
+    sectionGap();
+  }
+
+  // 8. Certifications
+  if (model.certifications.length) {
+    drawSectionTitle("Certifications");
+    for (const cert of model.certifications) {
+      writeBullet(cert, 2);
+    }
+    sectionGap();
+  }
+
+  // 9. Links
+  if (model.linksLine) {
+    drawSectionTitle("Links");
+    writeBody(model.linksLine, 10);
   }
 
   return doc;

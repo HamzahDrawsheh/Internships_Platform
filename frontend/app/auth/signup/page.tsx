@@ -204,7 +204,7 @@ export default function SignupPage() {
               href={onboardingNextPath ? `/auth/login?next=${encodeURIComponent(onboardingNextPath)}` : "/auth/login"}
               className="mt-6 inline-block"
             >
-              <Button variant="primary" className="login-btn-glow bg-gradient-to-r from-[#7C3AED] to-[#6366F1]">
+              <Button variant="primary" glow>
                 {t("auth.signup.goToLogin")}
               </Button>
             </Link>
@@ -308,7 +308,8 @@ export default function SignupPage() {
 
               <Button
                 variant="primary"
-                className="login-btn-glow mt-6 flex w-full items-center justify-center gap-2 border-0 bg-gradient-to-r from-[#7C3AED] to-[#6366F1] py-3"
+                glow
+                className="mt-6 flex w-full items-center justify-center gap-2 border-0 py-3"
                 onClick={handleContinue}
                 disabled={continueLoading}
               >
@@ -368,7 +369,8 @@ export default function SignupPage() {
                   <Button
                     type="submit"
                     variant="primary"
-                    className="login-btn-glow flex flex-1 items-center justify-center gap-2 border-0 bg-gradient-to-r from-[#7C3AED] to-[#6366F1]"
+                    glow
+                    className="flex flex-1 items-center justify-center gap-2 border-0"
                     disabled={loading}
                   >
                     {loading && <SignupSpinner />}

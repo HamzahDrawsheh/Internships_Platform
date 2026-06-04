@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { SidebarTogglePortal } from "@/components/layout/SidebarToggle";
 
-/** Navbar is fixed h-16; sidebar and main content sit below it. */
+/** Navbar top row (brand + actions). */
 export const NAVBAR_HEIGHT_CLASS = "h-16";
 export const NAVBAR_OFFSET_CLASS = "top-16";
+
+/** Spacer when authenticated navbar includes mobile search row (below main bar). */
+export const NAVBAR_SPACER_WITH_SEARCH_CLASS = "h-[8.5rem] md:h-16";
 
 export const NAVBAR_CLASS =
   "fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white shadow-sm transition-[background-color,border-color] duration-300 dark:border-slate-800 dark:bg-slate-950";
 
 const SIDEBAR_PANEL_CLASS =
-  "fixed start-0 top-16 z-50 flex h-[calc(100vh-4rem)] w-64 shrink-0 flex-col overflow-hidden border-e border-gray-200 bg-white/95 py-6 backdrop-blur transition-transform duration-300 ease-out dark:border-gray-800 dark:bg-gray-900/95 lg:z-20";
+  "fixed start-0 top-[8.5rem] z-50 flex h-[calc(100vh-8.5rem)] min-h-0 w-64 shrink-0 flex-col overflow-hidden border-e border-gray-200 bg-white/95 py-6 backdrop-blur transition-transform duration-300 ease-out dark:border-gray-800 dark:bg-gray-900/95 md:top-16 md:h-[calc(100vh-4rem)] lg:z-20";
 
 const SIDEBAR_STORAGE_KEY = "sidebar-open";
 
@@ -53,7 +56,7 @@ export function RoleShell({ sidebar, children }: { sidebar: ReactNode; children:
             : "pointer-events-none -translate-x-full rtl:translate-x-full"
         }`}
       >
-        {sidebar}
+        <div className="flex h-full min-h-0 w-full flex-col">{sidebar}</div>
       </aside>
 
       <main
