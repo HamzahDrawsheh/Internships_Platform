@@ -552,8 +552,9 @@ export default function ResumeBuilderPage() {
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.professionalSummary")}</h2>
               <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{t("cvBuilder.summaryHint")}</p>
               <Textarea
+                id="cv-summary"
                 className="mt-4"
-                label={t("cvBuilder.summary")}
+                aria-label={t("cvBuilder.professionalSummary")}
                 rows={4}
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
@@ -624,8 +625,9 @@ export default function ResumeBuilderPage() {
             <Card>
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.experience")}</h2>
               <Textarea
+                id="cv-experience"
                 className="mt-4"
-                label={t("cvBuilder.experience")}
+                aria-label={t("cvBuilder.experience")}
                 rows={5}
                 value={experience}
                 onChange={(e) => setExperience(e.target.value)}
@@ -661,8 +663,9 @@ export default function ResumeBuilderPage() {
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t("cvBuilder.certifications")}</h2>
               <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{t("cvBuilder.certificationsHint")}</p>
               <Textarea
+                id="cv-certifications"
                 className="mt-4"
-                label={t("cvBuilder.certifications")}
+                aria-label={t("cvBuilder.certifications")}
                 rows={4}
                 value={certifications}
                 onChange={(e) => setCertifications(e.target.value)}

@@ -260,7 +260,8 @@ export function parseInterviewEvaluateResponse(
     const strengths = normalizeList(Array.isArray(parsed.strengths) ? parsed.strengths.map(String) : []);
     const weaknesses = normalizeList(Array.isArray(parsed.weaknesses) ? parsed.weaknesses.map(String) : []);
 
-    if (!strengths.length || !weaknesses.length) return null;
+    if (!strengths.length) strengths.push("Clear effort in your response");
+    if (!weaknesses.length) weaknesses.push("Room to add more detail and structure");
 
     const isComplete = questionNumber >= INTERVIEW_MAX_QUESTIONS;
     const nextQuestionRaw =

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { STUDENT_ASSISTANT_OPEN_EVENT } from "@/lib/ai/open-student-assistant";
 import { useI18n } from "@/lib/i18n/context";
+import { btnAssistantGradientClass } from "@/lib/ui/button-variants";
 
 const LS_OPEN = "internconnect-student-chat-open";
 const LS_WIDE = "internconnect-student-chat-wide";
@@ -340,7 +341,7 @@ export default function StudentAssistantChat() {
   );
 
   return (
-    <div className="fixed start-4 bottom-4 z-50 flex flex-col-reverse items-start gap-2 sm:start-5 sm:bottom-5">
+    <div className="fixed end-4 bottom-4 z-50 flex flex-col-reverse items-end gap-2 sm:end-5 sm:bottom-5">
       <div
         key={liveRegion.key}
         className="sr-only"
@@ -353,7 +354,7 @@ export default function StudentAssistantChat() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="rounded-full border border-teal-200 bg-gradient-to-r from-teal-600 to-cyan-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-teal-500/25 transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:border-teal-500/40 dark:focus-visible:ring-offset-gray-900"
+        className={`rounded-full px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 ${btnAssistantGradientClass}`}
         title="AI Assistant — help with internships and applications"
         aria-expanded={open}
         aria-controls="student-ai-assistant-panel"

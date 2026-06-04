@@ -49,7 +49,12 @@ const ERROR_KEYS: Record<string, string> = {
   openai_failed: "interviewSimulator.errorGenerate",
   invalid_ai_response: "interviewSimulator.errorGenerate",
   application_required: "interviewSimulator.errorApplicationRequired",
+  application_error: "interviewSimulator.errorApplicationRequired",
   answer_too_short: "interviewSimulator.errorAnswerTooShort",
+  position_id_required: "interviewSimulator.errorNoSelection",
+  question_answer_required: "interviewSimulator.errorAnswerTooShort",
+  student_not_found: "interviewSimulator.errorProfileIncomplete",
+  position_not_found: "interviewSimulator.errorGenerate",
 };
 
 type Phase = "setup" | "interview" | "feedback" | "complete";
@@ -71,6 +76,8 @@ export function InterviewSimulatorPanel() {
   const [lastEvaluation, setLastEvaluation] = useState<EvaluationResult | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [pendingNextQuestion, setPendingNextQuestion] = useState<string | null>(null);
+  const [nextQuestionNumber, setNextQuestionNumber] = useState<number | null>(null);
+  const [sessionComplete, setSessionComplete] = useState(false);
 
   const selectOptions = useMemo(
     () => options.map((option) => ({ value: option.positionId, label: option.label })),
@@ -100,6 +107,7 @@ export function InterviewSimulatorPanel() {
       if (!user) {
         if (!cancelled) {
           setOptions([]);
+          setError(t("interviewSimulator.errorLogin"));
           setLoadingOptions(false);
         }
         return;
@@ -188,6 +196,8 @@ export function InterviewSimulatorPanel() {
     setLastEvaluation(null);
     setHistory([]);
     setPendingNextQuestion(null);
+    setNextQuestionNumber(null);
+    setSessionComplete(false);
   }, []);
 
   const callApi = useCallback(
@@ -219,6 +229,8 @@ export function InterviewSimulatorPanel() {
     setHistory([]);
     setAnswer("");
     setPendingNextQuestion(null);
+    setNextQuestionNumber(null);
+    setSessionComplete(false);
 
     try {
       const data = (await callApi({
@@ -277,7 +289,9 @@ export function InterviewSimulatorPanel() {
         },
       ]);
       setPendingNextQuestion(data.nextQuestion);
-      setPhase(data.isComplete ? "complete" : "feedback");
+      setNextQuestionNumber(data.questionNumber);
+      setSessionComplete(data.isComplete);
+      setPhase("feedback");
     } catch (err) {
       setError(resolveError(err instanceof Error ? err.message : "openai_failed"));
     } finally {
@@ -286,12 +300,13 @@ export function InterviewSimulatorPanel() {
   };
 
   const handleContinue = () => {
-    if (pendingNextQuestion) {
+    if (pendingNextQuestion && !sessionComplete) {
       setCurrentQuestion(pendingNextQuestion);
-      setQuestionNumber((prev) => prev + 1);
+      setQuestionNumber(nextQuestionNumber ?? questionNumber + 1);
       setAnswer("");
       setLastEvaluation(null);
       setPendingNextQuestion(null);
+      setNextQuestionNumber(null);
       setPhase("interview");
       return;
     }
@@ -320,12 +335,18 @@ export function InterviewSimulatorPanel() {
         />
 
         {options.length === 0 ? (
-          <EmptyState
-            title={t("interviewSimulator.emptyTitle")}
-            description={t("interviewSimulator.emptyDescription")}
-            actionLabel={t("interviewSimulator.emptyAction")}
-            actionHref="/internships"
-          />
+          error ? (
+            <Card className="p-5 sm:p-6">
+              <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+            </Card>
+          ) : (
+            <EmptyState
+              title={t("interviewSimulator.emptyTitle")}
+              description={t("interviewSimulator.emptyDescription")}
+              actionLabel={t("interviewSimulator.emptyAction")}
+              actionHref="/internships"
+            />
+          )
         ) : (
           <>
             {phase === "setup" ? (
@@ -339,7 +360,7 @@ export function InterviewSimulatorPanel() {
                     value={selectedPositionId}
                     onChange={(event) => setSelectedPositionId(event.target.value)}
                     options={[
-                      { value: "", label: "Select an internship you applied to" },
+                      { value: "", label: t("interviewSimulator.selectPlaceholder") },
                       ...selectOptions,
                     ]}
                   />
@@ -442,13 +463,13 @@ export function InterviewSimulatorPanel() {
                       </p>
                     </div>
 
-                    {pendingNextQuestion ? (
-                      <Button type="button" variant="primary" onClick={handleContinue}>
-                        {t("interviewSimulator.continueButton")}
+                    {sessionComplete || !pendingNextQuestion ? (
+                      <Button type="button" variant="primary" onClick={() => setPhase("complete")}>
+                        {t("interviewSimulator.viewSummaryButton")}
                       </Button>
                     ) : (
-                      <Button type="button" variant="primary" onClick={() => setPhase("complete")}>
-                        {t("interviewSimulator.completeTitle")}
+                      <Button type="button" variant="primary" onClick={handleContinue}>
+                        {t("interviewSimulator.continueButton")}
                       </Button>
                     )}
                   </div>
@@ -490,7 +511,7 @@ export function InterviewSimulatorPanel() {
           </>
         )}
 
-        {error ? (
+        {error && options.length > 0 ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
             {error}
           </p>

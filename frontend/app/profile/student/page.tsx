@@ -936,7 +936,7 @@ export default function StudentProfilePage() {
                   type="submit"
                   variant="primary"
                   disabled={loading || saving}
-                  className="w-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3 shadow-md shadow-violet-300/40 hover:from-violet-700 hover:to-fuchsia-700 sm:w-auto sm:px-8"
+                  className="w-full rounded-full py-3 sm:w-auto sm:px-8"
                 >
                   {saving ? t("profile.student.saving") : t("profile.student.saveChanges")}
                 </Button>

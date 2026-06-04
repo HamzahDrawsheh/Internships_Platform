@@ -455,7 +455,7 @@ export default function SupervisorProfilePage() {
                   type="submit"
                   variant="primary"
                   disabled={saving}
-                  className="w-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3 shadow-md shadow-violet-300/40 hover:from-violet-700 hover:to-fuchsia-700 sm:w-auto sm:px-8"
+                  className="w-full rounded-full py-3 sm:w-auto sm:px-8"
                 >
                   {saving ? t("supervisor.profile.saving") : t("supervisor.profile.saveChanges")}
                 </Button>

@@ -1,8 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
-import { createClient } from "@/lib/supabase/client";
+import { useLogoutConfirm } from "@/components/auth/LogoutConfirmProvider";
 import { SidebarIcon } from "@/components/layout/SidebarIcon";
 import { NAV_SIDEBAR_ACTION_CLASS } from "@/components/layout/navControlStyles";
 
@@ -12,21 +11,13 @@ type Props = {
 };
 
 export function SidebarLogoutItem({ className = "", onNavigate }: Props) {
-  const router = useRouter();
   const { t } = useI18n();
-
-  const handleLogout = async () => {
-    onNavigate?.();
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/auth/login");
-    router.refresh();
-  };
+  const { requestLogout } = useLogoutConfirm();
 
   return (
     <button
       type="button"
-      onClick={() => void handleLogout()}
+      onClick={() => requestLogout({ beforeSignOut: onNavigate })}
       className={`${NAV_SIDEBAR_ACTION_CLASS} ${className}`}
     >
       <SidebarIcon name="logout" variant="danger" />

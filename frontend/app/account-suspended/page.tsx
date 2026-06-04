@@ -3,14 +3,10 @@
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import { useLogoutConfirm } from "@/components/auth/LogoutConfirmProvider";
 
 export default function AccountSuspendedPage() {
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/auth/login";
-  };
+  const { requestLogout } = useLogoutConfirm();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-950">
@@ -22,7 +18,7 @@ export default function AccountSuspendedPage() {
             mistake.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Button variant="secondary" onClick={() => void handleLogout()}>
+            <Button variant="secondary" onClick={() => requestLogout()}>
               Sign out
             </Button>
             <Link href="/">

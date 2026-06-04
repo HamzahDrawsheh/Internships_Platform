@@ -406,3 +406,95 @@ export function buildStudentSuggestionSlides(input: {
 
   return pickTopSuggestionSlides(slides, fingerprint);
 }
+
+const DASHBOARD_CAROUSEL_SLIDE_COUNT = 3;
+
+/** Fixed 3-slide student dashboard carousel: Ask AI → career → interview practice. */
+export function buildStudentDashboardCarouselSlides(
+  input: Parameters<typeof buildStudentSuggestionSlides>[0] & {
+    labels: Parameters<typeof buildStudentSuggestionSlides>[0]["labels"] & {
+      interviewTitle: string;
+      interviewBody: string;
+      interviewIncludes: string;
+      interviewBullet1: string;
+      interviewBullet2: string;
+      interviewBullet3: string;
+      interviewCta: string;
+    };
+  },
+): SuggestionSlide[] {
+  const tokens = normTokens([
+    ...input.technicalSkills,
+    ...input.softSkills,
+    ...input.takenCourses,
+    ...input.customCourses,
+    input.preferredField ?? "",
+    input.major ?? "",
+  ]);
+
+  const careers = scoreCareerCandidates(tokens, {
+    preferredField: input.preferredField,
+    major: input.major,
+    preferredWorkType: input.preferredWorkType,
+    preferredLocation: input.preferredLocation,
+    labels: input.labels,
+  });
+  const primaryCareer = careers[0];
+
+  const slides: SuggestionSlide[] = [
+    {
+      id: "assistant",
+      title: input.labels.assistantTitle,
+      body: input.labels.assistantBody,
+      cta: input.labels.assistantCta,
+      action: "assistant",
+      priority: 100,
+    },
+    primaryCareer
+      ? {
+          id: `career-${primaryCareer.id}`,
+          title: input.labels.careerTitle,
+          body: primaryCareer.title,
+          bullets: primaryCareer.reasons,
+          href: "/internships",
+          cta: input.labels.stepBrowseCta,
+          action: "link",
+          priority: 90,
+        }
+      : {
+          id: "career-general",
+          title: input.labels.careerTitle,
+          body: input.labels.careerGeneralTitle,
+          bullets: [
+            input.labels.careerGeneralReasonProfile,
+            tokens.length > 0
+              ? input.labels.careerGeneralReasonCount.replace(
+                  "{{count}}",
+                  String(tokens.length),
+                )
+              : input.labels.careerGeneralReasonAddSkills,
+            input.labels.careerGeneralReasonBrowse,
+          ],
+          href: "/internships",
+          cta: input.labels.stepBrowseCta,
+          action: "link",
+          priority: 90,
+        },
+    {
+      id: "interview-simulator",
+      title: input.labels.interviewTitle,
+      body: input.labels.interviewBody,
+      bullets: [
+        input.labels.interviewBullet1,
+        input.labels.interviewBullet2,
+        input.labels.interviewBullet3,
+      ],
+      href: "/dashboard/student/interview-simulator",
+      cta: input.labels.interviewCta,
+      action: "link",
+      priority: 80,
+    },
+  ];
+
+  return slides.slice(0, DASHBOARD_CAROUSEL_SLIDE_COUNT);
+}

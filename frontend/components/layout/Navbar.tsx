@@ -10,16 +10,22 @@ import NotificationsDropdown from "@/components/layout/NotificationsDropdown";
 import { LandingHomeNav } from "@/components/landing/LandingHomeNav";
 import { AppBrand } from "@/components/layout/AppBrand";
 import { SidebarIcon } from "@/components/layout/SidebarIcon";
-import { NAVBAR_CLASS, NAVBAR_HEIGHT_CLASS } from "@/components/layout/RoleShell";
+import {
+  NAVBAR_CLASS,
+  NAVBAR_HEIGHT_CLASS,
+  NAVBAR_SPACER_WITH_SEARCH_CLASS,
+} from "@/components/layout/RoleShell";
 import { useI18n } from "@/lib/i18n/context";
 import { getRoleDashboardPath } from "@/lib/role-home";
 import { createClient } from "@/lib/supabase/client";
+import { RoleNavbarSearch } from "@/components/layout/RoleNavbarSearch";
 import { NAV_ICON_BUTTON_CLASS } from "@/components/layout/navControlStyles";
 import type { ProfileRole } from "@/lib/types";
 
 export default function Navbar() {
   const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<ProfileRole | null>(null);
   const [homeHref, setHomeHref] = useState("/onboarding");
   const [themeMounted, setThemeMounted] = useState(false);
   const roleResolvedRef = useRef(false);
@@ -52,11 +58,13 @@ export default function Navbar() {
           console.error("navbar getSession error:", sessionError);
         }
         setIsAuthenticated(false);
+        setUserRole(null);
         return;
       }
 
       if (!session?.user) {
         setIsAuthenticated(false);
+        setUserRole(null);
         return;
       }
       setIsAuthenticated(true);
@@ -67,7 +75,9 @@ export default function Navbar() {
         .eq("id", session.user.id)
         .maybeSingle();
 
-      setHomeHref(getRoleDashboardPath(profile?.role as ProfileRole | undefined));
+      const role = profile?.role as ProfileRole | undefined;
+      setUserRole(role ?? null);
+      setHomeHref(getRoleDashboardPath(role));
     };
 
     resolveHomeHref();
@@ -79,18 +89,41 @@ export default function Navbar() {
 
   if (pathname?.startsWith("/auth")) return null;
 
+  const showNavbarSearch = !isHomePage && isAuthenticated && Boolean(userRole);
+
   return (
     <>
-      <nav id="site-navbar" data-i18n-skip dir="ltr" className={`${NAVBAR_CLASS} ${NAVBAR_HEIGHT_CLASS}`}>
-        <div className={`flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`}>
-        <div className="flex shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3">
+      <nav
+        id="site-navbar"
+        data-i18n-skip
+        dir="ltr"
+        className={`${NAVBAR_CLASS} ${showNavbarSearch ? "" : NAVBAR_HEIGHT_CLASS}`}
+      >
+        <div
+          className={
+            showNavbarSearch
+              ? "grid w-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[4rem_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-x-4"
+              : `flex ${NAVBAR_HEIGHT_CLASS} w-full items-center gap-2 sm:gap-4`
+          }
+        >
+        <div className="flex h-16 shrink-0 items-center gap-2 ps-2 sm:gap-3 sm:ps-3 md:col-start-1 md:row-start-1">
           <div id="navbar-sidebar-toggle-slot" className="flex items-center" />
           <AppBrand href={brandHref} className="shrink-0" />
         </div>
 
-        {isHomePage ? <LandingHomeNav /> : <div className="hidden flex-1 lg:block" aria-hidden />}
+        {isHomePage ? (
+          <div className="col-span-2 flex h-16 items-center md:col-span-1 md:col-start-2">
+            <LandingHomeNav />
+          </div>
+        ) : showNavbarSearch ? (
+          <div className="col-span-2 min-w-0 border-t border-slate-200 px-3 pb-3 pt-2 dark:border-slate-800 md:col-span-1 md:col-start-2 md:row-start-1 md:border-t-0 md:px-0 md:pb-0 md:pt-0">
+            <RoleNavbarSearch key={userRole} role={userRole!} />
+          </div>
+        ) : (
+          <div className="hidden flex-1 lg:block" aria-hidden />
+        )}
 
-        <div className="ms-auto flex shrink-0 items-center gap-2 pe-2 sm:gap-3 sm:pe-3 lg:pe-4">
+        <div className="flex h-16 shrink-0 items-center justify-end gap-2 pe-2 sm:gap-3 sm:pe-3 md:col-start-3 md:row-start-1 lg:pe-4">
             <LanguageToggle />
 
             <button
@@ -138,7 +171,10 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
-      <div className={NAVBAR_HEIGHT_CLASS} aria-hidden />
+      <div
+        className={showNavbarSearch ? NAVBAR_SPACER_WITH_SEARCH_CLASS : NAVBAR_HEIGHT_CLASS}
+        aria-hidden
+      />
     </>
   );
 }

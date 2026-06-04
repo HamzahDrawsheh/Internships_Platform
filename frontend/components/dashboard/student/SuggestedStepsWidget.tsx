@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CyclicWidget } from "@/components/dashboard/CyclicWidget";
 import { Button } from "@/components/ui";
 import { openStudentAssistant } from "@/lib/ai/open-student-assistant";
-import { buildStudentSuggestionSlides } from "@/lib/dashboard/student-career-hints";
+import { buildStudentDashboardCarouselSlides } from "@/lib/dashboard/student-career-hints";
 import {
   fetchStudentProfileSnapshot,
   type StudentProfileSnapshot,
@@ -15,8 +15,9 @@ import { useI18n } from "@/lib/i18n/context";
 
 type Props = Partial<StudentProfileSnapshot>;
 
-function slideKind(id: string): "step" | "career" | "tip" | "help" {
-  if (id.startsWith("career-") || id === "skills-spotlight") return "career";
+function slideKind(id: string): "step" | "career" | "tip" | "help" | "practice" {
+  if (id === "interview-simulator") return "practice";
+  if (id.startsWith("career-")) return "career";
   if (id === "assistant") return "help";
   if (id === "profile" || id === "cv" || id === "browse" || id === "pending-apps") return "step";
   return "tip";
@@ -92,6 +93,13 @@ function buildLabels(t: (key: string) => string) {
     careerGeneralReasonAddSkills: w("careerGeneralReasonAddSkills"),
     careerGeneralReasonBrowse: w("careerGeneralReasonBrowse"),
     careerReasonPref: w("careerReasonPref"),
+    interviewTitle: t("interviewSimulator.pageTitle"),
+    interviewBody: t("interviewSimulator.pageDescription"),
+    interviewIncludes: w("interviewIncludes"),
+    interviewBullet1: w("interviewBullet1"),
+    interviewBullet2: w("interviewBullet2"),
+    interviewBullet3: w("interviewBullet3"),
+    interviewCta: t("interviewSimulator.startButton"),
   };
 }
 
@@ -133,7 +141,7 @@ export function SuggestedStepsWidget(fallbackProps: Props = {}) {
   );
 
   const suggestionSlides = useMemo(
-    () => buildStudentSuggestionSlides({ ...profile, labels }),
+    () => buildStudentDashboardCarouselSlides({ ...profile, labels }),
     [profile, labels],
   );
 
@@ -142,25 +150,45 @@ export function SuggestedStepsWidget(fallbackProps: Props = {}) {
       suggestionSlides.map((slide) => {
         const kind = slideKind(slide.id);
         const badge =
-          kind === "career"
-            ? t("dashboard.student.widgets.suggestedForYou")
-            : kind === "step"
-              ? t("dashboard.student.widgets.nextStep")
-              : kind === "help"
-                ? t("dashboard.student.widgets.needHelp")
-                : t("dashboard.student.widgets.smartTip");
+          kind === "practice"
+            ? t("dashboard.student.widgets.interviewBadge")
+            : kind === "career"
+              ? t("dashboard.student.widgets.suggestedForYou")
+              : kind === "step"
+                ? t("dashboard.student.widgets.nextStep")
+                : kind === "help"
+                  ? t("dashboard.student.widgets.needHelp")
+                  : t("dashboard.student.widgets.smartTip");
+
+        const isCareer = kind === "career";
+        const isPractice = kind === "practice";
+        const bulletLabel = isPractice
+          ? t("dashboard.student.widgets.interviewIncludes")
+          : t("dashboard.student.widgets.careerBecause");
+        const bulletDot = isPractice ? "bg-violet-500" : "bg-amber-500";
+        const bulletBorder = isPractice
+          ? "border-violet-200/60 dark:border-violet-500/20"
+          : "border-amber-200/60 dark:border-amber-500/20";
+        const badgeClass =
+          kind === "practice"
+            ? "bg-violet-100 text-violet-900 dark:bg-violet-500/20 dark:text-violet-200"
+            : kind === "help"
+              ? "bg-teal-100 text-teal-900 dark:bg-teal-500/20 dark:text-teal-200"
+              : "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200";
 
         return {
           id: slide.id,
           content: (
             <div className="flex h-full flex-col">
-              <span className="inline-flex w-fit rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+              <span
+                className={`inline-flex w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeClass}`}
+              >
                 {badge}
               </span>
               <h4 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">{slide.title}</h4>
               <p
                 className={`mt-2 text-sm leading-relaxed ${
-                  kind === "career"
+                  isCareer
                     ? "text-lg font-semibold text-amber-900 dark:text-amber-100"
                     : "text-gray-700 dark:text-slate-300"
                 }`}
@@ -168,14 +196,12 @@ export function SuggestedStepsWidget(fallbackProps: Props = {}) {
                 {slide.body}
               </p>
               {slide.bullets?.length ? (
-                <div className="mt-3 rounded-xl border border-amber-200/60 bg-white/70 p-3 dark:border-amber-500/20 dark:bg-slate-900/50">
-                  <p className="text-xs font-semibold text-gray-500 dark:text-slate-400">
-                    {t("dashboard.student.widgets.careerBecause")}
-                  </p>
+                <div className={`mt-3 rounded-xl border bg-white/70 p-3 dark:bg-slate-900/50 ${bulletBorder}`}>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-slate-400">{bulletLabel}</p>
                   <ul className="mt-2 space-y-1.5 text-sm text-gray-600 dark:text-slate-400">
                     {slide.bullets.map((line) => (
                       <li key={line} className="flex gap-2">
-                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-500" aria-hidden />
+                        <span className={`mt-1.5 h-1 w-1 shrink-0 rounded-full ${bulletDot}`} aria-hidden />
                         <span>{line}</span>
                       </li>
                     ))}
@@ -186,8 +212,8 @@ export function SuggestedStepsWidget(fallbackProps: Props = {}) {
                 <div className="mt-auto pt-4">
                   <Button
                     type="button"
-                    variant="primary"
-                    className="w-full rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 shadow-md shadow-teal-500/20 hover:from-teal-700 hover:to-cyan-700"
+                    variant="assistant"
+                    className="w-full"
                     onClick={() => openStudentAssistant()}
                   >
                     {slide.cta}
@@ -196,8 +222,12 @@ export function SuggestedStepsWidget(fallbackProps: Props = {}) {
               ) : slide.href && slide.cta ? (
                 <Link href={slide.href} className="mt-auto pt-4">
                   <Button
-                    variant="secondary"
-                    className="w-full rounded-xl border-amber-200 bg-white hover:bg-amber-50 dark:border-amber-500/30 dark:bg-slate-900 dark:hover:bg-amber-500/10"
+                    variant={isPractice ? "primary" : "secondary"}
+                    className={
+                      isPractice
+                        ? "w-full"
+                        : "w-full border-amber-200 bg-white hover:bg-amber-50 dark:border-amber-500/30 dark:bg-slate-900 dark:hover:bg-amber-500/10"
+                    }
                   >
                     {slide.cta}
                   </Button>

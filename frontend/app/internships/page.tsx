@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { CardGridSkeleton } from "@/components/loading";
@@ -74,6 +75,7 @@ type RecommendedMessageKey =
 
 export default function BrowseInternshipsPage() {
   const { t } = useI18n();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [locationType, setLocationType] = useState("");
   const [skill, setSkill] = useState("");
@@ -115,6 +117,11 @@ export default function BrowseInternshipsPage() {
     null
   );
   const [companyOptions, setCompanyOptions] = useState<SelectOption[]>([{ value: "", label: "" }]);
+
+  useEffect(() => {
+    const q = searchParams.get("search")?.trim();
+    if (q) setSearch(q);
+  }, [searchParams]);
   /** Map internship position id → application status for signed-in student */
   const [studentApplicationByPositionId, setStudentApplicationByPositionId] = useState<
     Record<string, ApplicationStatus>

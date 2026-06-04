@@ -198,13 +198,19 @@ export async function POST(request: Request) {
 
   const contextResult = await loadInterviewContext(supabase, user.id, positionId);
   if ("error" in contextResult) {
+    const clientError =
+      contextResult.error === "student_not_found"
+        ? "student_not_found"
+        : contextResult.error === "application_required" || contextResult.error === "application_error"
+          ? "application_required"
+          : contextResult.error;
     const status =
-      contextResult.error === "application_required"
+      clientError === "application_required"
         ? 403
-        : contextResult.error === "position_not_found" || contextResult.error === "student_not_found"
+        : clientError === "position_not_found" || clientError === "student_not_found"
           ? 404
           : 500;
-    return NextResponse.json({ ok: false, error: contextResult.error }, { status });
+    return NextResponse.json({ ok: false, error: clientError }, { status });
   }
 
   const { student, internship } = contextResult;
