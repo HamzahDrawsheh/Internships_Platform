@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
 import { CardGridSkeleton } from "@/components/loading";
 import { Input, Select, Button, EmptyState, SearchBar } from "@/components/ui";
@@ -85,7 +85,21 @@ type RecommendedMessageKey =
   | "recNoPrefsMatch"
   | "recNoneAvailable";
 
-export default function BrowseInternshipsPage() {
+function BrowseInternshipsPageFallback() {
+  const { t } = useI18n();
+  return (
+    <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+      <Container>
+        <CardGridSkeleton count={6} />
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" role="status">
+          {t("common.loading")}
+        </p>
+      </Container>
+    </main>
+  );
+}
+
+function BrowseInternshipsPageContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
@@ -1430,5 +1444,13 @@ export default function BrowseInternshipsPage() {
         </div>
       </Container>
     </main>
+  );
+}
+
+export default function BrowseInternshipsPage() {
+  return (
+    <Suspense fallback={<BrowseInternshipsPageFallback />}>
+      <BrowseInternshipsPageContent />
+    </Suspense>
   );
 }
