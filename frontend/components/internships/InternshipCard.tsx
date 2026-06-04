@@ -8,6 +8,9 @@ import { WorkArrangementBadge } from "@/components/internships/WorkArrangementBa
 import { applicationStatusTextClass } from "@/lib/ui/status-text";
 import { useI18n } from "@/lib/i18n/context";
 import type { InternshipListingStatus } from "@/lib/internships/application-deadline";
+import { BrowseLearningPlanSnippet } from "@/components/internships/BrowseLearningPlanSnippet";
+import type { LearningPlanEntry } from "@/lib/skill-match";
+import type { ImprovementFallbackKey } from "@/lib/recommendations/match-score-breakdown";
 
 const SKILL_CHIP_CLASS =
   "rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium leading-snug text-slate-700 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300";
@@ -28,6 +31,12 @@ interface InternshipCardProps {
   /** Student browse: show open vs expired when listingStatus is omitted. */
   openForApplications?: boolean;
   applicationStatus?: ApplicationStatus | null;
+  /** Student browse: missing-skill learning plan preview. */
+  skillGapPreview?: {
+    missingSkillsCount: number;
+    learningPlan: LearningPlanEntry[];
+    improvementFallback?: ImprovementFallbackKey | null;
+  };
 }
 
 export function InternshipCard({
@@ -44,6 +53,7 @@ export function InternshipCard({
   listingStatus,
   openForApplications,
   applicationStatus,
+  skillGapPreview,
 }: InternshipCardProps) {
   const { t } = useI18n();
 
@@ -140,6 +150,17 @@ export function InternshipCard({
               </span>
             ) : null}
           </div>
+
+          {skillGapPreview ? (
+            <BrowseLearningPlanSnippet
+              internshipId={id}
+              missingSkillsCount={skillGapPreview.missingSkillsCount}
+              learningPlan={skillGapPreview.learningPlan}
+              improvementFallback={skillGapPreview.improvementFallback}
+              compact
+              hideDetailLink
+            />
+          ) : null}
 
           <div className="mt-auto flex flex-col gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
             <InternshipScheduleSummary

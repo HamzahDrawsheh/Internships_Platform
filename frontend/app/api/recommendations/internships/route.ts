@@ -6,6 +6,7 @@ import { deriveCompanyLevel, type CompanyLevel } from "@/lib/companies/evaluatio
 import { isInternshipOpenForApplications } from "@/lib/internships/application-deadline";
 import { scoreInternshipMatch, type InternshipMatchResult } from "@/lib/recommendations/internship-match";
 import { parseLocationPrefsFromSearchParams } from "@/lib/recommendations/location-prefs";
+import { createServerTranslator, parseLocaleFromRequest } from "@/lib/i18n/server-locale";
 
 const RECOMMENDATION_CACHE_TTL_MS = 60 * 60 * 1000;
 
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
   const rawLimit = Number(url.searchParams.get("limit"));
   const limit = Number.isFinite(rawLimit) ? Math.min(50, Math.max(1, rawLimit)) : 6;
   const locationPrefs = parseLocationPrefsFromSearchParams(url.searchParams);
+  const t = createServerTranslator(parseLocaleFromRequest(request));
 
   const admin = createAdminClient();
 
@@ -182,6 +184,7 @@ export async function GET(request: Request) {
       studentVec,
       studentSources,
       locationPrefs,
+      t,
     });
     if (match) scored.push(match);
   }

@@ -5,6 +5,7 @@ import { deriveCompanyLevel, type CompanyLevel } from "@/lib/companies/evaluatio
 import { scoreInternshipMatch, type InternshipMatchResult } from "@/lib/recommendations/internship-match";
 import { parseLocationPrefsFromSearchParams } from "@/lib/recommendations/location-prefs";
 import { parsePgVector } from "@/lib/ai/vector-utils";
+import { createServerTranslator, parseLocaleFromRequest } from "@/lib/i18n/server-locale";
 
 export async function GET(
   request: Request,
@@ -107,6 +108,7 @@ export async function GET(
     preferred_field: additional?.preferred_field ?? undefined,
   };
 
+  const t = createServerTranslator(parseLocaleFromRequest(request));
   const match = scoreInternshipMatch({
     position,
     company: companyWithLevel,
@@ -114,6 +116,7 @@ export async function GET(
     studentVec,
     studentSources,
     locationPrefs,
+    t,
   });
 
   if (!match) {

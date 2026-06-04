@@ -361,6 +361,11 @@ export const messages = {
       recMinFilter: "No recommendations match your minimum match filter.",
       recNoneYet: "No recommendations available yet.",
       viewInternship: "View internship",
+      viewFullLearningPlan: "View full learning plan",
+      learningPlanMoreOnDetail: "more steps on the internship page",
+      completeProfileForPlan:
+        "Add your skills, courses, and major to your profile so we can suggest a learning plan while you browse internships.",
+      completeProfileCta: "Complete profile",
       viewRole: "View role",
       posted: "Posted",
       allInternships: "All internships",
@@ -1049,6 +1054,11 @@ export const messages = {
       recMinFilter: "لا توجد توصيات تطابق الحد الأدنى للتطابق.",
       recNoneYet: "لا توجد توصيات متاحة بعد.",
       viewInternship: "عرض التدريب",
+      viewFullLearningPlan: "عرض خطة التعلم الكاملة",
+      learningPlanMoreOnDetail: "المزيد من الخطوات في صفحة التدريب",
+      completeProfileForPlan:
+        "أضف مهاراتك ومقرراتك وتخصصك إلى ملفك حتى نتمكن من اقتراح خطة تعلم أثناء تصفح التدريبات.",
+      completeProfileCta: "إكمال الملف",
       viewRole: "عرض الدور",
       posted: "نُشر",
       allInternships: "كل التدريبات",

@@ -15,7 +15,14 @@ import {
 } from "@/lib/internships/application-deadline";
 import { useI18n } from "@/lib/i18n/context";
 import { fmt } from "@/lib/i18n/format";
-import { formatMissingSkillsCount, type SkillGapAnalysis } from "@/lib/skill-match";
+import {
+  analyzeSkillGapWithPlan,
+  formatMissingSkillsCount,
+  type SkillGapAnalysis,
+  type SkillGapStudentInput,
+  type LearningPlanEntry,
+} from "@/lib/skill-match";
+import { BrowseLearningPlanSnippet } from "@/components/internships/BrowseLearningPlanSnippet";
 import type { MatchScoreBreakdown } from "@/lib/recommendations/match-score-breakdown";
 import {
   JORDAN_CITY_OPTIONS,
@@ -45,7 +52,12 @@ type RecommendationMatchInsights = {
 
 type RecommendationSkillGap = Pick<
   SkillGapAnalysis,
-  "matchedSkills" | "missingSkills" | "missingSkillsCount" | "hasDetectableInternshipSkills"
+  | "matchedSkills"
+  | "missingSkills"
+  | "missingSkillsCount"
+  | "hasDetectableInternshipSkills"
+  | "learningPlan"
+  | "studentSkillCount"
 >;
 
 type RecommendedInternship = {
@@ -100,6 +112,7 @@ export default function BrowseInternshipsPage() {
       title: string;
       location: string | null;
       requirements: string | null;
+      description?: string | null;
       created_at: string;
       application_deadline: string | null;
       start_date: string | null;
@@ -119,6 +132,8 @@ export default function BrowseInternshipsPage() {
   const [studentApplicationByPositionId, setStudentApplicationByPositionId] = useState<
     Record<string, ApplicationStatus>
   >({});
+  const [isStudentViewer, setIsStudentViewer] = useState(false);
+  const [studentSkillSources, setStudentSkillSources] = useState<SkillGapStudentInput | null>(null);
 
   const clearFilters = () => {
     setSearch("");
@@ -197,21 +212,49 @@ export default function BrowseInternshipsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
+        setIsStudentViewer(false);
+        setStudentSkillSources(null);
         setStudentApplicationByPositionId({});
         return;
       }
 
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
       if (profile?.role !== "student") {
+        setIsStudentViewer(false);
+        setStudentSkillSources(null);
         setStudentApplicationByPositionId({});
         return;
       }
 
-      const { data: student } = await supabase.from("students").select("id").eq("user_id", user.id).maybeSingle();
+      setIsStudentViewer(true);
+
+      const { data: student } = await supabase
+        .from("students")
+        .select("id, skills, major, department")
+        .eq("user_id", user.id)
+        .maybeSingle();
       if (!student?.id) {
+        setStudentSkillSources(null);
         setStudentApplicationByPositionId({});
         return;
       }
+
+      const { data: additional } = await supabase
+        .from("student_additional_info")
+        .select("technical_skills, soft_skills, taken_courses, custom_courses, preferred_field")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      setStudentSkillSources({
+        skills: student.skills,
+        major: student.major,
+        department: student.department,
+        technical_skills: additional?.technical_skills ?? [],
+        soft_skills: additional?.soft_skills ?? [],
+        taken_courses: additional?.taken_courses ?? [],
+        custom_courses: additional?.custom_courses ?? [],
+        preferred_field: additional?.preferred_field ?? null,
+      });
 
       await invokeAutoCompleteExpiredTrainings(supabase);
       await invokeExpireStaleApplicationCommitments(supabase);
@@ -369,6 +412,8 @@ export default function BrowseInternshipsPage() {
                   missingSkills: row.skill_gap.missingSkills ?? [],
                   missingSkillsCount: row.skill_gap.missingSkillsCount ?? 0,
                   hasDetectableInternshipSkills: row.skill_gap.hasDetectableInternshipSkills ?? false,
+                  learningPlan: (row.skill_gap.learningPlan ?? []) as LearningPlanEntry[],
+                  studentSkillCount: row.skill_gap.studentSkillCount ?? 0,
                 },
               }
             : {}),
@@ -406,7 +451,7 @@ export default function BrowseInternshipsPage() {
 
       let query = supabase
         .from("internship_positions")
-        .select("id, title, location, requirements, created_at, application_deadline, start_date, end_date, company_id")
+        .select("id, title, location, requirements, description, created_at, application_deadline, start_date, end_date, company_id")
         .eq("is_active", true)
         .order("created_at", { ascending: sort === "oldest" });
 
@@ -500,27 +545,65 @@ export default function BrowseInternshipsPage() {
 
   const cards = useMemo(
     () =>
-      rows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        companyName: row.company_name ?? t("browse.companyFallback"),
-        companyLogoUrl: row.company_logo_url ?? undefined,
-        locationType: row.location ?? undefined,
-        skills: row.requirements
-          ? row.requirements
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [],
-        startDate: row.start_date,
-        endDate: row.end_date,
-        applicationDeadline: row.application_deadline,
-        isExpired: isApplicationDeadlinePassed(row.application_deadline),
-        openForApplications: !isApplicationDeadlinePassed(row.application_deadline),
-        applicationStatus: studentApplicationByPositionId[row.id] ?? null,
-      })),
-    [rows, studentApplicationByPositionId]
+      rows.map((row) => {
+        let skillGapPreview:
+          | {
+              missingSkillsCount: number;
+              learningPlan: LearningPlanEntry[];
+              improvementFallback?: "add_profile" | null;
+            }
+          | undefined;
+
+        if (isStudentViewer && studentSkillSources) {
+          const gap = analyzeSkillGapWithPlan(
+            studentSkillSources,
+            {
+              requirements: row.requirements,
+              description: row.description ?? null,
+            },
+            t
+          );
+          const showPlan =
+            gap.missingSkillsCount > 0 ||
+            gap.learningPlan.length > 0 ||
+            gap.studentSkillCount === 0;
+          if (showPlan) {
+            skillGapPreview = {
+              missingSkillsCount: gap.missingSkillsCount,
+              learningPlan: gap.learningPlan,
+              improvementFallback: gap.studentSkillCount === 0 ? "add_profile" : null,
+            };
+          }
+        }
+
+        return {
+          id: row.id,
+          title: row.title,
+          companyName: row.company_name ?? t("browse.companyFallback"),
+          companyLogoUrl: row.company_logo_url ?? undefined,
+          locationType: row.location ?? undefined,
+          skills: row.requirements
+            ? row.requirements
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [],
+          startDate: row.start_date,
+          endDate: row.end_date,
+          applicationDeadline: row.application_deadline,
+          isExpired: isApplicationDeadlinePassed(row.application_deadline),
+          openForApplications: !isApplicationDeadlinePassed(row.application_deadline),
+          applicationStatus: studentApplicationByPositionId[row.id] ?? null,
+          skillGapPreview,
+        };
+      }),
+    [rows, studentApplicationByPositionId, isStudentViewer, studentSkillSources, t]
   );
+
+  const studentProfileThin = useMemo(() => {
+    if (!isStudentViewer || !studentSkillSources) return false;
+    return analyzeSkillGapWithPlan(studentSkillSources, {}, t).studentSkillCount === 0;
+  }, [isStudentViewer, studentSkillSources, t]);
 
   const recommendedApplicationLabel = (status: ApplicationStatus): string => {
     switch (status) {
@@ -989,6 +1072,22 @@ export default function BrowseInternshipsPage() {
             ) : null}
           </div>
 
+          {(studentProfileThin || recommendedMessageKey === "recPreparing") && (
+            <div className="relative mt-4 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <p className="text-sm text-amber-950 dark:text-amber-100">
+                {recommendedMessageKey === "recPreparing"
+                  ? t("browse.recPreparing")
+                  : t("browse.completeProfileForPlan")}
+              </p>
+              <Link
+                href="/profile/student"
+                className="mt-2 inline-block text-sm font-semibold text-violet-700 hover:text-violet-900 dark:text-violet-300"
+              >
+                {t("browse.completeProfileCta")} →
+              </Link>
+            </div>
+          )}
+
           <div className="relative mt-5 rounded-xl border border-violet-200/70 bg-white/80 p-4 dark:border-violet-500/25 dark:bg-slate-900/60">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">{t("browse.recPrefsTitle")}</p>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t("browse.recPrefsHint")}</p>
@@ -1223,6 +1322,21 @@ export default function BrowseInternshipsPage() {
                         </div>
                       );
                     })()}
+                    {(item.skill_gap?.learningPlan?.length ?? 0) > 0 ||
+                    (item.skill_gap?.missingSkillsCount ?? 0) > 0 ||
+                    item.score_breakdown?.improvement_fallback ||
+                    (item.skill_gap?.studentSkillCount ?? 0) === 0 ? (
+                      <BrowseLearningPlanSnippet
+                        internshipId={item.internship_id}
+                        missingSkillsCount={item.skill_gap?.missingSkillsCount ?? 0}
+                        learningPlan={item.skill_gap?.learningPlan ?? []}
+                        improvementFallback={
+                          item.score_breakdown?.improvement_fallback ??
+                          ((item.skill_gap?.studentSkillCount ?? 0) === 0 ? "add_profile" : null)
+                        }
+                        compact
+                      />
+                    ) : null}
                     <Link
                       href={`/internships/${item.internship_id}`}
                       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-violet-300/40 transition-all hover:from-violet-700 hover:to-fuchsia-700 hover:shadow-lg dark:shadow-violet-900/40"
@@ -1284,6 +1398,7 @@ export default function BrowseInternshipsPage() {
                     isExpired={card.isExpired}
                     openForApplications={card.openForApplications}
                     applicationStatus={card.applicationStatus ?? undefined}
+                    skillGapPreview={card.skillGapPreview}
                   />
                 ))}
               </div>
