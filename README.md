@@ -1,4 +1,4 @@
-# InternConnect Jordan
+# InternConnect Jordan https://intrenshipsplatform-iota.vercel.app/
 
 InternConnect Jordan is a web platform that connects AI and Data Science students in Jordan with companies offering internships.
 
